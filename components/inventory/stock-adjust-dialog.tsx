@@ -1,0 +1,165 @@
+"use client";
+
+import { useState } from "react";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+
+interface Product {
+  id: string;
+  name: string;
+  unit: string;
+  stockQty: number;
+}
+
+interface StockAdjustDialogProps {
+  open: boolean;
+  product: Product | null;
+  onClose: () => void;
+  onSave: () => void;
+}
+
+const MOVEMENT_TYPES = [
+  { value: "RESTOCK", label: "Restock (add stock)" },
+  { value: "ADJUSTMENT", label: "Adjustment (correction)" },
+  { value: "RETURN", label: "Customer Return (add back)" },
+];
+
+export function StockAdjustDialog({ open, product, onClose, onSave }: StockAdjustDialogProps) {
+  const [loading, setLoading] = useState(false);
+  const [type, setType] = useState("RESTOCK");
+  const [quantity, setQuantity] = useState("");
+  const [note, setNote] = useState("");
+
+  function reset() {
+    setType("RESTOCK");
+    setQuantity("");
+    setNote("");
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!product || !quantity) return;
+
+    const qty = parseFloat(quantity);
+    if (isNaN(qty) || qty <= 0) {
+      toast.error("Please enter a valid quantity");
+      return;
+    }
+
+    if (type === "ADJUSTMENT" && !note) {
+      toast.error("Please provide a reason for the adjustment");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/products/adjust-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: product.id, type, quantity: qty, note }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to adjust stock");
+        return;
+      }
+
+      toast.success(`Stock updated — new level: ${data.newStock} ${product.unit}`);
+      reset();
+      onSave();
+    } catch {
+      toast.error("Failed to adjust stock");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose(); } }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Adjust Stock</DialogTitle>
+          <DialogDescription>
+            {product?.name} — current stock:{" "}
+            <span className="font-semibold font-mono">{Number(product?.stockQty ?? 0)} {product?.unit}</span>
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="type">Adjustment Type</Label>
+            <Select value={type} onValueChange={(v) => v && setType(v)}>
+              <SelectTrigger id="type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MOVEMENT_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="qty">Quantity ({product?.unit})</Label>
+            <Input
+              id="qty"
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder="0"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              required
+              className="font-mono"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="note">
+              Note {type === "ADJUSTMENT" ? "*" : "(optional)"}
+            </Label>
+            <Textarea
+              id="note"
+              placeholder={
+                type === "RESTOCK"
+                  ? "e.g. New delivery from Maliban"
+                  : type === "ADJUSTMENT"
+                  ? "Reason for adjustment (required)"
+                  : "e.g. Customer returned damaged item"
+              }
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+              required={type === "ADJUSTMENT"}
+            />
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => { reset(); onClose(); }} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading} className="font-semibold">
+              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Update Stock
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

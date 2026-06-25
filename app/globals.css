@@ -1,0 +1,204 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+
+  /* StoreMate brand extras */
+  --color-brand-success: var(--brand-success);
+  --color-brand-warning: var(--brand-warning);
+  --color-brand-danger: var(--brand-danger);
+  --color-brand-info: var(--brand-info);
+  --color-cta: var(--cta);
+  --color-cta-foreground: var(--cta-foreground);
+}
+
+/* ===== StoreMate Design System — Light Mode ===== */
+:root {
+  --radius: 0.625rem;
+
+  /* Page/surface backgrounds */
+  --background: oklch(0.98 0 0);         /* #F9FAFB */
+  --foreground: oklch(0.14 0.01 264);    /* #111827 */
+
+  /* Cards / surfaces */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.14 0.01 264);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.14 0.01 264);
+
+  /* Primary brand — deep green (trust, growth) */
+  --primary: oklch(0.62 0.15 156);       /* #2DA86B */
+  --primary-foreground: oklch(1 0 0);
+
+  /* Secondary — light neutrals */
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.28 0.01 264);
+
+  /* Muted */
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.50 0.01 264);  /* #6B7280 */
+
+  /* Accent — orange CTA (energetic, draws eye) */
+  --accent: oklch(0.96 0.04 65);         /* #FFEDD5 light */
+  --accent-foreground: oklch(0.52 0.19 39); /* #C2410C */
+
+  /* Destructive / danger */
+  --destructive: oklch(0.55 0.22 27);    /* #DC2626 */
+
+  /* Borders / inputs */
+  --border: oklch(0.92 0 0);             /* #E5E7EB */
+  --input: oklch(0.92 0 0);
+  --ring: oklch(0.62 0.15 156);          /* matches primary */
+
+  /* Chart colors — themed to brand */
+  --chart-1: oklch(0.62 0.15 156);      /* green */
+  --chart-2: oklch(0.62 0.22 39);       /* orange */
+  --chart-3: oklch(0.60 0.15 220);      /* blue */
+  --chart-4: oklch(0.65 0.15 95);       /* teal */
+  --chart-5: oklch(0.50 0.01 264);      /* gray */
+
+  /* Sidebar */
+  --sidebar: oklch(0.24 0.06 160);      /* #0F3D2E deep green */
+  --sidebar-foreground: oklch(0.95 0.02 156);
+  --sidebar-primary: oklch(0.62 0.15 156);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.32 0.08 158);
+  --sidebar-accent-foreground: oklch(0.95 0.02 156);
+  --sidebar-border: oklch(0.30 0.06 160);
+  --sidebar-ring: oklch(0.62 0.15 156);
+
+  /* Semantic extras */
+  --brand-success: oklch(0.52 0.16 145); /* #16A34A */
+  --brand-warning: oklch(0.62 0.15 70);  /* #D97706 */
+  --brand-danger: oklch(0.55 0.22 27);   /* #DC2626 */
+  --brand-info: oklch(0.52 0.19 249);    /* #2563EB */
+
+  /* CTA button — orange */
+  --cta: oklch(0.62 0.22 39);           /* #EA580C */
+  --cta-foreground: oklch(1 0 0);
+}
+
+/* ===== Dark Mode ===== */
+.dark {
+  --background: oklch(0.10 0.01 160);   /* near-black with green tint */
+  --foreground: oklch(0.95 0.01 0);
+
+  --card: oklch(0.15 0.02 160);
+  --card-foreground: oklch(0.95 0.01 0);
+  --popover: oklch(0.15 0.02 160);
+  --popover-foreground: oklch(0.95 0.01 0);
+
+  --primary: oklch(0.72 0.15 156);      /* brighter green for dark mode */
+  --primary-foreground: oklch(0.10 0.02 160);
+
+  --secondary: oklch(0.20 0.02 160);
+  --secondary-foreground: oklch(0.95 0.01 0);
+
+  --muted: oklch(0.20 0.02 160);
+  --muted-foreground: oklch(0.65 0.01 0);
+
+  --accent: oklch(0.30 0.06 40);
+  --accent-foreground: oklch(0.80 0.12 39);
+
+  --destructive: oklch(0.65 0.22 25);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.72 0.15 156);
+
+  --chart-1: oklch(0.72 0.15 156);
+  --chart-2: oklch(0.72 0.22 39);
+  --chart-3: oklch(0.70 0.15 220);
+  --chart-4: oklch(0.70 0.15 95);
+  --chart-5: oklch(0.65 0.01 0);
+
+  --sidebar: oklch(0.12 0.02 160);
+  --sidebar-foreground: oklch(0.90 0.02 156);
+  --sidebar-primary: oklch(0.72 0.15 156);
+  --sidebar-primary-foreground: oklch(0.10 0.02 160);
+  --sidebar-accent: oklch(0.20 0.04 158);
+  --sidebar-accent-foreground: oklch(0.90 0.02 156);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.72 0.15 156);
+
+  --brand-success: oklch(0.65 0.16 145);
+  --brand-warning: oklch(0.72 0.15 70);
+  --brand-danger: oklch(0.65 0.22 25);
+  --brand-info: oklch(0.65 0.19 249);
+
+  --cta: oklch(0.72 0.22 39);
+  --cta-foreground: oklch(1 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* ===== Print styles for 80mm thermal receipt ===== */
+@media print {
+  @page {
+    margin: 0;
+    size: 80mm auto;
+  }
+  body {
+    width: 80mm;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 12px;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .receipt-only {
+    display: block !important;
+  }
+}

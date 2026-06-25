@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ShopCategory {
+  GROCERY
+  PHARMACY
+  CLOTHING
+  HARDWARE
+  OTHER
+}
+
+enum PlanTier {
+  BASIC
+  STANDARD
+  PREMIUM
+}
+
+enum Role {
+  OWNER
+  CASHIER
+}
+
+enum MovementType {
+  SALE
+  RESTOCK
+  ADJUSTMENT
+  RETURN
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  ONLINE
+  CREDIT
+}
+
+enum SaleStatus {
+  COMPLETED
+  REFUNDED
+  VOIDED
+}
+
+model Shop {
+  id          String       @id @default(cuid())
+  name        String
+  ownerName   String
+  phone       String       @unique
+  category    ShopCategory
+  address     String?
+  planTier    PlanTier     @default(BASIC)
+  trialEndsAt DateTime?
+  createdAt   DateTime     @default(now())
+  users       User[]
+  products    Product[]
+  sales       Sale[]
+  customers   Customer[]
+  expenses    Expense[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  shopId       String
+  shop         Shop     @relation(fields: [shopId], references: [id])
+  name         String
+  phone        String   @unique
+  passwordHash String
+  role         Role     @default(OWNER)
+  createdAt    DateTime @default(now())
+}
+
+model Product {
+  id         String          @id @default(cuid())
+  shopId     String
+  shop       Shop            @relation(fields: [shopId], references: [id])
+  name       String
+  sku        String?
+  category   String?
+  unit       String          @default("pcs")
+  costPrice  Decimal         @db.Decimal(10, 2)
+  sellPrice  Decimal         @db.Decimal(10, 2)
+  stockQty   Decimal         @db.Decimal(10, 2) @default(0)
+  lowStockAt Decimal         @db.Decimal(10, 2) @default(5)
+  imageUrl   String?
+  isActive   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  movements  StockMovement[]
+  saleItems  SaleItem[]
+
+  @@index([shopId])
+  @@unique([shopId, sku])
+}
+
+model StockMovement {
+  id        String       @id @default(cuid())
+  productId String
+  product   Product      @relation(fields: [productId], references: [id])
+  type      MovementType
+  quantity  Decimal      @db.Decimal(10, 2)
+  note      String?
+  createdAt DateTime     @default(now())
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  shopId        String
+  shop          Shop     @relation(fields: [shopId], references: [id])
+  name          String
+  phone         String?
+  address       String?
+  creditBalance Decimal  @db.Decimal(10, 2) @default(0)
+  totalSpent    Decimal  @db.Decimal(10, 2) @default(0)
+  sales         Sale[]
+  createdAt     DateTime @default(now())
+
+  @@index([shopId])
+}
+
+model Sale {
+  id            String        @id @default(cuid())
+  shopId        String
+  shop          Shop          @relation(fields: [shopId], references: [id])
+  customerId    String?
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  userId        String
+  items         SaleItem[]
+  subtotal      Decimal       @db.Decimal(10, 2)
+  discount      Decimal       @db.Decimal(10, 2) @default(0)
+  total         Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  amountPaid    Decimal       @db.Decimal(10, 2)
+  status        SaleStatus    @default(COMPLETED)
+  createdAt     DateTime      @default(now())
+
+  @@index([shopId, createdAt])
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Decimal @db.Decimal(10, 2)
+  unitPrice Decimal @db.Decimal(10, 2)
+  lineTotal Decimal @db.Decimal(10, 2)
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  category    String
+  amount      Decimal  @db.Decimal(10, 2)
+  note        String?
+  receiptUrl  String?
+  expenseDate DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([shopId, expenseDate])
+}
