@@ -186,7 +186,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { href: "/pos", label: "New Sale", icon: ShoppingCart },
-          { href: "/inventory/add", label: "Add Product", icon: Package },
+          { href: "/inventory", label: "Add Product", icon: Package },
           { href: "/reports", label: "View Reports", icon: BarChart3 },
           { href: "/customers", label: "Customers", icon: TrendingUp },
         ].map(({ href, label, icon: Icon }) => (

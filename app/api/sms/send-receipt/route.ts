@@ -1,0 +1,42 @@
+import { NextRequest } from "next/server";
+import { db } from "@/lib/db";
+import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
+import { sendSmsAndLog, buildReceiptMessage } from "@/lib/sms";
+import { SmsType } from "@/lib/generated/prisma/enums";
+
+export async function POST(req: NextRequest) {
+  try {
+    const shopId = await getShopId();
+    const { saleId } = await req.json();
+    if (!saleId) return apiError("saleId is required");
+
+    const shop = await db.shop.findUnique({
+      where: { id: shopId },
+      select: { name: true, smsReceiptEnabled: true },
+    });
+    if (!shop) return apiError("Shop not found", 404);
+    if (!shop.smsReceiptEnabled) return apiError("Receipt SMS is disabled for this shop", 403);
+
+    const sale = await db.sale.findUnique({
+      where: { id: saleId, shopId },
+      include: {
+        items: { include: { product: { select: { name: true } } } },
+        customer: { select: { phone: true } },
+      },
+    });
+    if (!sale) return apiError("Sale not found", 404);
+    if (!sale.customer?.phone) return apiError("Customer has no phone number", 400);
+
+    const message = buildReceiptMessage(
+      shop.name,
+      Number(sale.total),
+      sale.items.map((i) => ({ name: i.product.name, qty: Number(i.quantity) }))
+    );
+    const result = await sendSmsAndLog(shopId, sale.customer.phone, message, SmsType.RECEIPT);
+
+    return Response.json({ success: result.success, error: result.error ?? null });
+  } catch (err) {
+    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    return apiError("Failed to send receipt SMS", 500);
+  }
+}

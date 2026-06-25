@@ -46,21 +46,47 @@ enum SaleStatus {
   VOIDED
 }
 
+enum SmsType {
+  LOW_STOCK
+  DAILY_SUMMARY
+  RECEIPT
+  OTP
+}
+
 model Shop {
-  id          String       @id @default(cuid())
-  name        String
-  ownerName   String
-  phone       String       @unique
-  category    ShopCategory
-  address     String?
-  planTier    PlanTier     @default(BASIC)
-  trialEndsAt DateTime?
-  createdAt   DateTime     @default(now())
-  users       User[]
-  products    Product[]
-  sales       Sale[]
-  customers   Customer[]
-  expenses    Expense[]
+  id                String       @id @default(cuid())
+  name              String
+  ownerName         String
+  phone             String       @unique
+  category          ShopCategory
+  address           String?
+  planTier          PlanTier     @default(BASIC)
+  trialEndsAt       DateTime?
+  smsLowStock       Boolean      @default(true)
+  smsDailySummary   Boolean      @default(true)
+  smsReceiptEnabled Boolean      @default(false)
+  smsMonthlyUsage   Int          @default(0)
+  createdAt         DateTime     @default(now())
+  users             User[]
+  products          Product[]
+  sales             Sale[]
+  customers         Customer[]
+  expenses          Expense[]
+  smsLogs           SmsLog[]
+}
+
+model SmsLog {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  to        String
+  type      SmsType
+  message   String
+  status    String
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([shopId, createdAt])
 }
 
 model User {

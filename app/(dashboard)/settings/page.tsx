@@ -15,6 +15,7 @@ export default async function SettingsPage() {
     select: {
       id: true, name: true, ownerName: true, phone: true,
       category: true, address: true, planTier: true, trialEndsAt: true,
+      smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsMonthlyUsage: true,
     },
   });
 
