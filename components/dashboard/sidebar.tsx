@@ -36,7 +36,11 @@ export function Sidebar({ shopName, onClose }: SidebarProps) {
     <aside className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
       {/* Logo / shop name */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-sidebar-border">
-        <div className="flex items-center gap-3 min-w-0">
+        <Link
+          href="/dashboard"
+          onClick={onClose}
+          className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
+        >
           <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
             <Store className="h-5 w-5 text-primary-foreground" />
           </div>
@@ -44,7 +48,7 @@ export function Sidebar({ shopName, onClose }: SidebarProps) {
             <p className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-wider">StoreMate</p>
             <p className="text-sm font-semibold text-sidebar-foreground truncate">{shopName}</p>
           </div>
-        </div>
+        </Link>
         {onClose && (
           <Button
             variant="ghost"
