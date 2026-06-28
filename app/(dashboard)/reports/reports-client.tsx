@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Download, BarChart3, TrendingUp, CreditCard, Clock } from "lucide-react";
+import { Download, BarChart3, TrendingUp, CreditCard, Clock, TrendingDown } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,9 @@ interface ReportData {
   summary: {
     totalRevenue: number;
     totalSales: number;
+    totalCOGS: number;
+    totalGrossProfit: number;
+    totalExpenses: number;
     totalProfit: number;
     avgOrderValue: number;
   };
@@ -123,11 +126,11 @@ export function ReportsClient() {
               iconColor="text-primary"
             />
             <StatCard
-              title="Gross Profit"
+              title="Net Profit"
               value={formatLKR(data.summary.totalProfit)}
-              icon={TrendingUp}
-              description="Revenue minus cost of goods"
-              iconColor="text-primary"
+              icon={data.summary.totalProfit >= 0 ? TrendingUp : TrendingDown}
+              description="After COGS & expenses"
+              iconColor={data.summary.totalProfit >= 0 ? "text-primary" : "text-destructive"}
             />
             <StatCard
               title="Avg Order Value"
@@ -135,6 +138,35 @@ export function ReportsClient() {
               icon={CreditCard}
               iconColor="text-primary"
             />
+          </div>
+
+          {/* P&L breakdown */}
+          <div className="rounded-xl border bg-card shadow-sm p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Profit & Loss Breakdown</h3>
+            <div className="space-y-2 text-sm max-w-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Revenue</span>
+                <span className="font-mono font-semibold">{formatLKR(data.summary.totalRevenue)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Cost of Goods Sold</span>
+                <span className="font-mono">- {formatLKR(data.summary.totalCOGS)}</span>
+              </div>
+              <div className="flex justify-between border-t pt-2">
+                <span className="font-medium">Gross Profit</span>
+                <span className="font-mono font-semibold">{formatLKR(data.summary.totalGrossProfit)}</span>
+              </div>
+              {data.summary.totalExpenses > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Operating Expenses</span>
+                  <span className="font-mono">- {formatLKR(data.summary.totalExpenses)}</span>
+                </div>
+              )}
+              <div className={`flex justify-between border-t pt-2 font-bold ${data.summary.totalProfit >= 0 ? "text-primary" : "text-destructive"}`}>
+                <span>Net Profit</span>
+                <span className="font-mono">{formatLKR(data.summary.totalProfit)}</span>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -12,6 +12,7 @@ import {
   Store,
   X,
   ShieldCheck,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ const navItems = [
   { href: "/pos", label: "Point of Sale", icon: ShoppingCart },
   { href: "/inventory", label: "Inventory", icon: Package },
   { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: "/sales", label: "Sales History", icon: ClipboardList },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/expenses", label: "Expenses", icon: Receipt },
   { href: "/settings", label: "Settings", icon: Settings },

@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const period = searchParams.get("period") ?? "week";
     const { from, to } = getDateRange(period);
 
-    const [salesRaw, hourlyData] = await Promise.all([
+    const [salesRaw, hourlyData, expensesRaw] = await Promise.all([
       db.sale.findMany({
         where: { shopId, createdAt: { gte: from, lte: to }, status: "COMPLETED" },
         include: {
@@ -61,6 +61,11 @@ export async function GET(req: NextRequest) {
         GROUP BY EXTRACT(HOUR FROM "createdAt")
         ORDER BY hour ASC
       `,
+      db.expense.aggregate({
+        where: { shopId, expenseDate: { gte: from, lte: to } },
+        _sum: { amount: true },
+        _count: { id: true },
+      }),
     ]);
 
     const sales = salesRaw;
@@ -89,7 +94,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const totalProfit = totalRevenue - totalCOGS;
+    const totalGrossProfit = totalRevenue - totalCOGS;
+    const totalExpenses = Number(expensesRaw._sum.amount ?? 0);
+    const totalProfit = totalGrossProfit - totalExpenses;
 
     // Sales by day
     const dayMap = new Map<string, { date: string; revenue: number; count: number }>();
@@ -128,7 +135,15 @@ export async function GET(req: NextRequest) {
       .slice(0, 10);
 
     return Response.json({
-      summary: { totalRevenue, totalSales, totalProfit, avgOrderValue },
+      summary: {
+        totalRevenue,
+        totalSales,
+        totalCOGS,
+        totalGrossProfit,
+        totalExpenses,
+        totalProfit,
+        avgOrderValue,
+      },
       salesByDay,
       salesByPayment,
       salesByHour: (hourlyData as Array<{ hour: number; revenue: number; count: number }>).map((r) => ({
