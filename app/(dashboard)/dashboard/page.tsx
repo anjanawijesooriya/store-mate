@@ -59,14 +59,17 @@ async function getDashboardData(shopId: string) {
       `,
     ]);
 
-  // Low stock: products where stockQty <= lowStockAt
-  const lowStockCount = await db.product.count({
-    where: {
-      shopId,
-      isActive: true,
-      stockQty: { lte: 5 },
-    },
-  });
+  const [lowStockCount, productCount, allTimeSalesCount, shop] = await Promise.all([
+    db.product.count({
+      where: { shopId, isActive: true, stockQty: { lte: 5 } },
+    }),
+    db.product.count({ where: { shopId, isActive: true } }),
+    db.sale.count({ where: { shopId, status: "COMPLETED" } }),
+    db.shop.findUnique({
+      where: { id: shopId },
+      select: { address: true },
+    }),
+  ]);
 
   const productIds = topProducts.map((p: typeof topProducts[0]) => p.productId);
   const products =
@@ -99,6 +102,9 @@ async function getDashboardData(shopId: string) {
     weekTotal: Number(weekSales._sum.total ?? 0),
     monthTotal: Number(monthSales._sum.total ?? 0),
     lowStockCount,
+    productCount,
+    allTimeSalesCount,
+    hasAddress: !!shop?.address,
     topProducts: topProductsWithNames,
     weeklySalesChart: weeklySalesChart.map((r: { date: Date | string; total: number; count: number }) => ({
       date: String(r.date),

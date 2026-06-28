@@ -1,7 +1,17 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { BarChart3, Package, ShoppingCart, TrendingUp, AlertTriangle } from "lucide-react";
+import {
+  BarChart3,
+  Package,
+  ShoppingCart,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  X,
+} from "lucide-react";
 import { StatCard } from "@/components/shared/stat-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +34,9 @@ interface DashboardData {
   weekTotal: number;
   monthTotal: number;
   lowStockCount: number;
+  productCount: number;
+  allTimeSalesCount: number;
+  hasAddress: boolean;
   topProducts: Array<{
     productId: string;
     product?: { id: string; name: string; unit: string };
@@ -40,6 +53,105 @@ function formatLKR(amount: number) {
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleDateString("en-LK", { weekday: "short", month: "short", day: "numeric" });
+}
+
+const ONBOARDING_KEY = "storemate-onboarding-dismissed";
+
+function OnboardingCard({
+  hasProduct,
+  hasSale,
+  hasAddress,
+}: {
+  hasProduct: boolean;
+  hasSale: boolean;
+  hasAddress: boolean;
+}) {
+  const [dismissed, setDismissed] = useState(true);
+
+  useEffect(() => {
+    setDismissed(localStorage.getItem(ONBOARDING_KEY) === "1");
+  }, []);
+
+  const allDone = hasProduct && hasSale && hasAddress;
+
+  if (dismissed || allDone) return null;
+
+  const steps = [
+    {
+      done: hasProduct,
+      label: "Add your first product",
+      desc: "Go to Inventory → Add Product",
+      href: "/inventory",
+    },
+    {
+      done: hasSale,
+      label: "Make your first sale",
+      desc: "Head to the POS screen",
+      href: "/pos",
+    },
+    {
+      done: hasAddress,
+      label: "Add your shop address",
+      desc: "Update it in Settings",
+      href: "/settings",
+    },
+  ];
+
+  const doneCount = steps.filter((s) => s.done).length;
+
+  return (
+    <Card className="shadow-sm border-primary/20 bg-primary/5">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold text-primary">
+            Getting Started — {doneCount}/{steps.length} done
+          </CardTitle>
+          <button
+            onClick={() => {
+              localStorage.setItem(ONBOARDING_KEY, "1");
+              setDismissed(true);
+            }}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-1">
+          <div
+            className="h-full bg-primary rounded-full transition-all"
+            style={{ width: `${(doneCount / steps.length) * 100}%` }}
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2 pt-1">
+        {steps.map((step) => (
+          <Link key={step.href} href={step.done ? "#" : step.href}>
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-primary/10 transition-colors">
+              {step.done ? (
+                <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+              ) : (
+                <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+              )}
+              <div className="min-w-0">
+                <p
+                  className={`text-sm font-medium ${
+                    step.done
+                      ? "text-muted-foreground line-through"
+                      : "text-foreground"
+                  }`}
+                >
+                  {step.label}
+                </p>
+                {!step.done && (
+                  <p className="text-xs text-muted-foreground">{step.desc}</p>
+                )}
+              </div>
+            </div>
+          </Link>
+        ))}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function DashboardClient({ data }: { data: DashboardData }) {
@@ -61,6 +173,13 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             </Button>
           </Link>
         }
+      />
+
+      {/* Onboarding checklist — only shown to new shops until dismissed */}
+      <OnboardingCard
+        hasProduct={data.productCount > 0}
+        hasSale={data.allTimeSalesCount > 0}
+        hasAddress={data.hasAddress}
       />
 
       {/* Low stock alert banner */}

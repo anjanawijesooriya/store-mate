@@ -1,8 +1,26 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Smartphone, BookOpen, Percent, Tag, X, Printer, Check } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingCart,
+  CreditCard,
+  Banknote,
+  Smartphone,
+  BookOpen,
+  Percent,
+  Tag,
+  X,
+  Printer,
+  Check,
+  WifiOff,
+  RefreshCw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +36,16 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import {
+  cacheProducts,
+  getCachedProducts,
+  deductCachedStock,
+  addPendingSale,
+  getPendingSales,
+  removePendingSale,
+  markSaleFailed,
+  type CachedProduct,
+} from "@/lib/offline-db";
 
 interface Product {
   id: string;
@@ -44,9 +72,15 @@ interface CompletedSale {
   total: number;
   amountPaid: number;
   paymentMethod: string;
-  items: Array<{ product: { name: string; unit: string }; quantity: number; unitPrice: number; lineTotal: number }>;
-  customer: { name: string; phone: string | null } | null;
+  items: Array<{
+    name: string;
+    unit: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+  }>;
   createdAt: string;
+  isOffline?: boolean;
 }
 
 const PAYMENT_METHODS = [
@@ -57,13 +91,72 @@ const PAYMENT_METHODS = [
 ];
 
 function formatLKR(n: number) {
-  return `LKR ${n.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `LKR ${n.toLocaleString("en-LK", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+async function checkConnectivity(): Promise<boolean> {
+  if (!navigator.onLine) return false;
+  try {
+    await fetch("/api/ping", {
+      method: "HEAD",
+      cache: "no-store",
+      signal: AbortSignal.timeout(3000),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function useOnlineStatus() {
+  const [isOnline, setIsOnline] = useState(true);
+
+  const probe = useCallback(async () => {
+    const reachable = await checkConnectivity();
+    setIsOnline(reachable);
+  }, []);
+
+  useEffect(() => {
+    probe();
+    const handleOnline = () => probe();
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    const interval = setInterval(probe, 10_000);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      clearInterval(interval);
+    };
+  }, [probe]);
+
+  return isOnline;
+}
+
+function toProduct(p: CachedProduct): Product {
+  return {
+    id: p.id,
+    name: p.name,
+    sku: p.sku,
+    unit: p.unit,
+    sellPrice: p.sellPrice,
+    stockQty: p.stockQty,
+    category: p.category,
+  };
 }
 
 export function POSClient() {
+  const { data: session } = useSession();
+  const shopId = session?.user?.shopId ?? "";
+  const isOnline = useOnlineStatus();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [recentProducts, setRecentProducts] = useState<Product[]>([]);
+  const [allCached, setAllCached] = useState<CachedProduct[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
@@ -73,38 +166,155 @@ export function POSClient() {
   const [loading, setLoading] = useState(false);
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const subtotal = cart.reduce((s, i) => s + i.lineTotal, 0);
-  const discountAmt = discountType === "percent" ? (subtotal * discount) / 100 : discount;
+  const discountAmt =
+    discountType === "percent" ? (subtotal * discount) / 100 : discount;
   const total = Math.max(0, subtotal - discountAmt);
   const change = parseFloat(amountTendered || "0") - total;
 
-  // Fetch recent/popular products on mount
+  // Load products on mount — cache for offline use
   useEffect(() => {
-    fetch("/api/products?limit=12&page=1")
-      .then((r) => r.json())
-      .then((d) => setRecentProducts(d.products ?? []))
+    async function loadProducts() {
+      try {
+        const [displayRes, allRes] = await Promise.all([
+          fetch("/api/products?limit=12&page=1"),
+          fetch("/api/products?limit=500&page=1"),
+        ]);
+        if (!displayRes.ok) throw new Error("offline");
+        const display = await displayRes.json();
+        setRecentProducts(display.products ?? []);
+
+        if (allRes.ok && shopId) {
+          const all = await allRes.json();
+          const products: CachedProduct[] = (all.products ?? []).map(
+            (p: Product) => ({
+              id: p.id,
+              name: p.name,
+              sku: p.sku,
+              unit: p.unit,
+              sellPrice: Number(p.sellPrice),
+              stockQty: p.stockQty,
+              category: p.category,
+            })
+          );
+          setAllCached(products);
+          await cacheProducts(shopId, products);
+        }
+      } catch {
+        // Offline — load from IndexedDB
+        if (shopId) {
+          const cached = await getCachedProducts(shopId);
+          if (cached) {
+            setAllCached(cached);
+            setRecentProducts(cached.slice(0, 12).map(toProduct));
+          }
+        }
+      }
+    }
+    loadProducts();
+  }, [shopId]);
+
+  // Track pending offline sales count
+  useEffect(() => {
+    getPendingSales()
+      .then((sales) =>
+        setPendingCount(sales.filter((s) => s.status === "pending").length)
+      )
       .catch(() => {});
   }, []);
 
-  // Debounced product search
+  // Auto-sync when coming back online
+  useEffect(() => {
+    if (isOnline && pendingCount > 0) {
+      syncPendingSales();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
+
+  async function syncPendingSales() {
+    const pending = (await getPendingSales()).filter((s) => s.status === "pending");
+    if (pending.length === 0) return;
+
+    let synced = 0;
+    let failed = 0;
+    for (const sale of pending) {
+      try {
+        const res = await fetch("/api/sales", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: sale.items,
+            discount: sale.discount,
+            paymentMethod: sale.paymentMethod,
+            amountPaid: sale.amountPaid,
+          }),
+        });
+        if (res.ok) {
+          await removePendingSale(sale.localId);
+          synced++;
+        } else {
+          const data = await res.json();
+          await markSaleFailed(sale.localId, data.error ?? "Unknown error");
+          failed++;
+        }
+      } catch {
+        // Still offline — will retry next reconnect
+      }
+    }
+    const remaining = (await getPendingSales()).filter(
+      (s) => s.status === "pending"
+    ).length;
+    setPendingCount(remaining);
+    if (synced > 0)
+      toast.success(`${synced} offline sale${synced > 1 ? "s" : ""} synced`);
+    if (failed > 0)
+      toast.error(`${failed} sale${failed > 1 ? "s" : ""} failed to sync — check inventory`);
+  }
+
+  // Debounced product search (offline-aware)
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       return;
     }
+
+    if (!isOnline) {
+      const q = searchQuery.toLowerCase();
+      setSearchResults(
+        allCached
+          .filter(
+            (p) =>
+              p.name.toLowerCase().includes(q) ||
+              (p.sku?.toLowerCase().includes(q) ?? false)
+          )
+          .slice(0, 20)
+          .map(toProduct)
+      );
+      return;
+    }
+
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/products?search=${encodeURIComponent(searchQuery)}&limit=20`);
+        const res = await fetch(
+          `/api/products?search=${encodeURIComponent(searchQuery)}&limit=20`
+        );
         const data = await res.json();
         setSearchResults(data.products ?? []);
       } catch {
-        /* ignore */
+        const q = searchQuery.toLowerCase();
+        setSearchResults(
+          allCached
+            .filter((p) => p.name.toLowerCase().includes(q))
+            .slice(0, 20)
+            .map(toProduct)
+        );
       }
     }, 150);
     return () => clearTimeout(t);
-  }, [searchQuery]);
+  }, [searchQuery, isOnline, allCached]);
 
   function addToCart(product: Product) {
     setCart((prev) => {
@@ -116,7 +326,11 @@ export function POSClient() {
         }
         return prev.map((i) =>
           i.productId === product.id
-            ? { ...i, quantity: i.quantity + 1, lineTotal: (i.quantity + 1) * i.unitPrice }
+            ? {
+                ...i,
+                quantity: i.quantity + 1,
+                lineTotal: (i.quantity + 1) * i.unitPrice,
+              }
             : i
         );
       }
@@ -179,25 +393,76 @@ export function POSClient() {
 
   async function completeSale() {
     if (cart.length === 0) return;
-    if (paymentMethod === "CASH" && parseFloat(amountTendered || "0") < total) {
+    if (
+      paymentMethod === "CASH" &&
+      parseFloat(amountTendered || "0") < total
+    ) {
       toast.error("Amount tendered must be at least the total");
       return;
     }
 
     setLoading(true);
+
+    const amountPaid =
+      paymentMethod === "CASH" ? parseFloat(amountTendered) : total;
+    const saleItems = cart.map((i) => ({
+      productId: i.productId,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+    }));
+    const receiptItems = cart.map((i) => ({
+      name: i.name,
+      unit: i.unit,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+      lineTotal: i.lineTotal,
+    }));
+
     try {
+      // Offline path
+      if (!isOnline) {
+        if (!shopId) {
+          toast.error("Session lost — please reload");
+          return;
+        }
+        const localId = await addPendingSale({
+          shopId,
+          items: saleItems,
+          discount: discountAmt,
+          paymentMethod,
+          amountPaid,
+        });
+        await deductCachedStock(shopId, saleItems);
+        const updated = await getCachedProducts(shopId);
+        if (updated) {
+          setAllCached(updated);
+          setRecentProducts(updated.slice(0, 12).map(toProduct));
+        }
+        setPendingCount((c) => c + 1);
+        setCompletedSale({
+          id: localId,
+          total,
+          amountPaid,
+          paymentMethod,
+          items: receiptItems,
+          createdAt: new Date().toISOString(),
+          isOffline: true,
+        });
+        setShowReceipt(true);
+        setCheckoutOpen(false);
+        toast.success("Sale saved offline — will sync when reconnected");
+        return;
+      }
+
+      // Online path
       const res = await fetch("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: cart.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-          })),
+          items: saleItems,
           discount: discountAmt,
           paymentMethod,
-          amountPaid: paymentMethod === "CASH" ? parseFloat(amountTendered) : total,
+          amountPaid,
         }),
       });
 
@@ -207,12 +472,59 @@ export function POSClient() {
         return;
       }
 
-      setCompletedSale(data.sale);
+      const sale = data.sale;
+      setCompletedSale({
+        id: sale.id,
+        total: sale.total,
+        amountPaid: sale.amountPaid,
+        paymentMethod: sale.paymentMethod,
+        items: sale.items.map(
+          (item: {
+            product: { name: string; unit: string };
+            quantity: number;
+            unitPrice: number;
+            lineTotal: number;
+          }) => ({
+            name: item.product.name,
+            unit: item.product.unit,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: item.lineTotal,
+          })
+        ),
+        createdAt: sale.createdAt,
+        isOffline: false,
+      });
       setShowReceipt(true);
       setCheckoutOpen(false);
       toast.success("Sale completed!");
     } catch {
-      toast.error("Failed to complete sale");
+      // Unexpected network error — queue offline if we have a shopId
+      if (shopId) {
+        const localId = await addPendingSale({
+          shopId,
+          items: saleItems,
+          discount: discountAmt,
+          paymentMethod,
+          amountPaid,
+        });
+        await deductCachedStock(shopId, saleItems);
+        setPendingCount((c) => c + 1);
+        setCompletedSale({
+          id: localId,
+          total,
+          amountPaid,
+          paymentMethod,
+          items: receiptItems,
+          createdAt: new Date().toISOString(),
+          isOffline: true,
+        });
+        setShowReceipt(true);
+        setCheckoutOpen(false);
+        toast.warning("Network error — sale saved offline");
+      } else {
+        toast.error("Failed to complete sale");
+      }
     } finally {
       setLoading(false);
     }
@@ -224,22 +536,50 @@ export function POSClient() {
     <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-8rem)]">
       {/* Left — Product search */}
       <div className="flex-1 flex flex-col gap-4 min-w-0">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input
-            ref={searchRef}
-            placeholder="Search product name or scan barcode..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 text-base"
-            autoFocus
-          />
-          {searchQuery && (
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              ref={searchRef}
+              placeholder="Search product name or scan barcode..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 text-base"
+              autoFocus
+            />
+            {searchQuery && (
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setSearchQuery("")}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Offline status + pending badge */}
+          {!isOnline && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 flex-shrink-0">
+              <WifiOff className="h-4 w-4 text-amber-600" />
+              <span className="text-xs font-semibold text-amber-700 hidden sm:block">
+                Offline
+              </span>
+              {pendingCount > 0 && (
+                <Badge className="bg-amber-600 text-white text-xs px-1.5">
+                  {pendingCount}
+                </Badge>
+              )}
+            </div>
+          )}
+
+          {isOnline && pendingCount > 0 && (
             <button
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => setSearchQuery("")}
+              onClick={syncPendingSales}
+              title={`${pendingCount} sale${pendingCount > 1 ? "s" : ""} pending sync`}
+              className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors flex-shrink-0"
             >
-              <X className="h-4 w-4" />
+              <RefreshCw className="h-4 w-4" />
+              Sync {pendingCount}
             </button>
           )}
         </div>
@@ -263,7 +603,9 @@ export function POSClient() {
                 {formatLKR(Number(product.sellPrice))}
               </p>
               {product.stockQty <= 0 && (
-                <p className="text-xs text-destructive font-medium mt-0.5">Out of stock</p>
+                <p className="text-xs text-destructive font-medium mt-0.5">
+                  Out of stock
+                </p>
               )}
               {product.stockQty > 0 && product.stockQty <= 5 && (
                 <p className="text-xs text-[color:var(--brand-warning)] font-medium mt-0.5">
@@ -288,7 +630,9 @@ export function POSClient() {
             <ShoppingCart className="h-5 w-5 text-primary" />
             <span className="font-semibold text-foreground">Cart</span>
             {cart.length > 0 && (
-              <Badge className="bg-primary text-primary-foreground text-xs">{cart.length}</Badge>
+              <Badge className="bg-primary text-primary-foreground text-xs">
+                {cart.length}
+              </Badge>
             )}
           </div>
           {cart.length > 0 && (
@@ -313,20 +657,32 @@ export function POSClient() {
             <ScrollArea className="flex-1">
               <div className="p-3 space-y-2">
                 {cart.map((item) => (
-                  <div key={item.productId} className="flex items-start gap-2 rounded-lg border border-border bg-background p-2.5">
+                  <div
+                    key={item.productId}
+                    className="flex items-start gap-2 rounded-lg border border-border bg-background p-2.5"
+                  >
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground line-clamp-1">{item.name}</p>
+                      <p className="text-sm font-medium text-foreground line-clamp-1">
+                        {item.name}
+                      </p>
                       <div className="flex items-center gap-1 mt-1">
                         <input
                           type="number"
                           value={item.unitPrice}
                           min={0}
                           step={0.01}
-                          onChange={(e) => updateLinePrice(item.productId, parseFloat(e.target.value) || 0)}
+                          onChange={(e) =>
+                            updateLinePrice(
+                              item.productId,
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
                           className="w-24 text-xs font-mono border border-border rounded px-1.5 py-0.5 bg-background text-foreground"
                           title="Unit price (editable)"
                         />
-                        <span className="text-xs text-muted-foreground">/ {item.unit}</span>
+                        <span className="text-xs text-muted-foreground">
+                          / {item.unit}
+                        </span>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -340,7 +696,9 @@ export function POSClient() {
                         >
                           <Minus className="h-3 w-3" />
                         </button>
-                        <span className="text-sm font-mono w-8 text-center">{item.quantity}</span>
+                        <span className="text-sm font-mono w-8 text-center">
+                          {item.quantity}
+                        </span>
                         <button
                           onClick={() => updateQty(item.productId, 1)}
                           className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted transition-colors"
@@ -369,15 +727,25 @@ export function POSClient() {
                   min={0}
                   step={1}
                   value={discount || ""}
-                  onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                  onChange={(e) =>
+                    setDiscount(parseFloat(e.target.value) || 0)
+                  }
                   placeholder="Discount"
                   className="flex-1 text-sm border border-border rounded-lg px-3 py-1.5 bg-background font-mono"
                 />
                 <button
-                  onClick={() => setDiscountType(discountType === "amount" ? "percent" : "amount")}
+                  onClick={() =>
+                    setDiscountType(
+                      discountType === "amount" ? "percent" : "amount"
+                    )
+                  }
                   className="flex items-center gap-1 text-xs font-medium border border-border rounded-lg px-2.5 py-1.5 hover:bg-muted transition-colors"
                 >
-                  {discountType === "percent" ? <Percent className="h-3 w-3" /> : <span className="font-mono text-xs">LKR</span>}
+                  {discountType === "percent" ? (
+                    <Percent className="h-3 w-3" />
+                  ) : (
+                    <span className="font-mono text-xs">LKR</span>
+                  )}
                 </button>
               </div>
 
@@ -396,7 +764,9 @@ export function POSClient() {
                 <Separator />
                 <div className="flex justify-between font-bold text-xl">
                   <span className="text-foreground">Total</span>
-                  <span className="font-mono text-primary">{formatLKR(total)}</span>
+                  <span className="font-mono text-primary">
+                    {formatLKR(total)}
+                  </span>
                 </div>
               </div>
 
@@ -420,6 +790,13 @@ export function POSClient() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {!isOnline && (
+              <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <WifiOff className="h-3 w-3 flex-shrink-0" />
+                Offline mode — sale will be saved and synced when connected
+              </div>
+            )}
+
             <div>
               <Label className="mb-2 block">Payment Method</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -456,7 +833,9 @@ export function POSClient() {
                 />
                 {change >= 0 && amountTendered && (
                   <div className="flex justify-between items-center rounded-lg bg-[color:var(--brand-success)]/10 border border-[color:var(--brand-success)]/20 px-4 py-2">
-                    <span className="text-sm font-medium text-[color:var(--brand-success)]">Change</span>
+                    <span className="text-sm font-medium text-[color:var(--brand-success)]">
+                      Change
+                    </span>
                     <span className="text-lg font-bold font-mono text-[color:var(--brand-success)]">
                       {formatLKR(change)}
                     </span>
@@ -469,21 +848,35 @@ export function POSClient() {
 
             <div className="flex justify-between items-center">
               <span className="font-semibold text-foreground">Total Due</span>
-              <span className="text-2xl font-bold font-mono text-primary">{formatLKR(total)}</span>
+              <span className="text-2xl font-bold font-mono text-primary">
+                {formatLKR(total)}
+              </span>
             </div>
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setCheckoutOpen(false)} disabled={loading}>
+            <Button
+              variant="outline"
+              onClick={() => setCheckoutOpen(false)}
+              disabled={loading}
+            >
               Back
             </Button>
             <Button
               onClick={completeSale}
-              disabled={loading || (paymentMethod === "CASH" && parseFloat(amountTendered || "0") < total)}
+              disabled={
+                loading ||
+                (paymentMethod === "CASH" &&
+                  parseFloat(amountTendered || "0") < total)
+              }
               className="font-bold flex-1"
               style={{ backgroundColor: "var(--cta)", color: "white" }}
             >
-              {loading ? "Processing..." : "Confirm Sale"}
+              {loading
+                ? "Processing..."
+                : isOnline
+                ? "Confirm Sale"
+                : "Save Offline"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -493,40 +886,66 @@ export function POSClient() {
       <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[color:var(--brand-success)]">
+            <DialogTitle
+              className={cn(
+                "flex items-center gap-2",
+                completedSale?.isOffline
+                  ? "text-amber-600"
+                  : "text-[color:var(--brand-success)]"
+              )}
+            >
               <Check className="h-5 w-5" />
-              Sale Complete!
+              {completedSale?.isOffline ? "Sale Saved Offline" : "Sale Complete!"}
             </DialogTitle>
           </DialogHeader>
 
           {completedSale && (
             <div className="space-y-3">
+              {completedSale.isOffline && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <WifiOff className="h-3 w-3 flex-shrink-0" />
+                  Will sync automatically when reconnected
+                </div>
+              )}
+
               <div className="rounded-lg bg-muted/50 p-4 space-y-2 text-sm font-mono">
                 {completedSale.items.map((item, i) => (
                   <div key={i} className="flex justify-between">
                     <span className="text-foreground">
-                      {item.product.name} × {item.quantity}
+                      {item.name} × {item.quantity}
                     </span>
-                    <span className="font-semibold">{formatLKR(item.lineTotal)}</span>
+                    <span className="font-semibold">
+                      {formatLKR(item.lineTotal)}
+                    </span>
                   </div>
                 ))}
                 <Separator className="my-2" />
                 <div className="flex justify-between font-bold text-base">
                   <span>Total</span>
-                  <span className="text-primary">{formatLKR(completedSale.total)}</span>
+                  <span className="text-primary">
+                    {formatLKR(completedSale.total)}
+                  </span>
                 </div>
                 {completedSale.paymentMethod === "CASH" && (
                   <div className="flex justify-between text-muted-foreground">
                     <span>Change</span>
-                    <span>{formatLKR(completedSale.amountPaid - completedSale.total)}</span>
+                    <span>
+                      {formatLKR(
+                        completedSale.amountPaid - completedSale.total
+                      )}
+                    </span>
                   </div>
                 )}
               </div>
 
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => window.print()}>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => window.print()}
+                >
                   <Printer className="h-4 w-4 mr-2" />
-                  Print Receipt
+                  Print
                 </Button>
                 <Button
                   className="flex-1 font-semibold"

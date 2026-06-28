@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { BillingBanner } from "@/components/dashboard/billing-banner";
+import { OfflineBanner } from "@/components/shared/offline-banner";
+import { PwaRegister } from "@/components/shared/pwa-register";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionProvider } from "next-auth/react";
 
@@ -63,12 +65,14 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           onMenuClick={() => setSidebarOpen(true)}
         />
         <BillingBanner />
+        <OfflineBanner />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           {children}
         </main>
       </div>
 
       <Toaster richColors position="top-right" />
+      <PwaRegister />
     </div>
   );
 }
