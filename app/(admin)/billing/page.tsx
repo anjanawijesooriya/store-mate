@@ -28,5 +28,10 @@ export default async function AdminBillingPage() {
     },
   });
 
-  return <AdminBillingClient shops={shops} />;
+  const serialized = shops.map((s) => ({
+    ...s,
+    payments: s.payments.map((p) => ({ ...p, amount: Number(p.amount) })),
+  }));
+
+  return <AdminBillingClient shops={serialized} />;
 }

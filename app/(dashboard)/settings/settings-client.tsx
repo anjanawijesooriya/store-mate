@@ -15,7 +15,7 @@ type BillingStatus = "TRIAL" | "ACTIVE" | "GRACE" | "LOCKED";
 
 interface Payment {
   id: string;
-  amount: unknown;
+  amount: number;
   currency: string;
   method: string;
   reference: string | null;
@@ -175,7 +175,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
     <div className="space-y-6 max-w-2xl">
       <PageHeader title="Settings" description="Manage your shop and account settings" />
 
-      {trialDaysLeft !== null && (
+      {shop.billingStatus === "TRIAL" && trialDaysLeft !== null && (
         <div className={`rounded-lg border px-4 py-3 flex items-center justify-between ${
           trialDaysLeft <= 7
             ? "border-[color:var(--brand-warning)]/30 bg-[color:var(--brand-warning)]/10"
@@ -408,7 +408,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                           <td className="px-3 py-2 font-medium">{p.billingMonth}</td>
                           <td className="px-3 py-2 text-muted-foreground">{p.planTier}</td>
                           <td className="px-3 py-2 text-right font-mono">
-                            {p.currency} {Number(p.amount).toLocaleString()}
+                            {p.currency} {p.amount.toLocaleString()}
                           </td>
                           <td className="px-3 py-2 text-muted-foreground">{fmtDate(p.paidAt)}</td>
                         </tr>

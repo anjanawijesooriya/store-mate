@@ -30,5 +30,13 @@ export default async function SettingsPage() {
 
   if (!shop) redirect("/login");
 
-  return <SettingsClient shop={shop} />;
+  const serialized = {
+    ...shop,
+    payments: shop.payments.map((p) => ({
+      ...p,
+      amount: Number(p.amount),
+    })),
+  };
+
+  return <SettingsClient shop={serialized} />;
 }

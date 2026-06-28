@@ -27,7 +27,7 @@ interface Shop {
   gracePeriodEndsAt: Date | null;
   nextBillingDate: Date | null;
   createdAt: Date;
-  payments: Array<{ paidAt: Date; amount: unknown; billingMonth: string }>;
+  payments: Array<{ paidAt: Date; amount: number; billingMonth: string }>;
   _count: { sales: number; products: number };
 }
 
