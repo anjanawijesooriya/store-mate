@@ -6,9 +6,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 
 const SHOP_CATEGORIES = [
   { value: "GROCERY", label: "Grocery / General Store" },
@@ -84,123 +83,152 @@ export default function RegisterPage() {
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-xl">Register your shop</CardTitle>
-        <CardDescription>Start your 30-day free trial — no credit card required</CardDescription>
-      </CardHeader>
+    <div className="space-y-7">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Create your account</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Start your 30-day free trial — no credit card required
+        </p>
+      </div>
 
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
-          {error && (
-            <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
-              {error}
-            </div>
-          )}
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
 
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="shopName">Shop Name *</Label>
+            <Label htmlFor="shopName" className="text-sm font-medium">Shop Name *</Label>
             <Input
               id="shopName"
               placeholder="e.g. Perera's Grocery"
               value={form.shopName}
               onChange={(e) => update("shopName", e.target.value)}
+              className="h-10"
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="ownerName">Your Name *</Label>
+            <Label htmlFor="ownerName" className="text-sm font-medium">Your Name *</Label>
             <Input
               id="ownerName"
               placeholder="e.g. Kumara Perera"
               value={form.ownerName}
               onChange={(e) => update("ownerName", e.target.value)}
+              className="h-10"
               required
             />
           </div>
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">Shop Type *</Label>
-            <Select value={form.category} onValueChange={(v) => v && update("category", v)}>
-              <SelectTrigger id="category">
-                <SelectValue placeholder="Select shop type" />
-              </SelectTrigger>
-              <SelectContent>
-                {SHOP_CATEGORIES.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="category" className="text-sm font-medium">Shop Type *</Label>
+          <Select value={form.category} onValueChange={(v) => v && update("category", v)}>
+            <SelectTrigger id="category" className="h-10">
+              <SelectValue placeholder="Select your shop type" />
+            </SelectTrigger>
+            <SelectContent>
+              {SHOP_CATEGORIES.map((c) => (
+                <SelectItem key={c.value} value={c.value}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number *</Label>
-            <Input
-              id="phone"
-              type="tel"
-              placeholder="0771234567"
-              value={form.phone}
-              onChange={(e) => update("phone", e.target.value)}
-              required
-              autoComplete="tel"
-            />
-            <p className="text-xs text-muted-foreground">Used to log in — must be a working Sri Lankan number</p>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="phone" className="text-sm font-medium">Phone Number *</Label>
+          <Input
+            id="phone"
+            type="tel"
+            placeholder="0771234567"
+            value={form.phone}
+            onChange={(e) => update("phone", e.target.value)}
+            className="h-10"
+            required
+            autoComplete="tel"
+          />
+          <p className="text-xs text-muted-foreground">Used to log in — must be a Sri Lankan number</p>
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="address">Shop Address (optional)</Label>
-            <Input
-              id="address"
-              placeholder="e.g. 123 Main St, Colombo 03"
-              value={form.address}
-              onChange={(e) => update("address", e.target.value)}
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="address" className="text-sm font-medium">
+            Shop Address <span className="text-muted-foreground font-normal">(optional)</span>
+          </Label>
+          <Input
+            id="address"
+            placeholder="e.g. 123 Main St, Colombo 03"
+            value={form.address}
+            onChange={(e) => update("address", e.target.value)}
+            className="h-10"
+          />
+        </div>
 
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="password">Password *</Label>
+            <Label htmlFor="password" className="text-sm font-medium">Password *</Label>
             <Input
               id="password"
               type="password"
-              placeholder="Minimum 8 characters"
+              placeholder="Min. 8 characters"
               value={form.password}
               onChange={(e) => update("password", e.target.value)}
+              className="h-10"
               required
               autoComplete="new-password"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm Password *</Label>
+            <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm *</Label>
             <Input
               id="confirmPassword"
               type="password"
-              placeholder="Repeat your password"
+              placeholder="Repeat password"
               value={form.confirmPassword}
               onChange={(e) => update("confirmPassword", e.target.value)}
+              className="h-10"
               required
               autoComplete="new-password"
             />
           </div>
-        </CardContent>
+        </div>
 
-        <CardFooter className="flex flex-col gap-3">
-          <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={loading}>
-            {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
-            Create Account &amp; Start Free Trial
-          </Button>
-
-          <p className="text-sm text-center text-muted-foreground">
-            Already have an account?{" "}
-            <Link href="/login" className="text-primary font-medium hover:underline">
-              Sign in
-            </Link>
-          </p>
-        </CardFooter>
+        <Button
+          type="submit"
+          className="w-full h-12 text-base font-semibold mt-1"
+          disabled={loading}
+        >
+          {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+          Create Account &amp; Start Free Trial
+        </Button>
       </form>
-    </Card>
+
+      {/* Footer */}
+      <div className="space-y-4">
+        <p className="text-sm text-center text-muted-foreground">
+          Already have an account?{" "}
+          <Link href="/login" className="text-primary font-semibold hover:underline">
+            Sign in
+          </Link>
+        </p>
+
+        <div className="text-center">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            Back to homepage
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }

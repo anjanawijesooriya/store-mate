@@ -167,7 +167,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         description="Your shop performance at a glance"
         action={
           <Link href="/pos">
-            <Button className="bg-[color:var(--cta)] hover:bg-[color:var(--cta)]/90 text-[color:var(--cta-foreground)] font-semibold">
+            <Button className="bg-[color:var(--cta)] hover:bg-[color:var(--cta)]/90 text-[color:var(--cta-foreground)] font-semibold shadow-sm hover:shadow-md transition-all">
               <ShoppingCart className="mr-2 h-4 w-4" />
               New Sale
             </Button>
@@ -304,18 +304,18 @@ export function DashboardClient({ data }: { data: DashboardData }) {
       {/* Quick actions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { href: "/pos", label: "New Sale", icon: ShoppingCart },
-          { href: "/inventory", label: "Add Product", icon: Package },
-          { href: "/reports", label: "View Reports", icon: BarChart3 },
-          { href: "/customers", label: "Customers", icon: TrendingUp },
-        ].map(({ href, label, icon: Icon }) => (
+          { href: "/pos", label: "New Sale", icon: ShoppingCart, accent: "bg-primary/10 text-primary hover:bg-primary/15" },
+          { href: "/inventory", label: "Add Product", icon: Package, accent: "bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/15" },
+          { href: "/reports", label: "View Reports", icon: BarChart3, accent: "bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/15" },
+          { href: "/customers", label: "Customers", icon: TrendingUp, accent: "bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-500/15" },
+        ].map(({ href, label, icon: Icon, accent }) => (
           <Link key={href} href={href}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
-              <CardContent className="flex flex-col items-center justify-center py-5 gap-2">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Icon className="h-5 w-5 text-primary" />
+            <Card className="shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer h-full group">
+              <CardContent className="flex flex-col items-center justify-center py-5 gap-2.5">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${accent}`}>
+                  <Icon className="h-5 w-5" />
                 </div>
-                <p className="text-sm font-medium text-foreground text-center">{label}</p>
+                <p className="text-sm font-semibold text-foreground text-center">{label}</p>
               </CardContent>
             </Card>
           </Link>

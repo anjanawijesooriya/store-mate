@@ -1,9 +1,11 @@
-const CACHE_NAME = "storemate-v1";
-const STATIC_CACHE = "storemate-static-v1";
+const CACHE_VERSION = "v2";
+const CACHE_NAME = `storemate-${CACHE_VERSION}`;
+const STATIC_CACHE = `storemate-static-${CACHE_VERSION}`;
 
 self.addEventListener("install", () => self.skipWaiting());
 
 self.addEventListener("activate", (event) => {
+  // Delete ALL old-version caches on every SW update
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
@@ -11,9 +13,8 @@ self.addEventListener("activate", (event) => {
           .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE)
           .map((k) => caches.delete(k))
       )
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -23,29 +24,32 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   if (url.pathname.startsWith("/api/")) return;
 
-  // Cache Next.js build assets forever (they're content-hashed)
+  // /_next/static/ — network-first so new deploys/restarts always load fresh.
+  // Falls back to cache only when offline (preserving offline capability).
   if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(
-      caches.open(STATIC_CACHE).then(async (cache) => {
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        const response = await fetch(request);
-        if (response.ok) cache.put(request, response.clone());
-        return response;
-      })
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            caches.open(STATIC_CACHE).then((cache) => cache.put(request, response.clone()));
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          return cached ?? Response.error();
+        })
     );
     return;
   }
 
-  // Navigation: network-first, fall back to cached page
+  // Navigation requests — network-first, fall back to cached page when offline
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
         .then((response) => {
           if (response.ok) {
-            caches
-              .open(CACHE_NAME)
-              .then((cache) => cache.put(request, response.clone()));
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
           }
           return response;
         })
