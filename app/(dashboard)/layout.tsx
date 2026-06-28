@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
+import { BillingBanner } from "@/components/dashboard/billing-banner";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionProvider } from "next-auth/react";
 
@@ -26,6 +27,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   const shopName = session?.user?.shopName ?? "My Shop";
   const userName = session?.user?.name ?? "User";
+  const adminPhone = process.env.NEXT_PUBLIC_ADMIN_PHONE;
+  const isAdmin = !!adminPhone && !!session?.user?.phone &&
+    session.user.phone.replace(/\D/g, "") === adminPhone.replace(/\D/g, "");
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -46,6 +50,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       >
         <Sidebar
           shopName={shopName}
+          isAdmin={isAdmin}
           onClose={() => setSidebarOpen(false)}
         />
       </div>
@@ -57,6 +62,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           shopName={shopName}
           onMenuClick={() => setSidebarOpen(true)}
         />
+        <BillingBanner />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           {children}
         </main>

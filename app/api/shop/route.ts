@@ -10,6 +10,8 @@ export async function GET() {
       select: {
         id: true, name: true, ownerName: true, phone: true,
         category: true, address: true, planTier: true, trialEndsAt: true,
+        billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true,
+        smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsMonthlyUsage: true,
       },
     });
     if (!shop) return apiError("Shop not found", 404);

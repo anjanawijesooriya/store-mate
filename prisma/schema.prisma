@@ -53,6 +53,13 @@ enum SmsType {
   OTP
 }
 
+enum BillingStatus {
+  TRIAL
+  ACTIVE
+  GRACE
+  LOCKED
+}
+
 model Shop {
   id                String       @id @default(cuid())
   name              String
@@ -66,6 +73,9 @@ model Shop {
   smsDailySummary   Boolean      @default(true)
   smsReceiptEnabled Boolean      @default(false)
   smsMonthlyUsage   Int          @default(0)
+  billingStatus     BillingStatus @default(TRIAL)
+  gracePeriodEndsAt DateTime?
+  nextBillingDate   DateTime?
   createdAt         DateTime     @default(now())
   users             User[]
   products          Product[]
@@ -73,6 +83,7 @@ model Shop {
   customers         Customer[]
   expenses          Expense[]
   smsLogs           SmsLog[]
+  payments          Payment[]
 }
 
 model SmsLog {
@@ -190,4 +201,21 @@ model Expense {
   createdAt   DateTime @default(now())
 
   @@index([shopId, expenseDate])
+}
+
+model Payment {
+  id           String   @id @default(cuid())
+  shopId       String
+  shop         Shop     @relation(fields: [shopId], references: [id])
+  amount       Decimal  @db.Decimal(10, 2)
+  currency     String   @default("LKR")
+  method       String   @default("MANUAL")
+  reference    String?
+  planTier     PlanTier
+  billingMonth String
+  note         String?
+  paidAt       DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([shopId])
 }

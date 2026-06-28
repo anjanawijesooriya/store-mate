@@ -16,7 +16,10 @@ export const authConfig: NextAuthConfig = {
       const isAuthRoute =
         pathname.startsWith("/login") || pathname.startsWith("/register");
       const isApiAuthRoute = pathname.startsWith("/api/auth");
-      const isPublicRoute = isAuthRoute || isApiAuthRoute || pathname === "/";
+      const isAdminRoute = pathname.startsWith("/admin-login")
+        || pathname.startsWith("/billing")
+        || pathname.startsWith("/api/admin/");
+      const isPublicRoute = isAuthRoute || isApiAuthRoute || isAdminRoute || pathname === "/";
 
       if (isApiAuthRoute) return true;
       if (!isLoggedIn && !isPublicRoute) return false; // redirect to /login

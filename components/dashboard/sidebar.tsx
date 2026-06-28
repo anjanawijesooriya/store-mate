@@ -11,6 +11,7 @@ import {
   Settings,
   Store,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,10 +27,11 @@ const navItems = [
 
 interface SidebarProps {
   shopName: string;
+  isAdmin?: boolean;
   onClose?: () => void;
 }
 
-export function Sidebar({ shopName, onClose }: SidebarProps) {
+export function Sidebar({ shopName, isAdmin, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -83,6 +85,25 @@ export function Sidebar({ shopName, onClose }: SidebarProps) {
           );
         })}
       </nav>
+
+      {/* Admin link */}
+      {isAdmin && (
+        <div className="px-3 pb-2">
+          <Link
+            href="/billing"
+            onClick={onClose}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+              pathname.startsWith("/billing")
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-sidebar-foreground/50 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+            )}
+          >
+            <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+            Admin Billing
+          </Link>
+        </div>
+      )}
 
       {/* Bottom info */}
       <div className="px-4 py-4 border-t border-sidebar-border">

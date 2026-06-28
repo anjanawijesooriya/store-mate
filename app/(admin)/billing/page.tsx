@@ -1,0 +1,32 @@
+import { Metadata } from "next";
+import { db } from "@/lib/db";
+import { AdminBillingClient } from "./billing-client";
+
+export const metadata: Metadata = { title: "Admin — Billing" };
+
+export default async function AdminBillingPage() {
+  const shops = await db.shop.findMany({
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      ownerName: true,
+      phone: true,
+      category: true,
+      planTier: true,
+      billingStatus: true,
+      trialEndsAt: true,
+      gracePeriodEndsAt: true,
+      nextBillingDate: true,
+      createdAt: true,
+      payments: {
+        orderBy: { paidAt: "desc" },
+        take: 1,
+        select: { paidAt: true, amount: true, billingMonth: true },
+      },
+      _count: { select: { sales: true, products: true } },
+    },
+  });
+
+  return <AdminBillingClient shops={shops} />;
+}

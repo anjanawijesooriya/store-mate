@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Store, Bell, CreditCard, Loader2, MessageSquare } from "lucide-react";
+import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+
+type BillingStatus = "TRIAL" | "ACTIVE" | "GRACE" | "LOCKED";
+
+interface Payment {
+  id: string;
+  amount: unknown;
+  currency: string;
+  method: string;
+  reference: string | null;
+  planTier: string;
+  billingMonth: string;
+  note: string | null;
+  paidAt: Date;
+}
 
 interface Shop {
   id: string;
@@ -24,7 +38,23 @@ interface Shop {
   smsDailySummary: boolean;
   smsReceiptEnabled: boolean;
   smsMonthlyUsage: number;
+  billingStatus: BillingStatus;
+  gracePeriodEndsAt: Date | null;
+  nextBillingDate: Date | null;
+  payments: Payment[];
 }
+
+function fmtDate(d: Date | null | string) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-LK", { year: "numeric", month: "long", day: "numeric" });
+}
+
+const BILLING_STATUS_CONFIG: Record<BillingStatus, { label: string; icon: React.ElementType; color: string }> = {
+  TRIAL: { label: "Free Trial", icon: Clock, color: "text-blue-600" },
+  ACTIVE: { label: "Active", icon: CheckCircle, color: "text-green-600" },
+  GRACE: { label: "Grace Period", icon: AlertTriangle, color: "text-amber-600" },
+  LOCKED: { label: "Locked", icon: Lock, color: "text-red-600" },
+};
 
 const PLAN_LABELS: Record<string, { label: string; price: string }> = {
   BASIC: { label: "Basic", price: "LKR 2,000/mo" },
@@ -260,24 +290,78 @@ export function SettingsClient({ shop }: { shop: Shop }) {
         </CardContent>
       </Card>
 
-      {/* Subscription */}
+      {/* Billing Status */}
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
-            Subscription
+            Subscription &amp; Billing
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold">{plan.label} Plan</p>
-              <p className="text-sm text-muted-foreground">{plan.price}</p>
+          {/* Current status */}
+          {(() => {
+            const cfg = BILLING_STATUS_CONFIG[shop.billingStatus];
+            const Icon = cfg.icon;
+            return (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Icon className={`h-5 w-5 ${cfg.color}`} />
+                  <div>
+                    <p className="font-semibold">{plan.label} Plan — {cfg.label}</p>
+                    <p className="text-sm text-muted-foreground">{plan.price}</p>
+                  </div>
+                </div>
+                <Badge>{shop.planTier}</Badge>
+              </div>
+            );
+          })()}
+
+          {/* Status-specific info */}
+          {shop.billingStatus === "TRIAL" && shop.trialEndsAt && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+              <p className="font-medium text-blue-800">
+                Trial ends {fmtDate(shop.trialEndsAt)}
+              </p>
+              <p className="text-blue-700 text-xs mt-1">
+                Contact us via WhatsApp to continue after your trial.
+              </p>
             </div>
-            <Badge>{shop.planTier}</Badge>
-          </div>
+          )}
+
+          {shop.billingStatus === "GRACE" && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+              <p className="font-medium text-amber-800">
+                Payment overdue — access locked after {fmtDate(shop.gracePeriodEndsAt)}
+              </p>
+              <p className="text-amber-700 text-xs mt-1">
+                Contact us immediately via WhatsApp to arrange payment.
+              </p>
+            </div>
+          )}
+
+          {shop.billingStatus === "LOCKED" && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
+              <p className="font-medium text-red-800">Account locked — new sales disabled</p>
+              <p className="text-red-700 text-xs mt-1">
+                Contact us via WhatsApp to restore access. Your data is safe.
+              </p>
+            </div>
+          )}
+
+          {shop.billingStatus === "ACTIVE" && shop.nextBillingDate && (
+            <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+              <p className="text-muted-foreground">
+                Next billing date: <span className="font-medium text-foreground">{fmtDate(shop.nextBillingDate)}</span>
+              </p>
+            </div>
+          )}
+
           <Separator />
+
+          {/* Plan tiers */}
           <div className="space-y-2 text-sm">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Available Plans</p>
             {[
               { tier: "BASIC", label: "Basic — LKR 2,000/mo", desc: "1 device, up to 500 products" },
               { tier: "STANDARD", label: "Standard — LKR 3,500/mo", desc: "3 devices, unlimited products, 100 SMS/mo" },
@@ -296,11 +380,45 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                 {shop.planTier === t.tier ? (
                   <Badge variant="secondary" className="text-xs">Current</Badge>
                 ) : (
-                  <Button size="sm" variant="outline" className="text-xs">Upgrade</Button>
+                  <p className="text-xs text-muted-foreground mt-1">Contact us to upgrade</p>
                 )}
               </div>
             ))}
           </div>
+
+          {/* Payment history */}
+          {shop.payments.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Payment History</p>
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/40">
+                        <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Month</th>
+                        <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Plan</th>
+                        <th className="text-right px-3 py-2 font-semibold text-muted-foreground">Amount</th>
+                        <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Paid On</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shop.payments.map((p) => (
+                        <tr key={p.id} className="border-b last:border-0">
+                          <td className="px-3 py-2 font-medium">{p.billingMonth}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{p.planTier}</td>
+                          <td className="px-3 py-2 text-right font-mono">
+                            {p.currency} {Number(p.amount).toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">{fmtDate(p.paidAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
