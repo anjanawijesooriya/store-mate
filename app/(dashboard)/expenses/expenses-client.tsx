@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Receipt, Plus, Loader2, Calendar } from "lucide-react";
+import { Receipt, Plus, Loader2, Calendar, Lock } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatCard } from "@/components/shared/stat-card";
@@ -46,6 +46,7 @@ export function ExpensesClient() {
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [planBlocked, setPlanBlocked] = useState(false);
   const [form, setForm] = useState({
     category: "",
     amount: "",
@@ -59,6 +60,7 @@ export function ExpensesClient() {
       const params = new URLSearchParams();
       if (categoryFilter) params.set("category", categoryFilter);
       const res = await fetch(`/api/expenses?${params}`);
+      if (res.status === 403) { setPlanBlocked(true); setLoading(false); return; }
       const data = await res.json();
       setExpenses(data.expenses ?? []);
       setTotal(data.total ?? 0);
@@ -104,6 +106,21 @@ export function ExpensesClient() {
     acc[e.category] = (acc[e.category] || 0) + Number(e.amount);
     return acc;
   }, {} as Record<string, number>);
+
+  if (planBlocked) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+          <Lock className="h-7 w-7 text-amber-500" />
+        </div>
+        <h2 className="text-xl font-bold text-foreground">Expense tracking requires Standard plan</h2>
+        <p className="text-muted-foreground max-w-sm">Upgrade your plan to track expenses, view P&L reports, and manage operational costs.</p>
+        <a href="/settings" className="inline-flex items-center gap-2 bg-primary text-primary-foreground rounded-lg px-5 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity">
+          Upgrade plan in Settings
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

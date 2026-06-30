@@ -15,6 +15,7 @@ export default async function AdminBillingPage() {
       category: true,
       planTier: true,
       billingStatus: true,
+      smsCredits: true,
       trialEndsAt: true,
       gracePeriodEndsAt: true,
       nextBillingDate: true,

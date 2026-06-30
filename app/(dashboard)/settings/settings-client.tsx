@@ -38,7 +38,7 @@ interface Shop {
   smsLowStock: boolean;
   smsDailySummary: boolean;
   smsReceiptEnabled: boolean;
-  smsMonthlyUsage: number;
+  smsCredits: number;
   billingStatus: BillingStatus;
   gracePeriodEndsAt: Date | null;
   nextBillingDate: Date | null;
@@ -58,9 +58,9 @@ const BILLING_STATUS_CONFIG: Record<BillingStatus, { label: string; icon: React.
 };
 
 const PLAN_LABELS: Record<string, { label: string; price: string }> = {
-  BASIC: { label: "Basic", price: "LKR 2,000/mo" },
-  STANDARD: { label: "Standard", price: "LKR 3,500/mo" },
-  PREMIUM: { label: "Premium", price: "LKR 5,000/mo" },
+  BASIC: { label: "Basic", price: "LKR 5,000/mo" },
+  STANDARD: { label: "Standard", price: "LKR 8,000/mo" },
+  PREMIUM: { label: "Premium", price: "LKR 13,000/mo" },
 };
 
 function Toggle({
@@ -303,8 +303,8 @@ export function SettingsClient({ shop }: { shop: Shop }) {
           </CardTitle>
           <CardDescription>
             Configure which alerts are sent to your phone
-            {shop.smsMonthlyUsage > 0 && (
-              <span className="ml-2 text-xs">· {shop.smsMonthlyUsage} SMS sent this month</span>
+            {shop.smsCredits !== undefined && (
+              <span className="ml-2 text-xs">· {shop.smsCredits} SMS credit{shop.smsCredits !== 1 ? "s" : ""} remaining</span>
             )}
           </CardDescription>
         </CardHeader>
@@ -404,9 +404,9 @@ export function SettingsClient({ shop }: { shop: Shop }) {
           <div className="space-y-2 text-sm">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Available Plans</p>
             {[
-              { tier: "BASIC", label: "Basic — LKR 2,000/mo", desc: "1 device, up to 500 products" },
-              { tier: "STANDARD", label: "Standard — LKR 3,500/mo", desc: "3 devices, unlimited products, 100 SMS/mo" },
-              { tier: "PREMIUM", label: "Premium — LKR 5,000/mo", desc: "Unlimited devices, unlimited SMS, priority support" },
+              { tier: "BASIC",    label: "Basic — LKR 5,000/mo",  desc: "1 device, up to 500 products, POS & inventory" },
+              { tier: "STANDARD", label: "Standard — LKR 8,000/mo", desc: "3 devices, unlimited products, customers & expenses" },
+              { tier: "PREMIUM",  label: "Premium — LKR 13,000/mo", desc: "Unlimited devices, advanced analytics, priority support" },
             ].map((t) => (
               <div
                 key={t.tier}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Users, Plus, Search, Phone, CreditCard, Banknote, CheckCircle2, ShoppingBag } from "lucide-react";
+import { Users, Plus, Search, Phone, CreditCard, Banknote, CheckCircle2, ShoppingBag, Lock } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,7 @@ export function CustomersClient() {
   const [paying, setPaying] = useState(false);
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
   const [loadingPending, setLoadingPending] = useState(false);
+  const [planBlocked, setPlanBlocked] = useState(false);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -63,6 +64,7 @@ export function CustomersClient() {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       const res = await fetch(`/api/customers?${params}`);
+      if (res.status === 403) { setPlanBlocked(true); setLoading(false); return; }
       const data = await res.json();
       setCustomers(
         (data.customers ?? []).map((c: Customer) => ({
@@ -158,6 +160,21 @@ export function CustomersClient() {
   }
 
   const totalOutstanding = customers.reduce((s, c) => s + c.creditBalance, 0);
+
+  if (planBlocked) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+          <Lock className="h-7 w-7 text-amber-500" />
+        </div>
+        <h2 className="text-xl font-bold text-foreground">Customer management requires Standard plan</h2>
+        <p className="text-muted-foreground max-w-sm">Upgrade your plan to track customers, manage credit balances, and view purchase history.</p>
+        <a href="/settings" className="inline-flex items-center gap-2 bg-primary text-primary-foreground rounded-lg px-5 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity">
+          Upgrade plan in Settings
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

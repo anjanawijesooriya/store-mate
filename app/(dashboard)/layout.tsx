@@ -46,8 +46,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     redirect("/login");
   }
 
-  const shopName = session?.user?.shopName ?? "My Shop";
-  const userName = session?.user?.name ?? "User";
+  const shopName  = session?.user?.shopName ?? "My Shop";
+  const userName  = session?.user?.name ?? "User";
+  const planTier  = session?.user?.planTier;
   const adminPhone = process.env.NEXT_PUBLIC_ADMIN_PHONE;
   const isAdmin = !!adminPhone && !!session?.user?.phone &&
     session.user.phone.replace(/\D/g, "") === adminPhone.replace(/\D/g, "");
@@ -71,6 +72,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       >
         <Sidebar
           shopName={shopName}
+          planTier={planTier}
           isAdmin={isAdmin}
           onClose={() => setSidebarOpen(false)}
         />

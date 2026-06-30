@@ -44,6 +44,12 @@ export async function sendSmsAndLog(
   message: string,
   type: SmsType
 ): Promise<SmsResult> {
+  // Check credits before sending
+  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { smsCredits: true } });
+  if (!shop || shop.smsCredits <= 0) {
+    return { success: false, error: "No SMS credits remaining" };
+  }
+
   const result = await sendSms(to, message);
 
   try {
@@ -51,7 +57,7 @@ export async function sendSmsAndLog(
       data: { shopId, to, type, message, status: result.success ? "sent" : "failed", error: result.error ?? null },
     });
     if (result.success) {
-      await db.shop.update({ where: { id: shopId }, data: { smsMonthlyUsage: { increment: 1 } } });
+      await db.shop.update({ where: { id: shopId }, data: { smsCredits: { decrement: 1 } } });
     }
   } catch (logErr) {
     console.error("SMS log write failed:", logErr);

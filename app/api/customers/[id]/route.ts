@@ -9,6 +9,8 @@ export async function GET(
 ) {
   try {
     const shopId = await getShopId();
+    const shop = await db.shop.findUnique({ where: { id: shopId }, select: { planTier: true } });
+    if (shop?.planTier === "BASIC") return apiError("Customer management requires Standard plan or higher.", 403);
     const { id } = await params;
 
     const customer = await db.customer.findUnique({
@@ -38,6 +40,8 @@ export async function PATCH(
 ) {
   try {
     const shopId = await getShopId();
+    const shop = await db.shop.findUnique({ where: { id: shopId }, select: { planTier: true } });
+    if (shop?.planTier === "BASIC") return apiError("Customer management requires Standard plan or higher.", 403);
     const { id } = await params;
     const { action, amount } = await req.json();
 

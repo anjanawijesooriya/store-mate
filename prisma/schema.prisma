@@ -74,7 +74,7 @@ model Shop {
   smsLowStock       Boolean      @default(true)
   smsDailySummary   Boolean      @default(true)
   smsReceiptEnabled Boolean      @default(false)
-  smsMonthlyUsage   Int          @default(0)
+  smsCredits        Int          @default(0)
   billingStatus     BillingStatus @default(TRIAL)
   gracePeriodEndsAt DateTime?
   nextBillingDate   DateTime?

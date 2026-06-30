@@ -19,10 +19,7 @@ export async function GET(req: Request) {
   );
   const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
 
-  // Reset monthly usage on the 1st of each month
-  if (slNow.getUTCDate() === 1) {
-    await db.shop.updateMany({ data: { smsMonthlyUsage: 0 } });
-  }
+  // (Monthly SMS usage reset removed — SMS is now credit-based)
 
   const shops = await db.shop.findMany({
     where: { smsDailySummary: true },

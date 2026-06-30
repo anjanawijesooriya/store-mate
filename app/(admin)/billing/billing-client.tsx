@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Clock,
   ShieldAlert,
+  MessageSquare,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ interface Shop {
   createdAt: Date;
   payments: Array<{ paidAt: Date; amount: number; billingMonth: string }>;
   _count: { sales: number; products: number };
+  smsCredits: number;
 }
 
 const STATUS_STYLES: Record<BillingStatus, string> = {
@@ -49,9 +51,9 @@ const STATUS_STYLES: Record<BillingStatus, string> = {
 };
 
 const PLAN_PRICES: Record<PlanTier, string> = {
-  BASIC: "LKR 2,000",
-  STANDARD: "LKR 3,500",
-  PREMIUM: "LKR 5,000",
+  BASIC: "LKR 5,000",
+  STANDARD: "LKR 8,000",
+  PREMIUM: "LKR 13,000",
 };
 
 function fmt(d: Date | null | string) {
@@ -228,6 +230,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                     <td className="px-4 py-3.5">
                       <p className="font-mono text-xs font-semibold text-foreground">{PLAN_PRICES[shop.planTier]}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{shop.planTier}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{shop.smsCredits ?? 0} SMS credits</p>
                     </td>
                     <td className="px-4 py-3.5">
                       <span
@@ -311,6 +314,38 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                           ) : null}
                           +14d Trial
                         </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-7 px-2.5 gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                          disabled={loading === shop.id + "sms_credits"}
+                          onClick={async () => {
+                            const input = window.prompt(`Add SMS credits to ${shop.name}\nCurrent: ${shop.smsCredits ?? 0} credits\n\nEnter amount to add:`);
+                            const amount = parseInt(input ?? "");
+                            if (!amount || amount <= 0) return;
+                            setLoading(shop.id + "sms_credits");
+                            try {
+                              const res = await fetch("/api/admin/sms-credits", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ shopId: shop.id, credits: amount }),
+                              });
+                              if (!res.ok) throw new Error();
+                              toast.success(`Added ${amount} SMS credits to ${shop.name}`);
+                              await refresh();
+                            } catch {
+                              toast.error("Failed to add SMS credits");
+                            } finally {
+                              setLoading(null);
+                            }
+                          }}
+                        >
+                          {loading === shop.id + "sms_credits"
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <MessageSquare className="h-3 w-3" />}
+                          SMS Credits
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -371,9 +406,9 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="BASIC">Basic — LKR 2,000/mo</SelectItem>
-                  <SelectItem value="STANDARD">Standard — LKR 3,500/mo</SelectItem>
-                  <SelectItem value="PREMIUM">Premium — LKR 5,000/mo</SelectItem>
+                  <SelectItem value="BASIC">Basic — LKR 5,000/mo</SelectItem>
+                  <SelectItem value="STANDARD">Standard — LKR 8,000/mo</SelectItem>
+                  <SelectItem value="PREMIUM">Premium — LKR 13,000/mo</SelectItem>
                 </SelectContent>
               </Select>
             </div>

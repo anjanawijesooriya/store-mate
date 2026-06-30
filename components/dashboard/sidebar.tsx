@@ -15,38 +15,44 @@ import {
   ShieldCheck,
   ClipboardList,
   Zap,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-const navItems = [
-  { href: "/pos", label: "Point of Sale", icon: ShoppingCart },
-  { href: "/inventory", label: "Inventory", icon: Package },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/sales", label: "Sales History", icon: ClipboardList },
-  { href: "/customers", label: "Customers", icon: Users },
-  { href: "/expenses", label: "Expenses", icon: Receipt },
-  { href: "/settings", label: "Settings", icon: Settings },
+const ALWAYS_VISIBLE = [
+  { href: "/pos",       label: "Point of Sale",  icon: ShoppingCart },
+  { href: "/inventory", label: "Inventory",       icon: Package      },
+  { href: "/reports",   label: "Reports",         icon: BarChart3    },
+  { href: "/sales",     label: "Sales History",   icon: ClipboardList},
+  { href: "/settings",  label: "Settings",        icon: Settings     },
+];
+
+const PLAN_GATED = [
+  { href: "/customers", label: "Customers", icon: Users    },
+  { href: "/expenses",  label: "Expenses",  icon: Receipt  },
 ];
 
 interface SidebarProps {
   shopName: string;
+  planTier?: string;
   isAdmin?: boolean;
   onClose?: () => void;
 }
 
-export function Sidebar({ shopName, isAdmin, onClose }: SidebarProps) {
+export function Sidebar({ shopName, planTier, isAdmin, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [isOnline, setIsOnline] = useState(true);
+  const isBasic = !planTier || planTier === "BASIC";
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
-    const up = () => setIsOnline(true);
+    const up   = () => setIsOnline(true);
     const down = () => setIsOnline(false);
-    window.addEventListener("online", up);
+    window.addEventListener("online",  up);
     window.addEventListener("offline", down);
     return () => {
-      window.removeEventListener("online", up);
+      window.removeEventListener("online",  up);
       window.removeEventListener("offline", down);
     };
   }, []);
@@ -82,7 +88,8 @@ export function Sidebar({ shopName, isAdmin, onClose }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {/* Always visible */}
+        {ALWAYS_VISIBLE.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
@@ -98,9 +105,44 @@ export function Sidebar({ shopName, isAdmin, onClose }: SidebarProps) {
             >
               <Icon className={cn("h-[18px] w-[18px] flex-shrink-0", active ? "text-primary" : "")} />
               {label}
-              {active && (
-                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
+              {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+            </Link>
+          );
+        })}
+
+        {/* Plan-gated items */}
+        {PLAN_GATED.map((item) => {
+          if (isBasic) {
+            return (
+              <div
+                key={item.href}
+                title="Upgrade to Standard to unlock"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/25 cursor-not-allowed select-none"
+              >
+                <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
+                {item.label}
+                <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
+                  <Lock className="h-3 w-3" /> Standard+
+                </span>
+              </div>
+            );
+          }
+          const active = pathname === item.href || pathname.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                active
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
               )}
+            >
+              <item.icon className={cn("h-[18px] w-[18px] flex-shrink-0", active ? "text-primary" : "")} />
+              {item.label}
+              {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
             </Link>
           );
         })}

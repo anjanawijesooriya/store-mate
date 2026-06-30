@@ -10,6 +10,7 @@ export async function GET() {
       select: {
         billingStatus: true,
         planTier: true,
+        smsCredits: true,
         trialEndsAt: true,
         gracePeriodEndsAt: true,
         nextBillingDate: true,

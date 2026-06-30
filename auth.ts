@@ -14,6 +14,7 @@ declare module "next-auth" {
       shopName: string;
       role: string;
       deviceId: string;
+      planTier: string;
     };
   }
   interface User {
@@ -24,6 +25,7 @@ declare module "next-auth" {
     shopName: string;
     role: string;
     deviceId: string;
+    planTier: string;
   }
 }
 
@@ -123,6 +125,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           shopName:  user.shop.name,
           role:      user.role,
           deviceId,
+          planTier:  user.shop.planTier as string,
         };
       },
     }),
@@ -136,6 +139,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.shopName = user.shopName;
         token.role     = user.role;
         token.deviceId = user.deviceId;
+        token.planTier = user.planTier;
       }
       return token;
     },
@@ -146,6 +150,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.shopName = token.shopName as string;
       session.user.role     = token.role     as string;
       session.user.deviceId = token.deviceId as string;
+      session.user.planTier = token.planTier as string;
       return session;
     },
   },

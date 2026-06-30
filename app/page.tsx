@@ -100,7 +100,7 @@ export default async function HomePage() {
             </div>
 
             <p className="text-sm text-white/30">
-              No credit card · Cancel anytime · LKR 2,000–5,000/mo
+              No credit card · Cancel anytime · LKR 5,000–13,000/mo
             </p>
           </div>
 
@@ -411,7 +411,7 @@ export default async function HomePage() {
             {[
               {
                 name: "Basic",
-                price: "2,000",
+                price: "5,000",
                 period: "/month",
                 desc: "For small single-counter shops",
                 color: "#60A5FA",
@@ -426,14 +426,13 @@ export default async function HomePage() {
               },
               {
                 name: "Standard",
-                price: "3,500",
+                price: "8,000",
                 period: "/month",
                 desc: "For growing shops — most popular",
                 color: "#2DA86B",
                 features: [
                   "Up to 3 devices",
                   "Unlimited products",
-                  "100 SMS/month included",
                   "Customer management",
                   "Expense tracking + P&L",
                   "Offline POS mode",
@@ -442,13 +441,12 @@ export default async function HomePage() {
               },
               {
                 name: "Premium",
-                price: "5,000",
+                price: "13,000",
                 period: "/month",
                 desc: "For busy shops needing everything",
                 color: "#A78BFA",
                 features: [
                   "Unlimited devices",
-                  "Unlimited SMS",
                   "Advanced analytics",
                   "Priority WhatsApp support",
                   "Everything in Standard",
@@ -505,6 +503,9 @@ export default async function HomePage() {
 
           <p className="text-center text-sm text-white/25 mt-8">
             All plans include a 30-day free trial. Pricing in LKR. Billed monthly. Cancel anytime.
+          </p>
+          <p className="text-center text-sm text-white/20 mt-2">
+            SMS notifications (low-stock alerts, receipts) available as a credit add-on — buy only what you need.
           </p>
         </div>
       </section>

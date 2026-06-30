@@ -17,6 +17,7 @@ export async function GET() {
       category: true,
       planTier: true,
       billingStatus: true,
+      smsCredits: true,
       trialEndsAt: true,
       gracePeriodEndsAt: true,
       nextBillingDate: true,

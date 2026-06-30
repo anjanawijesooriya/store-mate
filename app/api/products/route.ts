@@ -61,6 +61,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const shopId = await getShopId();
+
+    // BASIC plan: max 500 active products
+    const shop = await db.shop.findUnique({ where: { id: shopId }, select: { planTier: true } });
+    if (shop?.planTier === "BASIC") {
+      const count = await db.product.count({ where: { shopId, isActive: true } });
+      if (count >= 500) return apiError("Product limit reached — Basic plan allows 500 products. Upgrade to Standard for unlimited.", 403);
+    }
+
     const body = await req.json();
     const { name, sku, category, unit, costPrice, sellPrice, stockQty, lowStockAt, imageUrl } = body;
 

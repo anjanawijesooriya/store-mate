@@ -5,6 +5,8 @@ import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/a
 export async function GET(req: NextRequest) {
   try {
     const shopId = await getShopId();
+    const shop = await db.shop.findUnique({ where: { id: shopId }, select: { planTier: true } });
+    if (shop?.planTier === "BASIC") return apiError("Customer management requires Standard plan or higher.", 403);
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") ?? "";
     const page = parseInt(searchParams.get("page") ?? "1");
@@ -41,6 +43,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const shopId = await getShopId();
+    const shop = await db.shop.findUnique({ where: { id: shopId }, select: { planTier: true } });
+    if (shop?.planTier === "BASIC") return apiError("Customer management requires Standard plan or higher.", 403);
     const body = await req.json();
     const { name, phone, address } = body;
 
