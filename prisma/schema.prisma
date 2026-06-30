@@ -42,6 +42,8 @@ enum PaymentMethod {
 
 enum SaleStatus {
   COMPLETED
+  PENDING_PAYMENT
+  EXCHANGED
   REFUNDED
   VOIDED
 }
@@ -160,22 +162,26 @@ model Customer {
 }
 
 model Sale {
-  id            String        @id @default(cuid())
-  shopId        String
-  shop          Shop          @relation(fields: [shopId], references: [id])
-  customerId    String?
-  customer      Customer?     @relation(fields: [customerId], references: [id])
-  userId        String
-  items         SaleItem[]
-  subtotal      Decimal       @db.Decimal(10, 2)
-  discount      Decimal       @db.Decimal(10, 2) @default(0)
-  total         Decimal       @db.Decimal(10, 2)
-  paymentMethod PaymentMethod
-  amountPaid    Decimal       @db.Decimal(10, 2)
-  status        SaleStatus    @default(COMPLETED)
-  createdAt     DateTime      @default(now())
+  id             String        @id @default(cuid())
+  shopId         String
+  shop           Shop          @relation(fields: [shopId], references: [id])
+  customerId     String?
+  customer       Customer?     @relation(fields: [customerId], references: [id])
+  userId         String
+  items          SaleItem[]
+  subtotal       Decimal       @db.Decimal(10, 2)
+  discount       Decimal       @db.Decimal(10, 2) @default(0)
+  total          Decimal       @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod
+  amountPaid     Decimal       @db.Decimal(10, 2)
+  status         SaleStatus    @default(COMPLETED)
+  originalSaleId String?
+  originalSale   Sale?         @relation("ExchangeOf", fields: [originalSaleId], references: [id])
+  exchanges      Sale[]        @relation("ExchangeOf")
+  createdAt      DateTime      @default(now())
 
   @@index([shopId, createdAt])
+  @@index([originalSaleId])
 }
 
 model SaleItem {
@@ -187,6 +193,7 @@ model SaleItem {
   quantity  Decimal @db.Decimal(10, 2)
   unitPrice Decimal @db.Decimal(10, 2)
   lineTotal Decimal @db.Decimal(10, 2)
+  returned  Boolean @default(false)
 }
 
 model Expense {

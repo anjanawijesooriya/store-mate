@@ -20,6 +20,8 @@ import {
   Check,
   WifiOff,
   RefreshCw,
+  User,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +48,13 @@ import {
   markSaleFailed,
   type CachedProduct,
 } from "@/lib/offline-db";
+
+interface Customer {
+  id: string;
+  name: string;
+  phone: string | null;
+  creditBalance: number;
+}
 
 interface Product {
   id: string;
@@ -167,6 +176,10 @@ export function POSClient() {
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+  const [sendingSms, setSendingSms] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const subtotal = cart.reduce((s, i) => s + i.lineTotal, 0);
@@ -316,6 +329,51 @@ export function POSClient() {
     return () => clearTimeout(t);
   }, [searchQuery, isOnline, allCached]);
 
+  // Customer search — runs only while checkout dialog is open
+  useEffect(() => {
+    if (!checkoutOpen || !customerQuery.trim()) {
+      setCustomerResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/customers?search=${encodeURIComponent(customerQuery)}&limit=5`
+        );
+        const data = await res.json();
+        setCustomerResults(
+          (data.customers ?? []).map((c: Customer & { creditBalance: string | number }) => ({
+            ...c,
+            creditBalance: Number(c.creditBalance),
+          }))
+        );
+      } catch {}
+    }, 200);
+    return () => clearTimeout(t);
+  }, [customerQuery, checkoutOpen]);
+
+  async function sendSmsReceipt() {
+    if (!completedSale || completedSale.isOffline) return;
+    setSendingSms(true);
+    try {
+      const res = await fetch("/api/sms/send-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ saleId: completedSale.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to send SMS");
+        return;
+      }
+      toast.success("Receipt sent via SMS");
+    } catch {
+      toast.error("Failed to send SMS");
+    } finally {
+      setSendingSms(false);
+    }
+  }
+
   function addToCart(product: Product) {
     setCart((prev) => {
       const existing = prev.find((i) => i.productId === product.id);
@@ -389,6 +447,9 @@ export function POSClient() {
     setAmountTendered("");
     setCheckoutOpen(false);
     setCompletedSale(null);
+    setSelectedCustomer(null);
+    setCustomerQuery("");
+    setCustomerResults([]);
   }
 
   async function completeSale() {
@@ -403,8 +464,11 @@ export function POSClient() {
 
     setLoading(true);
 
+    // CREDIT = nothing paid yet; CASH = tendered; CARD/ONLINE = full amount settled
     const amountPaid =
-      paymentMethod === "CASH" ? parseFloat(amountTendered) : total;
+      paymentMethod === "CASH"   ? parseFloat(amountTendered)
+      : paymentMethod === "CREDIT" ? 0
+      : total;
     const saleItems = cart.map((i) => ({
       productId: i.productId,
       quantity: i.quantity,
@@ -463,6 +527,7 @@ export function POSClient() {
           discount: discountAmt,
           paymentMethod,
           amountPaid,
+          customerId: selectedCustomer?.id ?? undefined,
         }),
       });
 
@@ -797,6 +862,74 @@ export function POSClient() {
               </div>
             )}
 
+            {/* Customer selection */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <User className="h-3.5 w-3.5" />
+                Customer
+                {paymentMethod === "CREDIT"
+                  ? <span className="text-destructive ml-0.5">*</span>
+                  : <span className="text-muted-foreground text-xs font-normal ml-1">(optional)</span>
+                }
+              </Label>
+
+              {selectedCustomer ? (
+                <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{selectedCustomer.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedCustomer.phone ?? "No phone saved"}
+                      {selectedCustomer.creditBalance > 0 && (
+                        <span className="ml-2 text-amber-600 font-medium">
+                          · Owes {formatLKR(selectedCustomer.creditBalance)}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { setSelectedCustomer(null); setCustomerQuery(""); setCustomerResults([]); }}
+                    className="text-muted-foreground hover:text-foreground flex-shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search by name or phone..."
+                    value={customerQuery}
+                    onChange={(e) => setCustomerQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 h-10 text-sm border border-input rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  {customerResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+                      {customerResults.map((c) => (
+                        <button
+                          key={c.id}
+                          className="w-full text-left px-3 py-2.5 hover:bg-muted transition-colors text-sm border-b border-border last:border-0"
+                          onClick={() => { setSelectedCustomer(c); setCustomerQuery(""); setCustomerResults([]); }}
+                        >
+                          <p className="font-medium text-foreground">{c.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {c.phone ?? "No phone"}
+                            {c.creditBalance > 0 && (
+                              <span className="ml-2 text-amber-600">Owes {formatLKR(c.creditBalance)}</span>
+                            )}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {paymentMethod === "CREDIT" && !selectedCustomer && (
+                <p className="text-xs text-destructive">A customer must be selected for credit sales</p>
+              )}
+            </div>
+
             <div>
               <Label className="mb-2 block">Payment Method</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -866,8 +999,8 @@ export function POSClient() {
               onClick={completeSale}
               disabled={
                 loading ||
-                (paymentMethod === "CASH" &&
-                  parseFloat(amountTendered || "0") < total)
+                (paymentMethod === "CASH" && parseFloat(amountTendered || "0") < total) ||
+                (paymentMethod === "CREDIT" && !selectedCustomer)
               }
               className="font-bold flex-1"
               style={{ backgroundColor: "var(--cta)", color: "white" }}
@@ -936,9 +1069,15 @@ export function POSClient() {
                     </span>
                   </div>
                 )}
+                {completedSale.paymentMethod === "CREDIT" && (
+                  <div className="flex justify-between text-destructive font-medium">
+                    <span>Amount Due (on credit)</span>
+                    <span>{formatLKR(completedSale.total)}</span>
+                  </div>
+                )}
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button
                   variant="outline"
                   className="flex-1"
@@ -947,6 +1086,20 @@ export function POSClient() {
                   <Printer className="h-4 w-4 mr-2" />
                   Print
                 </Button>
+
+                {/* SMS receipt — only if sale is online and customer has a phone */}
+                {!completedSale?.isOffline && selectedCustomer?.phone && (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={sendSmsReceipt}
+                    disabled={sendingSms}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    {sendingSms ? "Sending…" : "SMS"}
+                  </Button>
+                )}
+
                 <Button
                   className="flex-1 font-semibold"
                   onClick={() => {

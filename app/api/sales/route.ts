@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, getSession, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
-import { PaymentMethod } from "@/lib/generated/prisma/enums";
+import { PaymentMethod, SaleStatus } from "@/lib/generated/prisma/enums";
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
+        // originalSaleId and items.returned are included automatically via the model
       }),
       db.sale.count({ where }),
     ]);
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
           total,
           paymentMethod: paymentMethod as PaymentMethod,
           amountPaid: parseFloat(String(amountPaid ?? total)),
-          status: "COMPLETED",
+          status: paymentMethod === "CREDIT" ? SaleStatus.PENDING_PAYMENT : SaleStatus.COMPLETED,
           items: {
             create: saleItems.map((i) => ({
               productId: i.productId,
@@ -160,7 +161,8 @@ export async function POST(req: NextRequest) {
     return Response.json({ sale }, { status: 201 });
   } catch (err) {
     if (err instanceof UnauthorizedError) return apiUnauthorized();
-    console.error(err);
-    return apiError("Failed to process sale", 500);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[POST /api/sales]", message);
+    return apiError(process.env.NODE_ENV === "development" ? message : "Failed to process sale", 500);
   }
 }

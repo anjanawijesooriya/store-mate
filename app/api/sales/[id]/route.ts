@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
+import { SaleStatus } from "@/lib/generated/prisma/enums";
 
 export async function PATCH(
   req: NextRequest,
@@ -21,7 +22,7 @@ export async function PATCH(
     });
 
     if (!sale) return apiError("Sale not found", 404);
-    if (sale.status !== "COMPLETED") {
+    if (sale.status === SaleStatus.VOIDED || sale.status === SaleStatus.REFUNDED) {
       return apiError(`Sale is already ${sale.status.toLowerCase()}`);
     }
 
@@ -49,13 +50,18 @@ export async function PATCH(
       }
 
       if (sale.customerId) {
+        // For credit sales: only the still-owed portion remains on creditBalance
+        // (amountPaid was already removed from creditBalance when payments were recorded)
+        const creditToRestore =
+          sale.paymentMethod === "CREDIT"
+            ? Number(sale.total) - Number(sale.amountPaid)
+            : 0;
+
         await tx.customer.update({
           where: { id: sale.customerId },
           data: {
             totalSpent: { decrement: sale.total },
-            ...(sale.paymentMethod === "CREDIT" && {
-              creditBalance: { decrement: sale.total },
-            }),
+            ...(creditToRestore > 0 && { creditBalance: { decrement: creditToRestore } }),
           },
         });
       }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   ShoppingCart,
   Package,
@@ -36,6 +37,19 @@ interface SidebarProps {
 
 export function Sidebar({ shopName, isAdmin, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const up = () => setIsOnline(true);
+    const down = () => setIsOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
+  }, []);
 
   return (
     <aside className="flex flex-col h-full bg-sidebar text-sidebar-foreground overflow-hidden">
@@ -119,8 +133,8 @@ export function Sidebar({ shopName, isAdmin, onClose }: SidebarProps) {
             <p className="text-[10px] text-sidebar-foreground/30 font-medium">StoreMate v1.0</p>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-[color:var(--brand-success)] animate-pulse" />
-            <span className="text-[10px] text-sidebar-foreground/30">Online</span>
+            <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isOnline ? "bg-[color:var(--brand-success)] animate-pulse" : "bg-destructive"}`} />
+            <span className="text-[10px] text-sidebar-foreground/30">{isOnline ? "Online" : "Offline"}</span>
           </div>
         </div>
       </div>
