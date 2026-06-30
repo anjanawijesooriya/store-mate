@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { signOut } from "next-auth/react";
 import { toast } from "sonner";
-import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock } from "lucide-react";
+import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock, Monitor, Trash2, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,19 @@ function Toggle({
   );
 }
 
+interface DeviceInfo {
+  id: string;
+  deviceId: string;
+  deviceName: string;
+  lastSeenAt: string;
+  createdAt: string;
+  isCurrent: boolean;
+}
+
+const DEVICE_LIMITS: Record<string, number> = {
+  BASIC: 1, STANDARD: 3, PREMIUM: Infinity,
+};
+
 export function SettingsClient({ shop }: { shop: Shop }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -105,6 +119,33 @@ export function SettingsClient({ shop }: { shop: Shop }) {
     smsReceiptEnabled: shop.smsReceiptEnabled,
   });
   const [smsSaving, setSmsSaving] = useState(false);
+
+  const [devices, setDevices] = useState<DeviceInfo[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(true);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/devices")
+      .then((r) => r.ok ? r.json() : { devices: [] })
+      .then((d) => setDevices(d.devices ?? []))
+      .catch(() => {})
+      .finally(() => setDevicesLoading(false));
+  }, []);
+
+  async function removeDevice(id: string) {
+    setRemovingId(id);
+    try {
+      const res = await fetch(`/api/devices?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Failed to remove device"); return; }
+      setDevices((prev) => prev.filter((d) => d.id !== id));
+      toast.success("Device removed — they will be signed out on next action");
+    } catch {
+      toast.error("Failed to remove device");
+    } finally {
+      setRemovingId(null);
+    }
+  }
 
   const plan = PLAN_LABELS[shop.planTier] ?? PLAN_LABELS.BASIC;
   const trialDaysLeft = shop.trialEndsAt
@@ -419,6 +460,84 @@ export function SettingsClient({ shop }: { shop: Shop }) {
               </div>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      {/* ── Devices ───────────────────────────────────────────── */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Monitor className="h-4 w-4 text-primary" />
+            Registered Devices
+          </CardTitle>
+          <CardDescription>
+            {(() => {
+              const limit = DEVICE_LIMITS[shop.planTier];
+              const used  = devices.length;
+              return limit === Infinity
+                ? `${used} device${used !== 1 ? "s" : ""} registered — unlimited on ${shop.planTier} plan`
+                : `${used} / ${limit} device${limit !== 1 ? "s" : ""} used on ${shop.planTier} plan`;
+            })()}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {devicesLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading devices…
+            </div>
+          ) : devices.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No devices registered.</p>
+          ) : (
+            <div className="divide-y divide-border rounded-lg border overflow-hidden">
+              {devices.map((device) => (
+                <div key={device.id} className="flex items-center gap-3 px-4 py-3 bg-background">
+                  <Monitor className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground truncate">{device.deviceName}</p>
+                      {device.isCurrent && (
+                        <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 flex items-center gap-1">
+                          <ShieldCheck className="h-3 w-3" /> This device
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Last seen {new Date(device.lastSeenAt).toLocaleString("en-LK", {
+                        day: "numeric", month: "short", year: "numeric",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  {device.isCurrent ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => signOut({ callbackUrl: "/login" })}
+                    >
+                      Sign out
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => removeDevice(device.id)}
+                      disabled={removingId === device.id}
+                    >
+                      {removingId === device.id
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <Trash2 className="h-3 w-3" />}
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Removing a device signs them out immediately on their next action.
+            To free up a slot, remove an inactive device or upgrade your plan.
+          </p>
         </CardContent>
       </Card>
     </div>

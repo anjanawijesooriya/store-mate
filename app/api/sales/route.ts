@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, getSession, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 import { PaymentMethod, SaleStatus } from "@/lib/generated/prisma/enums";
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
     return Response.json({ sales, total, page, limit });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     return apiError("Failed to fetch sales", 500);
   }
 }
@@ -160,9 +160,10 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ sale }, { status: 201 });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     const message = err instanceof Error ? err.message : String(err);
     console.error("[POST /api/sales]", message);
     return apiError(process.env.NODE_ENV === "development" ? message : "Failed to process sale", 500);
   }
 }
+

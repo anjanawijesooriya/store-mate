@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
@@ -14,6 +14,25 @@ import { SessionProvider } from "next-auth/react";
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Global interceptor: sign out immediately if any API returns device_revoked
+  useEffect(() => {
+    const original = window.fetch;
+    window.fetch = async (...args) => {
+      const res = await original(...args);
+      if (res.status === 401) {
+        try {
+          const clone = res.clone();
+          const data = await clone.json();
+          if (data?.reason === "device_revoked") {
+            signOut({ callbackUrl: "/login?reason=device_revoked" });
+          }
+        } catch { /* ignore */ }
+      }
+      return res;
+    };
+    return () => { window.fetch = original; };
+  }, []);
 
   if (status === "loading") {
     return (

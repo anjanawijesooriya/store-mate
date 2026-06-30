@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
@@ -16,7 +16,7 @@ export async function GET() {
     if (!shop) return apiError("Shop not found", 404);
     return Response.json({ preferences: shop });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     return apiError("Failed to fetch SMS preferences", 500);
   }
 }
@@ -39,7 +39,8 @@ export async function PATCH(req: NextRequest) {
 
     return Response.json({ preferences: shop });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     return apiError("Failed to update SMS preferences", 500);
   }
 }
+

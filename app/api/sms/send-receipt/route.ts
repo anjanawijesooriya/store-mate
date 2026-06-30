@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 import { sendSmsAndLog, buildReceiptMessage } from "@/lib/sms";
@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ success: result.success, error: result.error ?? null });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     return apiError("Failed to send receipt SMS", 500);
   }
 }
+

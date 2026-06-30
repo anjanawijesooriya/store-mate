@@ -13,6 +13,7 @@ declare module "next-auth" {
       shopId: string;
       shopName: string;
       role: string;
+      deviceId: string;
     };
   }
   interface User {
@@ -22,7 +23,31 @@ declare module "next-auth" {
     shopId: string;
     shopName: string;
     role: string;
+    deviceId: string;
   }
+}
+
+const DEVICE_LIMITS: Record<string, number> = {
+  BASIC:    1,
+  STANDARD: 3,
+  PREMIUM:  Infinity,
+};
+
+function parseDeviceName(ua: string): string {
+  if (!ua) return "Unknown device";
+  const os =
+    ua.includes("Windows") ? "Windows" :
+    ua.includes("Mac")     ? "macOS"   :
+    ua.includes("Android") ? "Android" :
+    ua.includes("iPhone") || ua.includes("iPad") ? "iOS" :
+    ua.includes("Linux")   ? "Linux"   : "Unknown OS";
+  const browser =
+    ua.includes("Edg/")     ? "Edge"    :
+    ua.includes("OPR/")     ? "Opera"   :
+    ua.includes("Chrome/")  ? "Chrome"  :
+    ua.includes("Firefox/") ? "Firefox" :
+    ua.includes("Safari/")  ? "Safari"  : "Browser";
+  return `${browser} on ${os}`;
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -30,15 +55,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        phone: { label: "Phone", type: "text" },
-        password: { label: "Password", type: "password" },
+        phone:      { label: "Phone",     type: "text"     },
+        password:   { label: "Password",  type: "password" },
+        deviceId:   { label: "Device ID", type: "text"     },
+        userAgent:  { label: "UA",        type: "text"     },
       },
       async authorize(credentials) {
         if (!credentials?.phone || !credentials?.password) return null;
 
+        const deviceId  = (credentials.deviceId  as string | undefined)?.trim();
+        const userAgent = (credentials.userAgent  as string | undefined) ?? "";
+
+        if (!deviceId) return null;
+
         const user = await db.user.findUnique({
           where: { phone: credentials.phone as string },
-          include: { shop: { select: { id: true, name: true } } },
+          include: {
+            shop: {
+              select: {
+                id: true, name: true, planTier: true, billingStatus: true,
+              },
+            },
+          },
         });
 
         if (!user) return null;
@@ -49,13 +87,42 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
         if (!valid) return null;
 
+        const shopId   = user.shopId;
+        const planTier = user.shop.planTier as string;
+        const limit    = DEVICE_LIMITS[planTier] ?? 1;
+
+        const existing = await db.deviceSession.findUnique({
+          where: { shopId_deviceId: { shopId, deviceId } },
+        });
+
+        if (existing) {
+          // Known device — just refresh lastSeenAt
+          await db.deviceSession.update({
+            where: { shopId_deviceId: { shopId, deviceId } },
+            data:  { lastSeenAt: new Date(), userId: user.id },
+          });
+        } else {
+          // New device — enforce plan limit
+          const count = await db.deviceSession.count({ where: { shopId } });
+          if (count >= limit) return null;
+          await db.deviceSession.create({
+            data: {
+              shopId,
+              userId:     user.id,
+              deviceId,
+              deviceName: parseDeviceName(userAgent),
+            },
+          });
+        }
+
         return {
-          id: user.id,
-          name: user.name,
-          phone: user.phone,
-          shopId: user.shopId,
-          shopName: user.shop.name,
-          role: user.role,
+          id:        user.id,
+          name:      user.name,
+          phone:     user.phone,
+          shopId:    user.shopId,
+          shopName:  user.shop.name,
+          role:      user.role,
+          deviceId,
         };
       },
     }),
@@ -63,20 +130,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.phone = user.phone;
-        token.shopId = user.shopId;
+        token.id       = user.id;
+        token.phone    = user.phone;
+        token.shopId   = user.shopId;
         token.shopName = user.shopName;
-        token.role = user.role;
+        token.role     = user.role;
+        token.deviceId = user.deviceId;
       }
       return token;
     },
     async session({ session, token }) {
-      session.user.id = token.id as string;
-      session.user.phone = token.phone as string;
-      session.user.shopId = token.shopId as string;
+      session.user.id       = token.id       as string;
+      session.user.phone    = token.phone    as string;
+      session.user.shopId   = token.shopId   as string;
       session.user.shopName = token.shopName as string;
-      session.user.role = token.role as string;
+      session.user.role     = token.role     as string;
+      session.user.deviceId = token.deviceId as string;
       return session;
     },
   },

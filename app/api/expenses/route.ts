@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       limit,
     });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     return apiError("Failed to fetch expenses", 500);
   }
 }
@@ -70,7 +70,8 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ expense }, { status: 201 });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     return apiError("Failed to create expense", 500);
   }
 }
+

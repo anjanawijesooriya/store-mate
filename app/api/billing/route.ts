@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+﻿import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
 export async function GET() {
@@ -34,7 +34,8 @@ export async function GET() {
     if (!shop) return apiError("Shop not found", 404);
     return Response.json({ billing: shop });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     return apiError("Failed to fetch billing info", 500);
   }
 }
+

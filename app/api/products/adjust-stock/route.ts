@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 import { MovementType } from "@/lib/generated/prisma/enums";
@@ -70,8 +70,9 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ movement, newStock });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     console.error(err);
     return apiError("Failed to adjust stock", 500);
   }
 }
+

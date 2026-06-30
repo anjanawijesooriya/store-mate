@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     const totalExpenses = Number(expensesRaw._sum.amount ?? 0);
     const totalProfit = totalGrossProfit - totalExpenses;
 
-    // Sales by day — use local timezone so dates match what the user sees
+    // Sales by day â€” use local timezone so dates match what the user sees
     const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
     const dayMap = new Map<string, { date: string; revenue: number; count: number }>();
     for (const sale of salesRaw) {
@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
-    // Sales by hour — extract local hour from each sale's createdAt using the browser's timezone
+    // Sales by hour â€” extract local hour from each sale's createdAt using the browser's timezone
     const hourFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false });
     const hourMap = new Map<number, { hour: number; revenue: number; count: number }>();
     for (const sale of salesRaw) {
@@ -155,8 +155,9 @@ export async function GET(req: NextRequest) {
       topProducts,
     });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     console.error(err);
     return apiError("Failed to generate report", 500);
   }
 }
+
