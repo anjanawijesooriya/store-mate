@@ -74,6 +74,20 @@ interface CartItem {
   originalPrice: number;
   quantity: number;
   lineTotal: number;
+  stockQty: number;
+}
+
+const FRACTIONAL_UNITS = new Set(["kg", "g", "l", "L", "ml", "mL", "liter", "litre", "gram", "kilo", "oz", "lb"]);
+
+function isFractional(unit: string) {
+  return FRACTIONAL_UNITS.has(unit) || FRACTIONAL_UNITS.has(unit.toLowerCase());
+}
+
+function qtyStep(unit: string) {
+  const u = unit.toLowerCase();
+  if (u === "g" || u === "ml") return 50;   // grams/ml → step 50
+  if (u === "kg" || u === "l") return 0.25;  // kg/L → step 250g
+  return 1;
 }
 
 interface CompletedSale {
@@ -396,17 +410,15 @@ export function POSClient() {
     setCart((prev) => {
       const existing = prev.find((i) => i.productId === product.id);
       if (existing) {
-        if (existing.quantity >= product.stockQty) {
+        const step = qtyStep(product.unit);
+        const newQty = Math.round((existing.quantity + step) * 10000) / 10000;
+        if (newQty > product.stockQty) {
           toast.warning(`Only ${product.stockQty} ${product.unit} in stock`);
           return prev;
         }
         return prev.map((i) =>
           i.productId === product.id
-            ? {
-                ...i,
-                quantity: i.quantity + 1,
-                lineTotal: (i.quantity + 1) * i.unitPrice,
-              }
+            ? { ...i, quantity: newQty, lineTotal: newQty * i.unitPrice }
             : i
         );
       }
@@ -424,6 +436,7 @@ export function POSClient() {
           originalPrice: Number(product.sellPrice),
           quantity: 1,
           lineTotal: Number(product.sellPrice),
+          stockQty: product.stockQty,
         },
       ];
     });
@@ -437,9 +450,30 @@ export function POSClient() {
       prev
         .map((i) => {
           if (i.productId !== productId) return i;
-          const newQty = i.quantity + delta;
+          const step = qtyStep(i.unit);
+          const newQty = Math.round((i.quantity + delta * step) * 10000) / 10000;
           if (newQty <= 0) return null as unknown as CartItem;
+          if (newQty > i.stockQty) {
+            toast.warning(`Only ${i.stockQty} ${i.unit} in stock`);
+            return i;
+          }
           return { ...i, quantity: newQty, lineTotal: newQty * i.unitPrice };
+        })
+        .filter(Boolean)
+    );
+  }
+
+  function setExactQty(productId: string, qty: number) {
+    setCart((prev) =>
+      prev
+        .map((i) => {
+          if (i.productId !== productId) return i;
+          if (isNaN(qty) || qty <= 0) return null as unknown as CartItem;
+          if (qty > i.stockQty) {
+            toast.warning(`Only ${i.stockQty} ${i.unit} in stock`);
+            return { ...i, quantity: i.stockQty, lineTotal: i.stockQty * i.unitPrice };
+          }
+          return { ...i, quantity: qty, lineTotal: qty * i.unitPrice };
         })
         .filter(Boolean)
     );
@@ -779,9 +813,15 @@ export function POSClient() {
                         >
                           <Minus className="h-3 w-3" />
                         </button>
-                        <span className="text-sm font-mono w-8 text-center">
-                          {item.quantity}
-                        </span>
+                        <input
+                          type="number"
+                          min={isFractional(item.unit) ? 0.001 : 1}
+                          step={qtyStep(item.unit)}
+                          value={item.quantity}
+                          onChange={(e) => setExactQty(item.productId, parseFloat(e.target.value))}
+                          className="w-16 text-sm font-mono text-center border border-border rounded px-1 py-0.5 bg-background text-foreground"
+                        />
+                        <span className="text-xs text-muted-foreground">{item.unit}</span>
                         <button
                           onClick={() => updateQty(item.productId, 1)}
                           className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted transition-colors"
