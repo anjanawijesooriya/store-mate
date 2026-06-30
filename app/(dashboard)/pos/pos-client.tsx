@@ -92,6 +92,12 @@ interface CompletedSale {
   isOffline?: boolean;
 }
 
+interface ShopInfo {
+  name: string;
+  phone: string | null;
+  address: string | null;
+}
+
 const PAYMENT_METHODS = [
   { value: "CASH", label: "Cash", icon: Banknote },
   { value: "CARD", label: "Card", icon: CreditCard },
@@ -180,6 +186,7 @@ export function POSClient() {
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [sendingSms, setSendingSms] = useState(false);
+  const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const subtotal = cart.reduce((s, i) => s + i.lineTotal, 0);
@@ -187,6 +194,17 @@ export function POSClient() {
     discountType === "percent" ? (subtotal * discount) / 100 : discount;
   const total = Math.max(0, subtotal - discountAmt);
   const change = parseFloat(amountTendered || "0") - total;
+
+  // Fetch shop contact details for receipt — wait for session so auth cookie is ready
+  useEffect(() => {
+    if (!session?.user?.shopId) return;
+    fetch("/api/shop")
+      .then((r) => r.ok ? r.json() : null)
+      .then((s) => {
+        if (s) setShopInfo({ name: s.name ?? "", phone: s.phone ?? null, address: s.address ?? null });
+      })
+      .catch(() => {});
+  }, [session?.user?.shopId]);
 
   // Load products on mount — cache for offline use
   useEffect(() => {
@@ -1018,13 +1036,11 @@ export function POSClient() {
       {/* Receipt Dialog */}
       <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
+          <DialogHeader className="print:hidden">
             <DialogTitle
               className={cn(
                 "flex items-center gap-2",
-                completedSale?.isOffline
-                  ? "text-amber-600"
-                  : "text-[color:var(--brand-success)]"
+                completedSale?.isOffline ? "text-amber-600" : "text-[color:var(--brand-success)]"
               )}
             >
               <Check className="h-5 w-5" />
@@ -1035,49 +1051,100 @@ export function POSClient() {
           {completedSale && (
             <div className="space-y-3">
               {completedSale.isOffline && (
-                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <div className="print:hidden flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   <WifiOff className="h-3 w-3 flex-shrink-0" />
                   Will sync automatically when reconnected
                 </div>
               )}
 
-              <div className="rounded-lg bg-muted/50 p-4 space-y-2 text-sm font-mono">
+              {/* Receipt body — this is what prints */}
+              <div id="receipt-print-area" className="rounded-lg bg-muted/50 p-4 space-y-2 text-sm font-mono print:bg-white print:rounded-none print:shadow-none print:p-0">
+
+                {/* Shop header */}
+                <div className="text-center space-y-0.5 pb-3 border-b border-dashed border-border">
+                  <p className="font-bold text-base text-foreground">
+                    {shopInfo?.name || session?.user?.shopName || ""}
+                  </p>
+                  {shopInfo?.address && (
+                    <p className="text-xs text-muted-foreground leading-snug">{shopInfo.address}</p>
+                  )}
+                  {(shopInfo?.phone || session?.user?.phone) && (
+                    <p className="text-xs text-muted-foreground">
+                      Tel: {shopInfo?.phone || session?.user?.phone}
+                    </p>
+                  )}
+                </div>
+
+                {/* Date & receipt number */}
+                <div className="flex justify-between text-xs text-muted-foreground pt-1">
+                  <span>{new Date(completedSale.createdAt).toLocaleString("en-LK", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  <span>#{completedSale.id.slice(-6).toUpperCase()}</span>
+                </div>
+
+                {selectedCustomer && (
+                  <p className="text-xs text-muted-foreground">Customer: {selectedCustomer.name}</p>
+                )}
+
+                <Separator className="my-2 border-dashed" />
+
+                {/* Line items */}
                 {completedSale.items.map((item, i) => (
-                  <div key={i} className="flex justify-between">
-                    <span className="text-foreground">
-                      {item.name} × {item.quantity}
-                    </span>
-                    <span className="font-semibold">
-                      {formatLKR(item.lineTotal)}
-                    </span>
+                  <div key={i} className="space-y-0.5">
+                    <div className="flex justify-between">
+                      <span className="text-foreground truncate pr-2">{item.name}</span>
+                      <span className="font-semibold shrink-0">{formatLKR(item.lineTotal)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {item.quantity} {item.unit} × {formatLKR(item.unitPrice)}
+                    </p>
                   </div>
                 ))}
-                <Separator className="my-2" />
+
+                <Separator className="my-2 border-dashed" />
+
+                {/* Totals */}
                 <div className="flex justify-between font-bold text-base">
                   <span>Total</span>
-                  <span className="text-primary">
-                    {formatLKR(completedSale.total)}
+                  <span className="text-primary">{formatLKR(completedSale.total)}</span>
+                </div>
+
+                {/* Payment method */}
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Payment</span>
+                  <span className="font-medium text-foreground">
+                    {{ CASH: "Cash", CARD: "Card", ONLINE: "Online", CREDIT: "Credit" }[completedSale.paymentMethod] ?? completedSale.paymentMethod}
                   </span>
                 </div>
-                {completedSale.paymentMethod === "CASH" && (
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Change</span>
-                    <span>
-                      {formatLKR(
-                        completedSale.amountPaid - completedSale.total
-                      )}
-                    </span>
-                  </div>
+
+                {completedSale.paymentMethod === "CASH" && completedSale.amountPaid > completedSale.total && (
+                  <>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Tendered</span>
+                      <span>{formatLKR(completedSale.amountPaid)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Change</span>
+                      <span>{formatLKR(completedSale.amountPaid - completedSale.total)}</span>
+                    </div>
+                  </>
                 )}
+
                 {completedSale.paymentMethod === "CREDIT" && (
                   <div className="flex justify-between text-destructive font-medium">
                     <span>Amount Due (on credit)</span>
                     <span>{formatLKR(completedSale.total)}</span>
                   </div>
                 )}
+
+                {/* Thank-you footer */}
+                <div className="text-center pt-3 mt-2 border-t border-dashed border-border space-y-0.5">
+                  <p className="font-semibold text-foreground">Thank you — Come again!</p>
+                  <p className="text-xs text-muted-foreground">Please keep this receipt for your records.</p>
+                </div>
               </div>
 
-              <div className="flex gap-2 flex-wrap">
+              {/* Action buttons — hidden when printing */}
+              <div className="print:hidden flex gap-2 flex-wrap">
                 <Button
                   variant="outline"
                   className="flex-1"
@@ -1087,7 +1154,6 @@ export function POSClient() {
                   Print
                 </Button>
 
-                {/* SMS receipt — only if sale is online and customer has a phone */}
                 {!completedSale?.isOffline && selectedCustomer?.phone && (
                   <Button
                     variant="outline"

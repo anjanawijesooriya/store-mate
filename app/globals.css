@@ -187,18 +187,33 @@
 /* ===== Print styles for 80mm thermal receipt ===== */
 @media print {
   @page {
-    margin: 0;
+    margin: 8mm;
     size: 80mm auto;
   }
-  body {
-    width: 80mm;
-    font-family: "Courier New", Courier, monospace;
-    font-size: 12px;
+  /* Hide everything on the page */
+  body * {
+    visibility: hidden !important;
+  }
+  /* Show only the receipt content area and all its children */
+  #receipt-print-area,
+  #receipt-print-area * {
+    visibility: visible !important;
+  }
+  /* Position the receipt at the top-left so it fills the page */
+  #receipt-print-area {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 80mm !important;
+    font-family: "Courier New", Courier, monospace !important;
+    font-size: 12px !important;
+    background: white !important;
+    color: black !important;
+    padding: 4mm !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
   .no-print {
     display: none !important;
-  }
-  .receipt-only {
-    display: block !important;
   }
 }
