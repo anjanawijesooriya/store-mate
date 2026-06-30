@@ -9,17 +9,41 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { productId, type, quantity, note } = body;
 
-    if (!productId || !type || quantity === undefined) {
-      return apiError("productId, type and quantity are required");
+    if (!productId || !type) {
+      return apiError("productId and type are required");
+    }
+
+    const product = await db.product.findFirst({ where: { id: productId, shopId, isActive: true } });
+    if (!product) return apiError("Product not found", 404);
+
+    // Special action: zero out stock (no quantity needed)
+    if (type === "SET_OUT_OF_STOCK") {
+      const currentQty = Number(product.stockQty);
+      const [movement] = await db.$transaction([
+        db.stockMovement.create({
+          data: {
+            productId,
+            type: MovementType.ADJUSTMENT,
+            quantity: currentQty,
+            note: note || "Set to out of stock",
+          },
+        }),
+        db.product.update({
+          where: { id: productId },
+          data: { stockQty: 0 },
+        }),
+      ]);
+      return Response.json({ movement, newStock: 0 });
+    }
+
+    if (quantity === undefined) {
+      return apiError("quantity is required");
     }
 
     const validTypes = Object.values(MovementType);
     if (!validTypes.includes(type as MovementType)) {
       return apiError("Invalid movement type");
     }
-
-    const product = await db.product.findFirst({ where: { id: productId, shopId, isActive: true } });
-    if (!product) return apiError("Product not found", 404);
 
     const qty = parseFloat(quantity);
     const delta = type === "RESTOCK" || type === "RETURN" ? qty : -qty;

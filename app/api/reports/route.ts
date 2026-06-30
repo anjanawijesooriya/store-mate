@@ -34,9 +34,11 @@ export async function GET(req: NextRequest) {
     const shopId = await getShopId();
     const { searchParams } = new URL(req.url);
     const period = searchParams.get("period") ?? "week";
+    // Browser timezone passed by the client so hour/day extraction is in local time
+    const tz = searchParams.get("tz") ?? "UTC";
     const { from, to } = getDateRange(period);
 
-    const [salesRaw, hourlyData, expensesRaw] = await Promise.all([
+    const [salesRaw, expensesRaw] = await Promise.all([
       db.sale.findMany({
         where: { shopId, createdAt: { gte: from, lte: to }, status: "COMPLETED" },
         include: {
@@ -48,19 +50,6 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { createdAt: "asc" },
       }),
-      db.$queryRaw<Array<{ hour: number; revenue: number; count: number }>>`
-        SELECT
-          EXTRACT(HOUR FROM "createdAt")::int as hour,
-          COALESCE(SUM(total), 0)::float as revenue,
-          COUNT(id)::int as count
-        FROM "Sale"
-        WHERE "shopId" = ${shopId}
-          AND "createdAt" >= ${from}
-          AND "createdAt" <= ${to}
-          AND status = 'COMPLETED'
-        GROUP BY EXTRACT(HOUR FROM "createdAt")
-        ORDER BY hour ASC
-      `,
       db.expense.aggregate({
         where: { shopId, expenseDate: { gte: from, lte: to } },
         _sum: { amount: true },
@@ -98,10 +87,11 @@ export async function GET(req: NextRequest) {
     const totalExpenses = Number(expensesRaw._sum.amount ?? 0);
     const totalProfit = totalGrossProfit - totalExpenses;
 
-    // Sales by day
+    // Sales by day — use local timezone so dates match what the user sees
+    const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
     const dayMap = new Map<string, { date: string; revenue: number; count: number }>();
     for (const sale of salesRaw) {
-      const dateStr = sale.createdAt.toISOString().split("T")[0];
+      const dateStr = dayFmt.format(sale.createdAt); // YYYY-MM-DD in local tz
       const existing = dayMap.get(dateStr);
       if (existing) {
         existing.revenue += Number(sale.total);
@@ -134,6 +124,21 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
+    // Sales by hour — extract local hour from each sale's createdAt using the browser's timezone
+    const hourFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false });
+    const hourMap = new Map<number, { hour: number; revenue: number; count: number }>();
+    for (const sale of salesRaw) {
+      const localHour = parseInt(hourFmt.format(sale.createdAt), 10);
+      const existing = hourMap.get(localHour);
+      if (existing) {
+        existing.revenue += Number(sale.total);
+        existing.count += 1;
+      } else {
+        hourMap.set(localHour, { hour: localHour, revenue: Number(sale.total), count: 1 });
+      }
+    }
+    const salesByHour = Array.from(hourMap.values()).sort((a, b) => a.hour - b.hour);
+
     return Response.json({
       summary: {
         totalRevenue,
@@ -146,11 +151,7 @@ export async function GET(req: NextRequest) {
       },
       salesByDay,
       salesByPayment,
-      salesByHour: (hourlyData as Array<{ hour: number; revenue: number; count: number }>).map((r) => ({
-        hour: Number(r.hour),
-        revenue: Number(r.revenue),
-        count: Number(r.count),
-      })),
+      salesByHour,
       topProducts,
     });
   } catch (err) {

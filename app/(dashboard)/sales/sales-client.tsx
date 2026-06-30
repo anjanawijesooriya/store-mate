@@ -436,7 +436,10 @@ export function SalesClient() {
                         <div className="flex items-start justify-between text-sm gap-4">
                           <div className="space-y-1 text-muted-foreground">
                             {sale.discount > 0 && (
-                              <p>Discount: <span className="font-mono text-foreground">- {formatLKR(sale.discount)}</span></p>
+                              <p>
+                                {sale.originalSaleId ? "Return Credit" : "Discount"}:{" "}
+                                <span className="font-mono text-foreground">- {formatLKR(sale.discount)}</span>
+                              </p>
                             )}
                             {sale.paymentMethod === "CREDIT" ? (
                               <div className="space-y-0.5">

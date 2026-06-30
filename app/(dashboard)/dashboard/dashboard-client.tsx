@@ -182,10 +182,10 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         hasAddress={data.hasAddress}
       />
 
-      {/* Low stock alert banner */}
+      {/* Low stock alert banner — only products with qty > 0 but below their threshold */}
       {data.lowStockCount > 0 && (
-        <Link href="/inventory?filter=low-stock">
-          <div className="flex items-center gap-3 rounded-lg border border-[color:var(--brand-warning)]/30 bg-[color:var(--brand-warning)]/10 px-4 py-3 cursor-pointer hover:bg-[color:var(--brand-warning)]/20 transition-colors">
+        <Link href="/inventory?filter=low-stock" className="block">
+          <div className="flex items-center gap-3 rounded-lg border border-[color:var(--brand-warning)]/40 bg-[color:var(--brand-warning)]/10 px-4 py-3 cursor-pointer hover:bg-[color:var(--brand-warning)]/20 transition-colors">
             <AlertTriangle className="h-5 w-5 text-[color:var(--brand-warning)] flex-shrink-0" />
             <p className="text-sm font-medium text-[color:var(--brand-warning)]">
               {data.lowStockCount} product{data.lowStockCount !== 1 ? "s" : ""} running low on stock — tap to restock

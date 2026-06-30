@@ -55,7 +55,8 @@ export function ReportsClient() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/reports?period=${period}`)
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    fetch(`/api/reports?period=${period}&tz=${encodeURIComponent(tz)}`)
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(() => toast.error("Failed to load reports"))

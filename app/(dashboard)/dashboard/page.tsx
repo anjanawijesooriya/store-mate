@@ -60,9 +60,16 @@ async function getDashboardData(shopId: string) {
     ]);
 
   const [lowStockCount, productCount, allTimeSalesCount, shop] = await Promise.all([
-    db.product.count({
-      where: { shopId, isActive: true, stockQty: { lte: 5 } },
-    }),
+    // Count products where stockQty is between 1 and their own lowStockAt threshold
+    // (exclude qty=0 which is already "out of stock", not just "low")
+    db.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*)::bigint as count
+      FROM "Product"
+      WHERE "shopId" = ${shopId}
+        AND "isActive" = true
+        AND "stockQty" > 0
+        AND "stockQty" <= "lowStockAt"
+    `.then((rows) => Number(rows[0].count)),
     db.product.count({ where: { shopId, isActive: true } }),
     db.sale.count({ where: { shopId, status: "COMPLETED" } }),
     db.shop.findUnique({
