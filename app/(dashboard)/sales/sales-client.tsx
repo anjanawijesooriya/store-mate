@@ -332,8 +332,10 @@ export function SalesClient() {
         description="View, search, and manage past transactions"
         action={
           <Select value={period} onValueChange={(v) => { if (v) { setPeriod(v); setPage(1); } }}>
-            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-            <SelectContent>
+            <SelectTrigger className="w-40">
+              <span>{PERIODS.find((p) => p.value === period)?.label}</span>
+            </SelectTrigger>
+            <SelectContent className="w-max min-w-(--anchor-width)">
               {PERIODS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
             </SelectContent>
           </Select>

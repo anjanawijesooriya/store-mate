@@ -88,9 +88,9 @@ export function ReportsClient() {
           <div className="flex gap-2">
             <Select value={period} onValueChange={(v) => v && setPeriod(v)}>
               <SelectTrigger className="w-40">
-                <SelectValue />
+                <span>{PERIODS.find((p) => p.value === period)?.label}</span>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="w-max min-w-(--anchor-width)">
                 {PERIODS.map((p) => (
                   <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                 ))}
