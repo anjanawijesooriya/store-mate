@@ -180,6 +180,8 @@ function toProduct(p: CachedProduct): Product {
 export function POSClient() {
   const { data: session } = useSession();
   const shopId = session?.user?.shopId ?? "";
+  const planTier = (session?.user?.planTier ?? "BASIC") as string;
+  const offlinePOSAllowed = planTier !== "BASIC";
   const isOnline = useOnlineStatus();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -537,6 +539,11 @@ export function POSClient() {
     try {
       // Offline path
       if (!isOnline) {
+        if (!offlinePOSAllowed) {
+          toast.error("Offline POS requires Standard plan or higher. Connect to the internet to continue.");
+          setLoading(false);
+          return;
+        }
         if (!shopId) {
           toast.error("Session lost — please reload");
           return;
@@ -616,8 +623,8 @@ export function POSClient() {
       setCheckoutOpen(false);
       toast.success("Sale completed!");
     } catch {
-      // Unexpected network error — queue offline if we have a shopId
-      if (shopId) {
+      // Unexpected network error — queue offline if plan allows it
+      if (shopId && offlinePOSAllowed) {
         const localId = await addPendingSale({
           shopId,
           items: saleItems,
@@ -676,12 +683,16 @@ export function POSClient() {
 
           {/* Offline status + pending badge */}
           {!isOnline && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 flex-shrink-0">
-              <WifiOff className="h-4 w-4 text-amber-600" />
-              <span className="text-xs font-semibold text-amber-700 hidden sm:block">
-                Offline
+            <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 flex-shrink-0 ${
+              offlinePOSAllowed
+                ? "border-amber-200 bg-amber-50"
+                : "border-red-200 bg-red-50"
+            }`}>
+              <WifiOff className={`h-4 w-4 ${offlinePOSAllowed ? "text-amber-600" : "text-red-600"}`} />
+              <span className={`text-xs font-semibold hidden sm:block ${offlinePOSAllowed ? "text-amber-700" : "text-red-700"}`}>
+                {offlinePOSAllowed ? "Offline" : "Offline — upgrade to sell offline"}
               </span>
-              {pendingCount > 0 && (
+              {offlinePOSAllowed && pendingCount > 0 && (
                 <Badge className="bg-amber-600 text-white text-xs px-1.5">
                   {pendingCount}
                 </Badge>

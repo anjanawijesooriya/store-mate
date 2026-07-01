@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Download, BarChart3, TrendingUp, CreditCard, Clock, TrendingDown } from "lucide-react";
+import { Download, BarChart3, TrendingUp, CreditCard, Clock, TrendingDown, Lock } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
@@ -41,14 +41,16 @@ function formatLKR(n: number) {
   return `LKR ${n.toLocaleString("en-LK", { maximumFractionDigits: 0 })}`;
 }
 
-const PERIODS = [
+const ALL_PERIODS = [
   { value: "today", label: "Today" },
   { value: "week", label: "This Week" },
   { value: "month", label: "This Month" },
-  { value: "3months", label: "Last 3 Months" },
+  { value: "3months", label: "Last 3 Months", premiumOnly: true },
 ];
 
-export function ReportsClient() {
+export function ReportsClient({ planTier }: { planTier: string }) {
+  const isPremium = planTier === "PREMIUM";
+  const PERIODS = ALL_PERIODS.filter((p) => !p.premiumOnly || isPremium);
   const [period, setPeriod] = useState("week");
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,10 +98,17 @@ export function ReportsClient() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={exportCSV} disabled={!data}>
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
+            {isPremium ? (
+              <Button variant="outline" onClick={exportCSV} disabled={!data}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+            ) : (
+              <Button variant="outline" disabled title="Export CSV requires Premium plan">
+                <Lock className="h-4 w-4 mr-2 text-amber-500" />
+                Export CSV
+              </Button>
+            )}
           </div>
         }
       />
@@ -170,123 +179,143 @@ export function ReportsClient() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Revenue over time */}
-            <Card className="shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Revenue Over Time</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={data.salesByDay}>
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false}
-                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip
-                      formatter={(v) => [formatLKR(Number(v ?? 0)), "Revenue"]}
-                      contentStyle={{ fontSize: 12, borderRadius: "8px" }}
-                    />
-                    <Line type="monotone" dataKey="revenue" stroke="var(--color-primary)"
-                      strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Sales by payment method */}
-            <Card className="shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Sales by Payment Method</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {data.salesByPayment.length === 0 ? (
-                  <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">
-                    No sales data
-                  </div>
-                ) : (
+          {isPremium ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Revenue over time */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Revenue Over Time</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie
-                        data={data.salesByPayment}
-                        dataKey="total"
-                        nameKey="method"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        label={false}
-                        labelLine={false}
-                      >
-                        {data.salesByPayment.map((entry, i) => (
-                          <Cell
-                            key={i}
-                            fill={PAYMENT_COLORS[entry.method as keyof typeof PAYMENT_COLORS] ?? `var(--color-chart-${i + 1})`}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v) => formatLKR(Number(v ?? 0))} />
-                    </PieChart>
+                    <LineChart data={data.salesByDay}>
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false}
+                        tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip
+                        formatter={(v) => [formatLKR(Number(v ?? 0)), "Revenue"]}
+                        contentStyle={{ fontSize: 12, borderRadius: "8px" }}
+                      />
+                      <Line type="monotone" dataKey="revenue" stroke="var(--color-primary)"
+                        strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    </LineChart>
                   </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            {/* Sales by hour */}
-            <Card className="shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Busy Hours
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={data.salesByHour}>
-                    <XAxis
-                      dataKey="hour"
-                      tickFormatter={(h) => `${h}:00`}
-                      tick={{ fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      labelFormatter={(h) => `${h}:00 - ${h + 1}:00`}
-                      formatter={(v) => [Number(v ?? 0), "Sales"]}
-                      contentStyle={{ fontSize: 11, borderRadius: "8px" }}
-                    />
-                    <Bar dataKey="count" fill="var(--color-chart-2)" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+              {/* Sales by payment method */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Sales by Payment Method</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.salesByPayment.length === 0 ? (
+                    <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">
+                      No sales data
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie
+                          data={data.salesByPayment}
+                          dataKey="total"
+                          nameKey="method"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          label={false}
+                          labelLine={false}
+                        >
+                          {data.salesByPayment.map((entry, i) => (
+                            <Cell
+                              key={i}
+                              fill={PAYMENT_COLORS[entry.method as keyof typeof PAYMENT_COLORS] ?? `var(--color-chart-${i + 1})`}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v) => formatLKR(Number(v ?? 0))} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
 
-            {/* Top products */}
-            <Card className="shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Top Products</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {data.topProducts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No sales data</p>
-                ) : (
-                  <div className="space-y-3">
-                    {data.topProducts.map((p, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-muted-foreground w-5">#{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">{p.qty} units sold</p>
+              {/* Sales by hour */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Busy Hours
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={data.salesByHour}>
+                      <XAxis
+                        dataKey="hour"
+                        tickFormatter={(h) => `${h}:00`}
+                        tick={{ fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        labelFormatter={(h) => `${h}:00 - ${h + 1}:00`}
+                        formatter={(v) => [Number(v ?? 0), "Sales"]}
+                        contentStyle={{ fontSize: 11, borderRadius: "8px" }}
+                      />
+                      <Bar dataKey="count" fill="var(--color-chart-2)" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Top products */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Top Products</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.topProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No sales data</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {data.topProducts.map((p, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-muted-foreground w-5">#{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{p.name}</p>
+                            <p className="text-xs text-muted-foreground">{p.qty} units sold</p>
+                          </div>
+                          <span className="text-sm font-mono font-semibold text-primary">
+                            {formatLKR(p.revenue)}
+                          </span>
                         </div>
-                        <span className="text-sm font-mono font-semibold text-primary">
-                          {formatLKR(p.revenue)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="relative rounded-2xl border border-dashed border-amber-300 bg-amber-50/40 p-10 flex flex-col items-center justify-center text-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                <Lock className="h-7 w-7 text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Advanced Analytics — Premium only</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                  Revenue trends, busy-hour breakdown, payment method breakdown, top products chart, CSV export, and extended date ranges are available on the Premium plan.
+                </p>
+              </div>
+              <a
+                href="/settings"
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors"
+              >
+                Upgrade to Premium in Settings
+              </a>
+            </div>
+          )}
         </>
       ) : null}
     </div>
