@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
+import { getSession, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
 export type NotificationItem = {
   id: string;
@@ -12,7 +12,8 @@ export type NotificationItem = {
 
 export async function GET() {
   try {
-    const shopId = await getShopId();
+    const session = await getSession();
+    const shopId = session.user.shopId;
 
     const [shop, creditCustomers, lowStockRaw] = await Promise.all([
       db.shop.findUnique({

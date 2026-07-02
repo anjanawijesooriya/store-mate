@@ -102,10 +102,10 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
     } catch { /* ignore */ }
   }, []);
 
-  // Poll every 2 minutes — only checks for unseen, doesn't mark seen
+  // Poll every 30 seconds — checks for unseen notifications and catches shop deletion
   useEffect(() => {
     fetchNotifications();
-    const id = setInterval(() => fetchNotifications(), 120_000);
+    const id = setInterval(() => fetchNotifications(), 30_000);
     return () => clearInterval(id);
   }, [fetchNotifications]);
 
