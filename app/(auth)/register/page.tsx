@@ -88,7 +88,7 @@ export default function RegisterPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Create your account</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Start your 30-day free trial — no credit card required
+          Start your 14-day free trial — no credit card required
         </p>
       </div>
 
@@ -132,7 +132,7 @@ export default function RegisterPage() {
             <SelectTrigger id="category" className="h-10">
               <SelectValue placeholder="Select your shop type" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="w-max min-w-(--anchor-width)">
               {SHOP_CATEGORIES.map((c) => (
                 <SelectItem key={c.value} value={c.value}>
                   {c.label}

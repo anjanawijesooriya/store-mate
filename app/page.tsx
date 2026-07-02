@@ -88,7 +88,7 @@ export default async function HomePage() {
                 className="inline-flex items-center justify-center gap-2 font-bold text-white rounded-xl px-7 py-4 text-base transition-all hover:opacity-90 active:scale-[0.98]"
                 style={{ background: "linear-gradient(135deg, #EA580C, #c24a0a)" }}
               >
-                Start 30-day free trial
+                Start 14-day free trial
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
@@ -313,7 +313,7 @@ export default async function HomePage() {
                   step: "01",
                   icon: Smartphone,
                   title: "Register your shop",
-                  desc: "Sign up with your phone number. No email needed. Your 30-day free trial starts immediately — no card required.",
+                  desc: "Sign up with your phone number. No email needed. Your 14-day free trial starts immediately — no card required.",
                 },
                 {
                   step: "02",
@@ -403,7 +403,7 @@ export default async function HomePage() {
               Simple, honest pricing
             </h2>
             <p className="text-white/40">
-              30-day free trial on all plans. No setup fees. No hidden charges.
+              14-day free trial on all plans. No setup fees. No hidden charges.
             </p>
           </div>
 
@@ -502,7 +502,7 @@ export default async function HomePage() {
           </div>
 
           <p className="text-center text-sm text-white/25 mt-8">
-            All plans include a 30-day free trial. Pricing in LKR. Billed monthly. Cancel anytime.
+            All plans include a 14-day free trial. Pricing in LKR. Billed monthly. Cancel anytime.
           </p>
           <p className="text-center text-sm text-white/20 mt-2">
             SMS notifications (low-stock alerts, receipts) available as a credit add-on — buy only what you need.

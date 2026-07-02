@@ -89,11 +89,16 @@ export async function PATCH(
   if (action === "extend_trial") {
     const { days } = body;
     const d = parseInt(days ?? "14");
-    const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + d);
+    const current = await db.shop.findUnique({ where: { id: shopId }, select: { trialEndsAt: true, billingStatus: true } });
+    const now = new Date();
+    // Extend from existing trial end if still in future; otherwise extend from today
+    const base = current?.billingStatus === BillingStatus.TRIAL && current.trialEndsAt && current.trialEndsAt > now
+      ? new Date(current.trialEndsAt)
+      : now;
+    base.setDate(base.getDate() + d);
     const shop = await db.shop.update({
       where: { id: shopId },
-      data: { trialEndsAt, billingStatus: BillingStatus.TRIAL },
+      data: { trialEndsAt: base, billingStatus: BillingStatus.TRIAL },
     });
     return Response.json({ shop });
   }
