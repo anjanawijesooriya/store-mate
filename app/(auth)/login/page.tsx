@@ -7,7 +7,7 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Phone, Lock, ArrowLeft, ShieldX } from "lucide-react";
+import { Loader2, Phone, Lock, ArrowLeft, ShieldX, RefreshCw } from "lucide-react";
 
 function getOrCreateDeviceId(): string {
   try {
@@ -46,11 +46,12 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const [phone, setPhone]           = useState("");
   const [password, setPassword]     = useState("");
-  const [error, setError]           = useState("");
-  const [loading, setLoading]       = useState(false);
-  const [incognito, setIncognito]   = useState(false);
-  const [deviceId, setDeviceId]     = useState("");
-  const [checking, setChecking]     = useState(true);
+  const [error, setError]                   = useState("");
+  const [loading, setLoading]               = useState(false);
+  const [incognito, setIncognito]           = useState(false);
+  const [deviceId, setDeviceId]             = useState("");
+  const [checking, setChecking]             = useState(true);
+  const [forceLoginInfo, setForceLoginInfo] = useState<{ plan: string; limit: number } | null>(null);
 
   const revokedByAdmin = searchParams.get("reason") === "device_revoked";
 
@@ -81,11 +82,7 @@ export default function LoginPage() {
       }).then((r) => r.json());
 
       if (pre.allowed === false && pre.reason === "device_limit") {
-        const { limit, plan } = pre;
-        setError(
-          `Device limit reached — your ${plan} plan allows ${limit} device${limit === 1 ? "" : "s"}. ` +
-          `Sign in from a registered device or ask the shop owner to remove one under Settings → Devices.`
-        );
+        setForceLoginInfo({ plan: pre.plan, limit: pre.limit });
         setLoading(false);
         return;
       }
@@ -100,6 +97,32 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError("Invalid phone number or password. Please try again.");
+      } else {
+        router.push("/dashboard");
+        router.refresh();
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleForceLogin() {
+    setError("");
+    setLoading(true);
+    try {
+      const result = await signIn("credentials", {
+        phone:       phone.replace(/\D/g, ""),
+        password,
+        deviceId,
+        userAgent:   navigator.userAgent,
+        forceDevice: "true",
+        redirect:    false,
+      });
+      if (result?.error) {
+        setError("Invalid phone number or password.");
+        setForceLoginInfo(null);
       } else {
         router.push("/dashboard");
         router.refresh();
@@ -151,7 +174,42 @@ export default function LoginPage() {
           </p>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <>
+          {forceLoginInfo && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-4 space-y-3">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Device limit reached</p>
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                Your <span className="font-semibold">{forceLoginInfo.plan}</span> plan allows{" "}
+                {forceLoginInfo.limit} device{forceLoginInfo.limit === 1 ? "" : "s"}.
+                Signing in here will remove your oldest registered device session.
+              </p>
+              <div className="flex flex-col gap-2 pt-1">
+                <Button
+                  type="button"
+                  onClick={handleForceLogin}
+                  disabled={loading}
+                  className="w-full h-10 font-semibold bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  {loading
+                    ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    : <RefreshCw className="h-4 w-4 mr-2" />
+                  }
+                  Replace existing device &amp; sign in
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setForceLoginInfo(null)}
+                  disabled={loading}
+                  className="w-full h-10"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
             <div className="rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
               {error}
@@ -167,7 +225,7 @@ export default function LoginPage() {
                 type="tel"
                 placeholder="0771234567"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => { setPhone(e.target.value); setForceLoginInfo(null); }}
                 className="pl-10 h-11"
                 required
                 autoComplete="tel"
@@ -184,7 +242,7 @@ export default function LoginPage() {
                 type="password"
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); setForceLoginInfo(null); }}
                 className="pl-10 h-11"
                 required
                 autoComplete="current-password"
@@ -201,6 +259,7 @@ export default function LoginPage() {
             Sign In
           </Button>
         </form>
+        </>
       )}
 
       <div className="space-y-4">

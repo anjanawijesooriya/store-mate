@@ -57,16 +57,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        phone:      { label: "Phone",     type: "text"     },
-        password:   { label: "Password",  type: "password" },
-        deviceId:   { label: "Device ID", type: "text"     },
-        userAgent:  { label: "UA",        type: "text"     },
+        phone:       { label: "Phone",        type: "text"     },
+        password:    { label: "Password",     type: "password" },
+        deviceId:    { label: "Device ID",    type: "text"     },
+        userAgent:   { label: "UA",           type: "text"     },
+        forceDevice: { label: "Force Device", type: "text"     },
       },
       async authorize(credentials) {
         if (!credentials?.phone || !credentials?.password) return null;
 
-        const deviceId  = (credentials.deviceId  as string | undefined)?.trim();
-        const userAgent = (credentials.userAgent  as string | undefined) ?? "";
+        const deviceId   = (credentials.deviceId   as string | undefined)?.trim();
+        const userAgent  = (credentials.userAgent   as string | undefined) ?? "";
+        const forceDevice = (credentials.forceDevice as string | undefined) === "true";
 
         if (!deviceId) return null;
 
@@ -106,7 +108,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         } else {
           // New device — enforce plan limit
           const count = await db.deviceSession.count({ where: { shopId } });
-          if (count >= limit) return null;
+          if (count >= limit) {
+            if (!forceDevice) return null;
+            // Displace the oldest device session to make room
+            const oldest = await db.deviceSession.findFirst({
+              where:   { shopId },
+              orderBy: { lastSeenAt: "asc" },
+            });
+            if (oldest) {
+              await db.deviceSession.delete({ where: { id: oldest.id } });
+            }
+          }
           await db.deviceSession.create({
             data: {
               shopId,
