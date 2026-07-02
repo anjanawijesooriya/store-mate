@@ -34,7 +34,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     return () => { window.fetch = original; };
   }, []);
 
-  if (status === "loading") {
+  // Only block on initial load — not on session refreshes (e.g. updateSession calls)
+  if (!session && status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />

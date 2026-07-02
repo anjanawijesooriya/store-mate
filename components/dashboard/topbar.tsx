@@ -42,7 +42,25 @@ const SEVERITY_STYLES: Record<NotificationItem["severity"], { icon: React.Elemen
 
 export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
   const router = useRouter();
-  const initials = userName
+  const [displayName, setDisplayName] = useState(userName);
+  const [displayShopName, setDisplayShopName] = useState(shopName);
+
+  // Sync if props change (e.g. session rehydration after refresh)
+  useEffect(() => { setDisplayName(userName); }, [userName]);
+  useEffect(() => { setDisplayShopName(shopName); }, [shopName]);
+
+  // Instant update from settings save — no session round-trip flash
+  useEffect(() => {
+    function handler(e: Event) {
+      const { name, shopName: sn } = (e as CustomEvent<{ name: string; shopName: string }>).detail;
+      if (name) setDisplayName(name);
+      if (sn)   setDisplayShopName(sn);
+    }
+    window.addEventListener("profile-updated", handler);
+    return () => window.removeEventListener("profile-updated", handler);
+  }, []);
+
+  const initials = displayName
     .split(" ")
     .map((n) => n[0])
     .slice(0, 2)
@@ -123,7 +141,7 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
 
       {/* Shop name — left aligned */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-foreground truncate hidden sm:block">{shopName}</p>
+        <p className="text-sm font-semibold text-foreground truncate hidden sm:block">{displayShopName}</p>
       </div>
 
       {/* Right controls */}
@@ -208,8 +226,8 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
           <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-0.5 py-1">
-                <p className="text-sm font-semibold text-foreground">{userName}</p>
-                <p className="text-xs text-muted-foreground">{shopName}</p>
+                <p className="text-sm font-semibold text-foreground">{displayName}</p>
+                <p className="text-xs text-muted-foreground">{displayShopName}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

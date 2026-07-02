@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock, Monitor, Trash2, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
@@ -107,6 +107,7 @@ const DEVICE_LIMITS: Record<string, number> = {
 };
 
 export function SettingsClient({ shop }: { shop: Shop }) {
+  const { update: updateSession } = useSession();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: shop.name,
@@ -163,6 +164,9 @@ export function SettingsClient({ shop }: { shop: Shop }) {
         body: JSON.stringify(form),
       });
       if (!res.ok) { toast.error("Failed to save settings"); return; }
+      // Update topbar instantly via event, then sync JWT in background
+      window.dispatchEvent(new CustomEvent("profile-updated", { detail: { name: form.ownerName, shopName: form.name } }));
+      updateSession({ name: form.ownerName, shopName: form.name });
       toast.success("Settings saved");
     } catch {
       toast.error("Failed to save settings");

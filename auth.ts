@@ -131,9 +131,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id       = user.id;
+        token.name     = user.name;
         token.phone    = user.phone;
         token.shopId   = user.shopId;
         token.shopName = user.shopName;
@@ -141,10 +142,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.deviceId = user.deviceId;
         token.planTier = user.planTier;
       }
+      // Called when useSession().update() is triggered from the client
+      if (trigger === "update" && session) {
+        if (session.name)     token.name     = session.name;
+        if (session.shopName) token.shopName = session.shopName;
+      }
       return token;
     },
     async session({ session, token }) {
       session.user.id       = token.id       as string;
+      session.user.name     = token.name     as string;
       session.user.phone    = token.phone    as string;
       session.user.shopId   = token.shopId   as string;
       session.user.shopName = token.shopName as string;
