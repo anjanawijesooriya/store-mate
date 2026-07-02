@@ -189,6 +189,7 @@ export function POSClient() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [recentProducts, setRecentProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [allCached, setAllCached] = useState<CachedProduct[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discount, setDiscount] = useState(0);
@@ -264,6 +265,7 @@ export function POSClient() {
   // Load products on mount — cache for offline use
   useEffect(() => {
     async function loadProducts() {
+      setProductsLoading(true);
       try {
         const [displayRes, allRes] = await Promise.all([
           fetch("/api/products?limit=12&page=1"),
@@ -298,6 +300,8 @@ export function POSClient() {
             setRecentProducts(cached.slice(0, 12).map(toProduct));
           }
         }
+      } finally {
+        setProductsLoading(false);
       }
     }
     loadProducts();
@@ -760,7 +764,14 @@ export function POSClient() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 overflow-y-auto">
-          {displayProducts.map((product) => (
+          {productsLoading && Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-card p-3 animate-pulse space-y-2">
+              <div className="h-3 bg-muted rounded w-3/4" />
+              <div className="h-3 bg-muted rounded w-1/2" />
+              <div className="h-5 bg-muted rounded w-2/3 mt-1" />
+            </div>
+          ))}
+          {!productsLoading && displayProducts.map((product) => (
             <button
               key={product.id}
               onClick={() => addToCart(product)}
@@ -790,7 +801,7 @@ export function POSClient() {
             </button>
           ))}
 
-          {displayProducts.length === 0 && searchQuery && (
+          {!productsLoading && displayProducts.length === 0 && searchQuery && (
             <div className="col-span-full py-12 text-center text-sm text-muted-foreground">
               No products found for &quot;{searchQuery}&quot;
             </div>
