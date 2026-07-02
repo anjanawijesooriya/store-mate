@@ -46,11 +46,20 @@ export async function POST(req: NextRequest) {
     }
 
     const qty = parseFloat(quantity);
-    const delta = type === "RESTOCK" || type === "RETURN" ? qty : -qty;
+    if (isNaN(qty) || qty < 0) {
+      return apiError("Invalid quantity");
+    }
 
-    const newStock = Number(product.stockQty) + delta;
-    if (newStock < 0) {
-      return apiError("Stock cannot go below zero");
+    let newStock: number;
+    if (type === "ADJUSTMENT") {
+      // Correction: set stock TO this exact value (physical count result)
+      newStock = qty;
+    } else {
+      const delta = type === "RESTOCK" || type === "RETURN" ? qty : -qty;
+      newStock = Number(product.stockQty) + delta;
+      if (newStock < 0) {
+        return apiError("Stock cannot go below zero");
+      }
     }
 
     const [movement] = await db.$transaction([
@@ -58,7 +67,7 @@ export async function POST(req: NextRequest) {
         data: {
           productId,
           type: type as MovementType,
-          quantity: Math.abs(qty),
+          quantity: qty,
           note: note || null,
         },
       }),

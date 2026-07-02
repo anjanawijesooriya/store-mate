@@ -40,6 +40,7 @@ enum MovementType {
   RESTOCK
   ADJUSTMENT
   RETURN
+  DAMAGE
 }
 
 enum PaymentMethod {

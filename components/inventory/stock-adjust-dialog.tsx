@@ -32,9 +32,10 @@ interface StockAdjustDialogProps {
 }
 
 const MOVEMENT_TYPES = [
-  { value: "RESTOCK",        label: "Restock (add stock)" },
-  { value: "ADJUSTMENT",     label: "Adjustment (correction)" },
-  { value: "RETURN",         label: "Customer Return (add back)" },
+  { value: "RESTOCK",          label: "Restock — add stock" },
+  { value: "ADJUSTMENT",       label: "Correction — set stock to exact count" },
+  { value: "DAMAGE",           label: "Damage / Loss — subtract from stock" },
+  { value: "RETURN",           label: "Customer Return — add back" },
   { value: "SET_OUT_OF_STOCK", label: "Set as Out of Stock" },
 ];
 
@@ -57,14 +58,17 @@ export function StockAdjustDialog({ open, product, onClose, onSave }: StockAdjus
     if (!product) return;
 
     if (!isOutOfStock) {
-      if (!quantity) return;
+      if (!quantity) {
+        toast.error("Please enter a quantity");
+        return;
+      }
       const qty = parseFloat(quantity);
-      if (isNaN(qty) || qty <= 0) {
+      if (isNaN(qty) || qty < 0) {
         toast.error("Please enter a valid quantity");
         return;
       }
-      if (type === "ADJUSTMENT" && !note) {
-        toast.error("Please provide a reason for the adjustment");
+      if ((type === "ADJUSTMENT" || type === "DAMAGE") && !note) {
+        toast.error("Please provide a reason");
         return;
       }
     }
@@ -152,7 +156,7 @@ export function StockAdjustDialog({ open, product, onClose, onSave }: StockAdjus
 
           <div className="space-y-2">
             <Label htmlFor="note">
-              Note {type === "ADJUSTMENT" ? "*" : "(optional)"}
+              Note {(type === "ADJUSTMENT" || type === "DAMAGE") ? "*" : "(optional)"}
             </Label>
             <Textarea
               id="note"
@@ -160,15 +164,17 @@ export function StockAdjustDialog({ open, product, onClose, onSave }: StockAdjus
                 isOutOfStock
                   ? "e.g. Spoilage, expired batch, damaged stock"
                   : type === "RESTOCK"
-                  ? "e.g. New delivery from Maliban"
+                  ? "e.g. New delivery from supplier"
                   : type === "ADJUSTMENT"
-                  ? "Reason for adjustment (required)"
-                  : "e.g. Customer returned damaged item"
+                  ? "e.g. Physical count showed 12 units (required)"
+                  : type === "DAMAGE"
+                  ? "e.g. Expired, broken, spoiled (required)"
+                  : "e.g. Customer returned unopened item"
               }
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              required={type === "ADJUSTMENT"}
+              required={type === "ADJUSTMENT" || type === "DAMAGE"}
             />
           </div>
 
