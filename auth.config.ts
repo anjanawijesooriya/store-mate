@@ -19,7 +19,8 @@ export const authConfig: NextAuthConfig = {
       const isAdminRoute = pathname.startsWith("/admin-login")
         || pathname.startsWith("/billing")
         || pathname.startsWith("/api/admin/");
-      const isPublicRoute = isAuthRoute || isApiAuthRoute || isAdminRoute || pathname === "/";
+      const isStaticRoute = pathname === "/manifest.webmanifest" || pathname.startsWith("/icons/") || pathname.startsWith("/_next/");
+      const isPublicRoute = isAuthRoute || isApiAuthRoute || isAdminRoute || pathname === "/" || isStaticRoute;
 
       if (isApiAuthRoute) return true;
       if (!isLoggedIn && !isPublicRoute) return false; // redirect to /login

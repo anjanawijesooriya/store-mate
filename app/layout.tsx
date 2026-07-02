@@ -21,7 +21,6 @@ export const metadata: Metadata = {
     template: "%s | StoreMate",
   },
   description: "Smart shop management for Sri Lankan small businesses — POS, inventory, sales reports and more. Powered by StoreMate.",
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
