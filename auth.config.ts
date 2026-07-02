@@ -14,7 +14,9 @@ export const authConfig: NextAuthConfig = {
       const pathname = nextUrl.pathname;
 
       const isAuthRoute =
-        pathname.startsWith("/login") || pathname.startsWith("/register");
+        pathname.startsWith("/login") ||
+        pathname.startsWith("/register") ||
+        pathname.startsWith("/forgot-password");
       const isApiAuthRoute = pathname.startsWith("/api/auth");
       const isAdminRoute = pathname.startsWith("/admin-login")
         || pathname.startsWith("/billing")

@@ -28,8 +28,18 @@ export async function GET() {
         select: { paidAt: true, amount: true, billingMonth: true, planTier: true, reference: true, note: true },
       },
       _count: { select: { sales: true, products: true } },
+      users: {
+        where:  { role: "OWNER" },
+        select: { email: true },
+        take:   1,
+      },
     },
   });
 
-  return Response.json({ shops });
+  const result = shops.map(({ users, ...s }) => ({
+    ...s,
+    email: users[0]?.email ?? null,
+  }));
+
+  return Response.json({ shops: result });
 }

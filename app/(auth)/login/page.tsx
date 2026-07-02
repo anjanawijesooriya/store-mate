@@ -250,9 +250,15 @@ export default function LoginPage() {
             </div>
           </div>
 
+          <div className="flex items-center justify-end">
+            <Link href="/forgot-password" className="text-xs text-primary hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+
           <Button
             type="submit"
-            className="w-full h-12 text-base font-semibold mt-2"
+            className="w-full h-12 text-base font-semibold"
             disabled={loading || !deviceId}
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}

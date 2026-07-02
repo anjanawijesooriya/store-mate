@@ -6,10 +6,15 @@ import { ShopCategory } from "@/lib/generated/prisma/enums";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { shopName, ownerName, phone, password, category, address } = body;
+    const { shopName, ownerName, phone, email, password, category, address } = body;
 
-    if (!shopName || !ownerName || !phone || !password || !category) {
+    if (!shopName || !ownerName || !phone || !email || !password || !category) {
       return Response.json({ error: "All required fields must be filled" }, { status: 400 });
+    }
+
+    const emailClean = String(email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
+      return Response.json({ error: "Invalid email address" }, { status: 400 });
     }
 
     if (password.length < 8) {
@@ -48,6 +53,7 @@ export async function POST(req: NextRequest) {
           create: {
             name: ownerName,
             phone: phoneClean,
+            email: emailClean,
             passwordHash,
             role: "OWNER",
           },

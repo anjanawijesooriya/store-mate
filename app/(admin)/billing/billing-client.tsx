@@ -33,6 +33,7 @@ interface Shop {
   name: string;
   ownerName: string;
   phone: string;
+  email: string | null;
   category: string;
   planTier: PlanTier;
   billingStatus: BillingStatus;
@@ -333,6 +334,9 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                       <p className="font-semibold text-foreground">{shop.name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{shop.ownerName}</p>
                       <p className="text-xs text-muted-foreground">{shop.phone}</p>
+                      {shop.email && (
+                        <p className="text-xs text-muted-foreground">{shop.email}</p>
+                      )}
                       <p className="text-xs text-muted-foreground/70 mt-0.5">{CATEGORY_LABELS[shop.category] ?? shop.category}</p>
                       <p className="text-xs text-muted-foreground/50 mt-0.5">Since {fmt(shop.createdAt)}</p>
                     </td>

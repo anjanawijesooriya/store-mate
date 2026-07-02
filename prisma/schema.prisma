@@ -134,9 +134,24 @@ model User {
   shop         Shop     @relation(fields: [shopId], references: [id])
   name         String
   phone        String   @unique
+  email        String?
   passwordHash String
   role         Role     @default(OWNER)
   createdAt    DateTime @default(now())
+
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  otp       String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Product {

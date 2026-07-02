@@ -26,11 +26,13 @@ export default async function AdminBillingPage() {
         select: { paidAt: true, amount: true, billingMonth: true, planTier: true, reference: true, note: true },
       },
       _count: { select: { sales: true, products: true } },
+      users: { where: { role: "OWNER" }, select: { email: true }, take: 1 },
     },
   });
 
-  const serialized = shops.map((s) => ({
+  const serialized = shops.map(({ users, ...s }) => ({
     ...s,
+    email: users[0]?.email ?? null,
     payments: s.payments.map((p) => ({ ...p, amount: Number(p.amount) })),
   }));
 

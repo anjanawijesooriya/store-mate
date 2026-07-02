@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Mail } from "lucide-react";
 import { SHOP_CATEGORIES } from "@/lib/shop-categories";
 
 export default function RegisterPage() {
@@ -18,6 +18,7 @@ export default function RegisterPage() {
     shopName: "",
     ownerName: "",
     phone: "",
+    email: "",
     password: "",
     confirmPassword: "",
     category: "",
@@ -51,12 +52,13 @@ export default function RegisterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          shopName: form.shopName,
+          shopName:  form.shopName,
           ownerName: form.ownerName,
-          phone: form.phone.replace(/\D/g, ""),
-          password: form.password,
-          category: form.category,
-          address: form.address,
+          phone:     form.phone.replace(/\D/g, ""),
+          email:     form.email,
+          password:  form.password,
+          category:  form.category,
+          address:   form.address,
         }),
       });
 
@@ -148,6 +150,24 @@ export default function RegisterPage() {
             autoComplete="tel"
           />
           <p className="text-xs text-muted-foreground">Used to log in — must be a Sri Lankan number</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-sm font-medium">Email Address *</Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              value={form.email}
+              onChange={(e) => update("email", e.target.value)}
+              className="h-10 pl-9"
+              required
+              autoComplete="email"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">Used for password reset — never shared</p>
         </div>
 
         <div className="space-y-2">

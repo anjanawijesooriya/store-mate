@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock, Monitor, Trash2, ShieldCheck } from "lucide-react";
+import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock, Monitor, Trash2, ShieldCheck, KeyRound } from "lucide-react";
 import { CATEGORY_LABELS } from "@/lib/shop-categories";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -32,6 +32,7 @@ interface Shop {
   name: string;
   ownerName: string;
   phone: string;
+  email: string | null;
   category: string;
   address: string | null;
   planTier: string;
@@ -113,6 +114,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
   const [form, setForm] = useState({
     name: shop.name,
     ownerName: shop.ownerName,
+    email: shop.email ?? "",
     address: shop.address ?? "",
   });
 
@@ -122,6 +124,31 @@ export function SettingsClient({ shop }: { shop: Shop }) {
     smsReceiptEnabled: shop.smsReceiptEnabled,
   });
   const [smsSaving, setSmsSaving] = useState(false);
+
+  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
+  const [pwSaving, setPwSaving] = useState(false);
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (pwForm.next !== pwForm.confirm) { toast.error("Passwords do not match"); return; }
+    if (pwForm.next.length < 8) { toast.error("New password must be at least 8 characters"); return; }
+    setPwSaving(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Failed to change password"); return; }
+      toast.success("Password changed successfully");
+      setPwForm({ current: "", next: "", confirm: "" });
+    } catch {
+      toast.error("Failed to change password");
+    } finally {
+      setPwSaving(false);
+    }
+  }
 
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(true);
@@ -162,7 +189,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
       const res = await fetch("/api/shop", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ name: form.name, ownerName: form.ownerName, email: form.email, address: form.address }),
       });
       if (!res.ok) { toast.error("Failed to save settings"); return; }
       // Update topbar instantly via event, then sync JWT in background
@@ -283,6 +310,18 @@ export function SettingsClient({ shop }: { shop: Shop }) {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="semail">Email Address</Label>
+              <Input
+                id="semail"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                placeholder="you@example.com"
+                autoComplete="email"
+              />
+              <p className="text-xs text-muted-foreground">Used for password reset notifications</p>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="saddress">Address</Label>
               <Input
                 id="saddress"
@@ -362,6 +401,62 @@ export function SettingsClient({ shop }: { shop: Shop }) {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Change Password */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Change Password
+          </CardTitle>
+          <CardDescription>Update your account password</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cpw-current">Current Password</Label>
+              <Input
+                id="cpw-current"
+                type="password"
+                placeholder="Enter current password"
+                value={pwForm.current}
+                onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))}
+                required
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cpw-next">New Password</Label>
+              <Input
+                id="cpw-next"
+                type="password"
+                placeholder="Min. 8 characters"
+                value={pwForm.next}
+                onChange={(e) => setPwForm((p) => ({ ...p, next: e.target.value }))}
+                required
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cpw-confirm">Confirm New Password</Label>
+              <Input
+                id="cpw-confirm"
+                type="password"
+                placeholder="Repeat new password"
+                value={pwForm.confirm}
+                onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))}
+                required
+                autoComplete="new-password"
+              />
+            </div>
+            <Separator />
+            <Button type="submit" disabled={pwSaving} className="font-semibold">
+              {pwSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Update Password
+            </Button>
+          </form>
         </CardContent>
       </Card>
 

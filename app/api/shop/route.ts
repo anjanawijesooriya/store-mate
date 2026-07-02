@@ -1,10 +1,11 @@
 ﻿import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
+import { getSession, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
 export async function GET() {
   try {
-    const shopId = await getShopId();
+    const session = await getSession();
+    const shopId = session.user.shopId;
     const shop = await db.shop.findUnique({
       where: { id: shopId },
       select: {
@@ -24,18 +25,34 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const shopId = await getShopId();
-    const body = await req.json();
-    const { name, ownerName, address } = body;
+    const session = await getSession();
+    const shopId  = session.user.shopId;
+    const userId  = session.user.id;
+    const body    = await req.json();
+    const { name, ownerName, email, address } = body;
 
-    const shop = await db.shop.update({
-      where: { id: shopId },
-      data: {
-        ...(name && { name: name.trim() }),
-        ...(ownerName && { ownerName: ownerName.trim() }),
-        ...(address !== undefined && { address: address?.trim() || null }),
-      },
-    });
+    const emailClean = email ? String(email).trim().toLowerCase() : undefined;
+    if (emailClean && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
+      return apiError("Invalid email address", 400);
+    }
+
+    const [shop] = await db.$transaction([
+      db.shop.update({
+        where: { id: shopId },
+        data: {
+          ...(name     && { name: name.trim() }),
+          ...(ownerName && { ownerName: ownerName.trim() }),
+          ...(address !== undefined && { address: address?.trim() || null }),
+        },
+      }),
+      db.user.update({
+        where: { id: userId },
+        data: {
+          ...(ownerName  && { name: ownerName.trim() }),
+          ...(emailClean !== undefined && { email: emailClean || null }),
+        },
+      }),
+    ]);
 
     return Response.json({ shop });
   } catch (err) {
