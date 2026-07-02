@@ -35,6 +35,7 @@ interface Shop {
   address: string | null;
   planTier: string;
   trialEndsAt: Date | null;
+  smsAddonEnabled: boolean;
   smsLowStock: boolean;
   smsDailySummary: boolean;
   smsReceiptEnabled: boolean;
@@ -302,32 +303,49 @@ export function SettingsClient({ shop }: { shop: Shop }) {
             SMS Notifications
           </CardTitle>
           <CardDescription>
-            Configure which alerts are sent to your phone
-            {shop.smsCredits !== undefined && (
-              <span className="ml-2 text-xs">· {shop.smsCredits} SMS credit{shop.smsCredits !== 1 ? "s" : ""} remaining</span>
-            )}
+            {shop.smsAddonEnabled
+              ? <>Configure which alerts are sent to your phone · <span className="font-medium">{shop.smsCredits} credit{shop.smsCredits !== 1 ? "s" : ""} remaining</span></>
+              : "Send SMS alerts and receipts to customers"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          {SMS_OPTIONS.map((item) => (
-            <div key={item.key} className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">{item.label}</p>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+          {shop.smsAddonEnabled ? (
+            <>
+              {SMS_OPTIONS.map((item) => (
+                <div key={item.key} className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium">{item.label}</p>
+                      <p className="text-xs text-muted-foreground">{item.desc}</p>
+                    </div>
+                  </div>
+                  <Toggle
+                    checked={smsPrefs[item.key]}
+                    onChange={(v) => handleSmsToggle(item.key, v)}
+                    disabled={smsSaving}
+                  />
                 </div>
+              ))}
+              {shop.smsCredits === 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2">
+                  No SMS credits remaining — contact admin to top up.
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center text-center py-6 gap-3">
+              <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
+                <MessageSquare className="h-6 w-6 text-muted-foreground" />
               </div>
-              <Toggle
-                checked={smsPrefs[item.key]}
-                onChange={(v) => handleSmsToggle(item.key, v)}
-                disabled={smsSaving}
-              />
+              <div>
+                <p className="text-sm font-medium text-foreground">SMS add-on not activated</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  Contact your StoreMate admin to enable the SMS add-on for your shop. Once activated you can send low-stock alerts, daily summaries, and customer receipts.
+                </p>
+              </div>
             </div>
-          ))}
-          <p className="text-xs text-muted-foreground rounded-md bg-muted px-3 py-2">
-            Requires Notify.lk credentials in your environment variables to send real SMS.
-          </p>
+          )}
         </CardContent>
       </Card>
 

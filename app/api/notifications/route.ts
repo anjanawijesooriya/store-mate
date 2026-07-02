@@ -22,6 +22,7 @@ export async function GET() {
           trialEndsAt: true,
           gracePeriodEndsAt: true,
           smsCredits: true,
+          smsAddonEnabled: true,
           smsLowStock: true,
           smsDailySummary: true,
           smsReceiptEnabled: true,
@@ -91,7 +92,7 @@ export async function GET() {
     }
 
     // ── SMS credits ──────────────────────────────────────────────
-    const smsEnabled = shop.smsLowStock || shop.smsDailySummary || shop.smsReceiptEnabled;
+    const smsEnabled = shop.smsAddonEnabled && (shop.smsLowStock || shop.smsDailySummary || shop.smsReceiptEnabled);
     if (smsEnabled) {
       if (shop.smsCredits === 0) {
         notifications.push({

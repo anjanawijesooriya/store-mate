@@ -7,15 +7,24 @@ interface SmsResult {
   error?: string;
 }
 
+function toSriLankaE164(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("94")) return digits;        // already 94XXXXXXXXX
+  if (digits.startsWith("0")) return "94" + digits.slice(1); // 07X → 94 7X
+  return "94" + digits;                               // bare 7X → 94 7X
+}
+
 export async function sendSms(to: string, message: string): Promise<SmsResult> {
   const userId = process.env.NOTIFYLK_USER_ID;
   const apiKey = process.env.NOTIFYLK_API_KEY;
-  const senderId = process.env.NOTIFYLK_SENDER_ID || "StoreMate";
+  const senderId = process.env.NOTIFYLK_SENDER_ID || "NotifyDEMO";
 
   if (!userId || !apiKey) {
     console.warn("SMS not configured — NOTIFYLK_USER_ID or NOTIFYLK_API_KEY missing");
     return { success: false, error: "SMS provider not configured" };
   }
+
+  const formattedTo = toSriLankaE164(to);
 
   try {
     const res = await fetch("https://app.notify.lk/api/v1/send", {
@@ -25,16 +34,19 @@ export async function sendSms(to: string, message: string): Promise<SmsResult> {
         user_id: userId,
         api_key: apiKey,
         sender_id: senderId,
-        to: to.replace(/\D/g, ""),
+        to: formattedTo,
         message,
       }),
     });
     const data = await res.json();
+    console.log("notify.lk response:", JSON.stringify(data));
     if (data.status === "success") return { success: true, messageId: data.data };
-    return { success: false, error: data.message || "SMS send failed" };
+    const errMsg = data.message || data.error || data.description || `notify.lk error (status: ${data.status ?? res.status})`;
+    return { success: false, error: errMsg };
   } catch (err) {
-    console.error("SMS send error:", err);
-    return { success: false, error: "Network error sending SMS" };
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error("SMS send error:", detail);
+    return { success: false, error: `Network error: ${detail}` };
   }
 }
 

@@ -40,6 +40,7 @@ interface Shop {
   createdAt: Date;
   payments: Array<{ paidAt: Date; amount: number; billingMonth: string }>;
   _count: { sales: number; products: number };
+  smsAddonEnabled: boolean;
   smsCredits: number;
 }
 
@@ -230,7 +231,11 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                     <td className="px-4 py-3.5">
                       <p className="font-mono text-xs font-semibold text-foreground">{PLAN_PRICES[shop.planTier]}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{shop.planTier}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{shop.smsCredits ?? 0} SMS credits</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {shop.smsAddonEnabled
+                          ? <span className="text-green-600 dark:text-green-400 font-medium">SMS on · {shop.smsCredits ?? 0} credits</span>
+                          : <span className="text-muted-foreground">SMS off</span>}
+                      </p>
                     </td>
                     <td className="px-4 py-3.5">
                       <span
@@ -315,37 +320,76 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                           +14d Trial
                         </Button>
 
+                        {/* SMS addon toggle */}
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-xs h-7 px-2.5 gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                          disabled={loading === shop.id + "sms_credits"}
+                          className={`text-xs h-7 px-2.5 gap-1 ${
+                            shop.smsAddonEnabled
+                              ? "text-green-600 dark:text-green-400 border-green-200 dark:border-green-900 hover:bg-green-50 dark:hover:bg-green-950/30"
+                              : "text-muted-foreground"
+                          }`}
+                          disabled={loading === shop.id + "sms_addon"}
                           onClick={async () => {
-                            const input = window.prompt(`Add SMS credits to ${shop.name}\nCurrent: ${shop.smsCredits ?? 0} credits\n\nEnter amount to add:`);
-                            const amount = parseInt(input ?? "");
-                            if (!amount || amount <= 0) return;
-                            setLoading(shop.id + "sms_credits");
+                            const next = !shop.smsAddonEnabled;
+                            if (!next && !window.confirm(`Disable SMS add-on for ${shop.name}? They will no longer be able to send SMS.`)) return;
+                            setLoading(shop.id + "sms_addon");
                             try {
-                              const res = await fetch("/api/admin/sms-credits", {
+                              const res = await fetch("/api/admin/sms-addon", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ shopId: shop.id, credits: amount }),
+                                body: JSON.stringify({ shopId: shop.id, enabled: next }),
                               });
                               if (!res.ok) throw new Error();
-                              toast.success(`Added ${amount} SMS credits to ${shop.name}`);
+                              toast.success(`SMS add-on ${next ? "enabled" : "disabled"} for ${shop.name}`);
                               await refresh();
                             } catch {
-                              toast.error("Failed to add SMS credits");
+                              toast.error("Failed to update SMS add-on");
                             } finally {
                               setLoading(null);
                             }
                           }}
                         >
-                          {loading === shop.id + "sms_credits"
+                          {loading === shop.id + "sms_addon"
                             ? <Loader2 className="h-3 w-3 animate-spin" />
                             : <MessageSquare className="h-3 w-3" />}
-                          SMS Credits
+                          {shop.smsAddonEnabled ? "SMS On" : "SMS Off"}
                         </Button>
+
+                        {/* SMS credits top-up — only shown when addon is on */}
+                        {shop.smsAddonEnabled && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs h-7 px-2.5 gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                            disabled={loading === shop.id + "sms_credits"}
+                            onClick={async () => {
+                              const input = window.prompt(`Add SMS credits to ${shop.name}\nCurrent: ${shop.smsCredits ?? 0} credits\n\nEnter amount to add:`);
+                              const amount = parseInt(input ?? "");
+                              if (!amount || amount <= 0) return;
+                              setLoading(shop.id + "sms_credits");
+                              try {
+                                const res = await fetch("/api/admin/sms-credits", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ shopId: shop.id, credits: amount }),
+                                });
+                                if (!res.ok) throw new Error();
+                                toast.success(`Added ${amount} SMS credits to ${shop.name}`);
+                                await refresh();
+                              } catch {
+                                toast.error("Failed to add SMS credits");
+                              } finally {
+                                setLoading(null);
+                              }
+                            }}
+                          >
+                            {loading === shop.id + "sms_credits"
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <MessageSquare className="h-3 w-3" />}
+                            Add Credits
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -1,12 +1,10 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { isAdmin } from "@/lib/admin-auth";
 import { apiError } from "@/lib/auth-helpers";
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  const adminPhone = process.env.NEXT_PUBLIC_ADMIN_PHONE;
-  if (!adminPhone || session?.user?.phone?.replace(/\D/g, "") !== adminPhone.replace(/\D/g, "")) {
+  if (!(await isAdmin())) {
     return apiError("Unauthorized", 401);
   }
 

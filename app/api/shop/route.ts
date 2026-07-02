@@ -11,7 +11,7 @@ export async function GET() {
         id: true, name: true, ownerName: true, phone: true,
         category: true, address: true, planTier: true, trialEndsAt: true,
         billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true,
-        smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsCredits: true,
+        smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsCredits: true,
       },
     });
     if (!shop) return apiError("Shop not found", 404);

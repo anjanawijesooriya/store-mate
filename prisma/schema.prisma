@@ -71,6 +71,7 @@ model Shop {
   address           String?
   planTier          PlanTier     @default(BASIC)
   trialEndsAt       DateTime?
+  smsAddonEnabled   Boolean      @default(false)
   smsLowStock       Boolean      @default(true)
   smsDailySummary   Boolean      @default(true)
   smsReceiptEnabled Boolean      @default(false)

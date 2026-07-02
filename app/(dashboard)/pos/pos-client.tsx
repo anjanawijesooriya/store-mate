@@ -110,6 +110,8 @@ interface ShopInfo {
   name: string;
   phone: string | null;
   address: string | null;
+  smsAddonEnabled: boolean;
+  smsReceiptEnabled: boolean;
 }
 
 const PAYMENT_METHODS = [
@@ -203,6 +205,7 @@ export function POSClient() {
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [sendingSms, setSendingSms] = useState(false);
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
+  const [walkInPhone, setWalkInPhone] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
   const subtotal = cart.reduce((s, i) => s + i.lineTotal, 0);
@@ -217,7 +220,13 @@ export function POSClient() {
     fetch("/api/shop")
       .then((r) => r.ok ? r.json() : null)
       .then((s) => {
-        if (s) setShopInfo({ name: s.name ?? "", phone: s.phone ?? null, address: s.address ?? null });
+        if (s?.shop) setShopInfo({
+          name: s.shop.name ?? "",
+          phone: s.shop.phone ?? null,
+          address: s.shop.address ?? null,
+          smsAddonEnabled: s.shop.smsAddonEnabled ?? false,
+          smsReceiptEnabled: s.shop.smsReceiptEnabled ?? false,
+        });
       })
       .catch(() => {});
   }, [session?.user?.shopId]);
@@ -393,14 +402,18 @@ export function POSClient() {
       const res = await fetch("/api/sms/send-receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ saleId: completedSale.id }),
+        body: JSON.stringify({
+          saleId: completedSale.id,
+          ...(walkInPhone.trim() && { phone: walkInPhone.trim() }),
+        }),
       });
       const data = await res.json();
-      if (!res.ok) {
+      if (!res.ok || !data.success) {
         toast.error(data.error || "Failed to send SMS");
         return;
       }
       toast.success("Receipt sent via SMS");
+      setWalkInPhone("");
     } catch {
       toast.error("Failed to send SMS");
     } finally {
@@ -1085,7 +1098,7 @@ export function POSClient() {
       </Dialog>
 
       {/* Receipt Dialog */}
-      <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
+      <Dialog open={showReceipt} onOpenChange={(o) => { setShowReceipt(o); if (!o) setWalkInPhone(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader className="print:hidden">
             <DialogTitle
@@ -1205,16 +1218,37 @@ export function POSClient() {
                   Print
                 </Button>
 
-                {!completedSale?.isOffline && selectedCustomer?.phone && (
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={sendSmsReceipt}
-                    disabled={sendingSms}
-                  >
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    {sendingSms ? "Sending…" : "SMS"}
-                  </Button>
+                {!completedSale?.isOffline && shopInfo?.smsAddonEnabled && shopInfo?.smsReceiptEnabled && (
+                  selectedCustomer?.phone ? (
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={sendSmsReceipt}
+                      disabled={sendingSms}
+                    >
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      {sendingSms ? "Sending…" : "SMS Receipt"}
+                    </Button>
+                  ) : (
+                    <div className="w-full flex gap-2">
+                      <Input
+                        placeholder="Walk-in phone (07X XXXXXXX)"
+                        value={walkInPhone}
+                        onChange={(e) => setWalkInPhone(e.target.value)}
+                        className="flex-1 h-9 text-sm"
+                        type="tel"
+                      />
+                      <Button
+                        variant="outline"
+                        className="h-9 px-3"
+                        onClick={sendSmsReceipt}
+                        disabled={sendingSms || !walkInPhone.trim()}
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        {sendingSms ? "…" : "Send"}
+                      </Button>
+                    </div>
+                  )
                 )}
 
                 <Button
