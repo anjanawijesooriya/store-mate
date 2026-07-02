@@ -219,7 +219,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
   ];
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <PageHeader title="Settings" description="Manage your shop and account settings" />
 
       {shop.billingStatus === "TRIAL" && trialDaysLeft !== null && (
@@ -248,6 +248,10 @@ export function SettingsClient({ shop }: { shop: Shop }) {
           </a>
         </div>
       )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      {/* ── LEFT COLUMN ── */}
+      <div className="space-y-6">
 
       {/* Shop information */}
       <Card className="shadow-sm">
@@ -360,6 +364,11 @@ export function SettingsClient({ shop }: { shop: Shop }) {
           )}
         </CardContent>
       </Card>
+
+      </div>{/* end left column */}
+
+      {/* ── RIGHT COLUMN ── */}
+      <div className="space-y-6">
 
       {/* Billing Status */}
       <Card className="shadow-sm">
@@ -567,9 +576,13 @@ export function SettingsClient({ shop }: { shop: Shop }) {
           <p className="text-xs text-muted-foreground">
             Removing a device signs them out immediately on their next action.
             To free up a slot, remove an inactive device or upgrade your plan.
+
           </p>
         </CardContent>
       </Card>
+
+      </div>{/* end right column */}
+      </div>{/* end grid */}
     </div>
   );
 }
