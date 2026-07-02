@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
-  MoreVertical, Trash2, Plus, WifiOff, Play,
+  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ interface Shop {
   gracePeriodEndsAt: Date | null;
   nextBillingDate: Date | null;
   createdAt: Date;
-  payments: Array<{ paidAt: Date; amount: number; billingMonth: string }>;
+  payments: Array<{ paidAt: Date; amount: number; billingMonth: string; planTier: string; reference: string | null; note: string | null }>;
   _count: { sales: number; products: number };
   smsAddonEnabled: boolean;
   smsCredits: number;
@@ -76,7 +76,8 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
 
   // Dialog state
   const [markPaidShop, setMarkPaidShop]     = useState<Shop | null>(null);
-  const [smsCreditsShop, setSmsCreditsShop] = useState<Shop | null>(null);
+  const [smsCreditsShop, setSmsCreditsShop]       = useState<Shop | null>(null);
+  const [payHistoryShop, setPayHistoryShop]       = useState<Shop | null>(null);
   const [smsEnableMode, setSmsEnableMode]   = useState(false); // true = enabling addon + credits together
   const [smsDisableShop, setSmsDisableShop] = useState<Shop | null>(null);
   const [deleteShop, setDeleteShop]         = useState<Shop | null>(null);
@@ -330,6 +331,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                       <p className="font-semibold text-foreground">{shop.name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{shop.ownerName}</p>
                       <p className="text-xs text-muted-foreground">{shop.phone}</p>
+                      <p className="text-xs text-muted-foreground/60 mt-0.5">Since {fmt(shop.createdAt)}</p>
                     </td>
 
                     {/* Plan & SMS */}
@@ -434,6 +436,11 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                             <DropdownMenuItem onClick={() => handleAction(shop, "extend_trial", { days: 14 })} className="gap-2">
                               <Clock className="h-3.5 w-3.5" />
                               Extend trial +14 days
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem onClick={() => setPayHistoryShop(shop)} className="gap-2">
+                              <Receipt className="h-3.5 w-3.5" />
+                              Payment history
                             </DropdownMenuItem>
 
                             <DropdownMenuSeparator />
@@ -663,6 +670,59 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                 : <WifiOff className="h-4 w-4" />}
               Disable SMS
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Payment history dialog ── */}
+      <Dialog open={!!payHistoryShop} onOpenChange={(o) => !o && setPayHistoryShop(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              Payment History — {payHistoryShop?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {payHistoryShop?.payments.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">No payments recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border">
+                    {["Month", "Plan", "Amount", "Date", "Reference / Note"].map((h) => (
+                      <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-2 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {payHistoryShop?.payments.map((p, i) => (
+                    <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/20">
+                      <td className="px-3 py-2.5 font-medium text-foreground whitespace-nowrap">{p.billingMonth}</td>
+                      <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{p.planTier}</td>
+                      <td className="px-3 py-2.5 font-semibold text-foreground whitespace-nowrap">LKR {p.amount.toLocaleString()}</td>
+                      <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{fmt(p.paidAt)}</td>
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                        {p.reference
+                          ? <span title={p.reference}>{p.reference}</span>
+                          : p.note
+                          ? <span className="italic" title={p.note}>{p.note}</span>
+                          : <span className="text-muted-foreground/50">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="flex justify-between items-center pt-1 text-xs text-muted-foreground">
+            <span>{payHistoryShop?.payments.length ?? 0} payment{(payHistoryShop?.payments.length ?? 0) !== 1 ? "s" : ""} total</span>
+            <span>
+              Total collected: LKR {(payHistoryShop?.payments.reduce((s, p) => s + p.amount, 0) ?? 0).toLocaleString()}
+            </span>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayHistoryShop(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

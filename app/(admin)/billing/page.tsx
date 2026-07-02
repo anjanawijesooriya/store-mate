@@ -23,8 +23,7 @@ export default async function AdminBillingPage() {
       createdAt: true,
       payments: {
         orderBy: { paidAt: "desc" },
-        take: 1,
-        select: { paidAt: true, amount: true, billingMonth: true },
+        select: { paidAt: true, amount: true, billingMonth: true, planTier: true, reference: true, note: true },
       },
       _count: { select: { sales: true, products: true } },
     },
