@@ -233,11 +233,18 @@ export function SettingsClient({ shop }: { shop: Shop }) {
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {trialDaysLeft > 0
-                ? "No credit card required during trial. Upgrade anytime."
-                : "Your free trial has ended. Please upgrade to continue using StoreMate."}
+                ? "Contact admin to upgrade your plan before the trial ends."
+                : "Your free trial has ended. Contact admin to continue using StoreMate."}
             </p>
           </div>
-          <Button size="sm" className="font-semibold flex-shrink-0 ml-4">Upgrade Now</Button>
+          <a
+            href={`https://wa.me/${(process.env.NEXT_PUBLIC_ADMIN_PHONE ?? "").replace(/\D/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-shrink-0 ml-4"
+          >
+            <Button size="sm" className="font-semibold">Contact Admin</Button>
+          </a>
         </div>
       )}
 
