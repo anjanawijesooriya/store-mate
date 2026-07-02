@@ -23,6 +23,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { CATEGORY_LABELS } from "@/lib/shop-categories";
 
 type BillingStatus = "TRIAL" | "ACTIVE" | "GRACE" | "LOCKED";
 type PlanTier = "BASIC" | "STANDARD" | "PREMIUM";
@@ -57,6 +58,7 @@ const PLAN_CONFIG: Record<PlanTier, { label: string; price: string; className: s
   STANDARD: { label: "Standard", price: "LKR 8,000",  className: "bg-primary/10 text-primary border border-primary/20" },
   PREMIUM:  { label: "Premium",  price: "LKR 13,000", className: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20" },
 };
+
 
 function fmt(d: Date | null | string) {
   if (!d) return "—";
@@ -331,7 +333,8 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                       <p className="font-semibold text-foreground">{shop.name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{shop.ownerName}</p>
                       <p className="text-xs text-muted-foreground">{shop.phone}</p>
-                      <p className="text-xs text-muted-foreground/60 mt-0.5">Since {fmt(shop.createdAt)}</p>
+                      <p className="text-xs text-muted-foreground/70 mt-0.5">{CATEGORY_LABELS[shop.category] ?? shop.category}</p>
+                      <p className="text-xs text-muted-foreground/50 mt-0.5">Since {fmt(shop.createdAt)}</p>
                     </td>
 
                     {/* Plan & SMS */}

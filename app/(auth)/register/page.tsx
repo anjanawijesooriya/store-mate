@@ -8,14 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ArrowLeft } from "lucide-react";
-
-const SHOP_CATEGORIES = [
-  { value: "GROCERY", label: "Grocery / General Store" },
-  { value: "PHARMACY", label: "Pharmacy / Medical" },
-  { value: "CLOTHING", label: "Clothing / Fashion" },
-  { value: "HARDWARE", label: "Hardware / Tools" },
-  { value: "OTHER", label: "Other" },
-];
+import { SHOP_CATEGORIES } from "@/lib/shop-categories";
 
 export default function RegisterPage() {
   const router = useRouter();

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock, Monitor, Trash2, ShieldCheck } from "lucide-react";
+import { CATEGORY_LABELS } from "@/lib/shop-categories";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -294,7 +295,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
               </div>
               <div className="space-y-1">
                 <Label className="text-muted-foreground text-xs">Shop Category</Label>
-                <p className="text-sm font-medium capitalize">{shop.category.toLowerCase()}</p>
+                <p className="text-sm font-medium">{CATEGORY_LABELS[shop.category] ?? shop.category}</p>
               </div>
             </div>
             <Separator />
