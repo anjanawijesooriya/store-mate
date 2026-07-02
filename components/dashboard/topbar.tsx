@@ -5,7 +5,7 @@ import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Menu, LogOut, Bell, Settings,
-  Package, Users, CreditCard, MessageSquare, AlertTriangle, CheckCircle, Info,
+  Package, Users, CreditCard, MessageSquare, AlertTriangle, CheckCircle, Info, X, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,10 +67,14 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
     .join("")
     .toUpperCase();
 
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [hasUnseen, setHasUnseen] = useState(false);
+  const [notifOpen, setNotifOpen]     = useState(false);
+  const [allFetched, setAllFetched]   = useState<NotificationItem[]>([]);
+  const [dismissed, setDismissed]     = useState<Set<string>>(new Set());
+  const [hasUnseen, setHasUnseen]     = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
+
+  // Visible = fetched minus dismissed
+  const notifications = allFetched.filter((n) => !dismissed.has(n.id));
 
   function getSeenIds(): Set<string> {
     try {
@@ -79,10 +83,36 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
     } catch { return new Set(); }
   }
 
+  function getDismissedIds(): Set<string> {
+    try {
+      const raw = localStorage.getItem("notif-dismissed-ids");
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    } catch { return new Set(); }
+  }
+
+  function saveDismissed(ids: Set<string>) {
+    try {
+      localStorage.setItem("notif-dismissed-ids", JSON.stringify([...ids]));
+    } catch {}
+  }
+
   function markAllSeen(items: NotificationItem[]) {
     try {
       localStorage.setItem("notif-seen-ids", JSON.stringify(items.map((n) => n.id)));
-    } catch { /* ignore — storage might be blocked */ }
+    } catch {}
+    setHasUnseen(false);
+  }
+
+  function dismissOne(id: string) {
+    const next = new Set(dismissed).add(id);
+    setDismissed(next);
+    saveDismissed(next);
+  }
+
+  function dismissAll() {
+    const next = new Set(allFetched.map((n) => n.id));
+    setDismissed(next);
+    saveDismissed(next);
     setHasUnseen(false);
   }
 
@@ -92,12 +122,14 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
       if (!res.ok) return;
       const data: { notifications: NotificationItem[]; total: number } = await res.json();
       const items: NotificationItem[] = data.notifications ?? [];
-      setNotifications(items);
+      const currentDismissed = getDismissedIds();
+      setAllFetched(items);
+      setDismissed(currentDismissed);
       if (markSeen) {
         markAllSeen(items);
       } else {
         const seen = getSeenIds();
-        setHasUnseen(items.some((n) => !seen.has(n.id)));
+        setHasUnseen(items.some((n) => !seen.has(n.id) && !currentDismissed.has(n.id)));
       }
     } catch { /* ignore */ }
   }, []);
@@ -118,7 +150,9 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
         if (res.ok) {
           const data: { notifications: NotificationItem[]; total: number } = await res.json();
           const items: NotificationItem[] = data.notifications ?? [];
-          setNotifications(items);
+          const currentDismissed = getDismissedIds();
+          setAllFetched(items);
+          setDismissed(currentDismissed);
           markAllSeen(items);
         }
       } catch { /* keep existing list */ } finally {
@@ -163,11 +197,22 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
           } />
           <DropdownMenuContent align="end" className="w-[360px] p-0 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <span className="text-sm font-semibold">Notifications</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">Notifications</span>
+                {notifications.length > 0 && (
+                  <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    {notifications.length}
+                  </span>
+                )}
+              </div>
               {notifications.length > 0 && (
-                <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                  {notifications.length}
-                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); dismissAll(); }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Clear all
+                </button>
               )}
             </div>
 
@@ -188,19 +233,30 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
                     const TypeIcon = TYPE_ICON[n.type];
                     const style = SEVERITY_STYLES[n.severity];
                     return (
-                      <button
+                      <div
                         key={n.id}
-                        onClick={() => { setNotifOpen(false); router.push(n.href); }}
-                        className={`w-full text-left rounded-lg border px-3 py-2.5 flex items-start gap-3 transition-colors hover:brightness-95 active:scale-[0.99] ${style.bg}`}
+                        className={`rounded-lg border flex items-start gap-3 transition-colors ${style.bg}`}
                       >
-                        <div className="mt-0.5 flex-shrink-0">
-                          <TypeIcon className={`h-4 w-4 ${style.iconClass}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-foreground leading-snug">{n.title}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.body}</p>
-                        </div>
-                      </button>
+                        <button
+                          onClick={() => { setNotifOpen(false); router.push(n.href); }}
+                          className="flex-1 text-left px-3 py-2.5 flex items-start gap-3 hover:brightness-95 active:scale-[0.99] transition-all"
+                        >
+                          <div className="mt-0.5 flex-shrink-0">
+                            <TypeIcon className={`h-4 w-4 ${style.iconClass}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-foreground leading-snug">{n.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.body}</p>
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); dismissOne(n.id); }}
+                          className="p-2 mt-1 mr-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex-shrink-0"
+                          aria-label="Dismiss notification"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
