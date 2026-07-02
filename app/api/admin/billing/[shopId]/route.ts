@@ -22,6 +22,7 @@ export async function PATCH(
       return apiError("amount, planTier and billingMonth are required");
     }
 
+    // Next billing always falls on the 1st of the month after the billing month
     const nextBilling = new Date(billingMonth);
     nextBilling.setMonth(nextBilling.getMonth() + 1);
     nextBilling.setDate(1);
@@ -73,6 +74,7 @@ export async function PATCH(
   if (action === "unlock") {
     const nextBilling = new Date();
     nextBilling.setMonth(nextBilling.getMonth() + 1);
+    nextBilling.setDate(1);
     const shop = await db.shop.update({
       where: { id: shopId },
       data: {
