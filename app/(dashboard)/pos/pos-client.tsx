@@ -193,6 +193,36 @@ export function POSClient() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
+
+  // Restore cart from localStorage after mount (persists across navigation)
+  useEffect(() => {
+    if (!shopId) return;
+    try {
+      const raw = localStorage.getItem(`pos-cart-${shopId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as CartItem[];
+        if (Array.isArray(parsed) && parsed.length > 0) setCart(parsed);
+      }
+      const disc = localStorage.getItem(`pos-discount-${shopId}`);
+      if (disc) setDiscount(parseFloat(disc) || 0);
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopId]);
+
+  // Persist cart to localStorage on every change
+  useEffect(() => {
+    if (!shopId) return;
+    try {
+      localStorage.setItem(`pos-cart-${shopId}`, JSON.stringify(cart));
+    } catch {}
+  }, [cart, shopId]);
+
+  useEffect(() => {
+    if (!shopId) return;
+    try {
+      localStorage.setItem(`pos-discount-${shopId}`, String(discount));
+    } catch {}
+  }, [discount, shopId]);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountTendered, setAmountTendered] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -511,6 +541,10 @@ export function POSClient() {
   function clearCart() {
     setCart([]);
     setDiscount(0);
+    try {
+      localStorage.removeItem(`pos-cart-${shopId}`);
+      localStorage.removeItem(`pos-discount-${shopId}`);
+    } catch {}
     setAmountTendered("");
     setCheckoutOpen(false);
     setCompletedSale(null);
