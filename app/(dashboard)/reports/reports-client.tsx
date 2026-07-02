@@ -42,15 +42,19 @@ function formatLKR(n: number) {
 }
 
 const ALL_PERIODS = [
-  { value: "today", label: "Today" },
-  { value: "week", label: "This Week" },
-  { value: "month", label: "This Month" },
-  { value: "3months", label: "Last 3 Months", premiumOnly: true },
+  { value: "today",      label: "Today" },
+  { value: "week",       label: "This Week" },
+  { value: "month",      label: "This Month" },
+  { value: "last_month", label: "Last Month",     standardPlus: true },
+  { value: "3months",    label: "Last 3 Months",  premiumOnly: true },
 ];
 
 export function ReportsClient({ planTier }: { planTier: string }) {
-  const isPremium = planTier === "PREMIUM";
-  const PERIODS = ALL_PERIODS.filter((p) => !p.premiumOnly || isPremium);
+  const isPremium  = planTier === "PREMIUM";
+  const isStandard = planTier === "STANDARD" || isPremium;
+  const PERIODS = ALL_PERIODS.filter((p) =>
+    (!p.standardPlus || isStandard) && (!p.premiumOnly || isPremium)
+  );
   const [period, setPeriod] = useState("week");
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,13 +102,13 @@ export function ReportsClient({ planTier }: { planTier: string }) {
                 ))}
               </SelectContent>
             </Select>
-            {isPremium ? (
+            {isStandard ? (
               <Button variant="outline" onClick={exportCSV} disabled={!data}>
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
               </Button>
             ) : (
-              <Button variant="outline" disabled title="Export CSV requires Premium plan">
+              <Button variant="outline" disabled title="Export CSV requires Standard or Premium plan">
                 <Lock className="h-4 w-4 mr-2 text-amber-500" />
                 Export CSV
               </Button>

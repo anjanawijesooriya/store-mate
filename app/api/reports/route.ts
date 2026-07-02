@@ -19,6 +19,12 @@ function getDateRange(period: string): { from: Date; to: Date } {
     case "month":
       from = new Date(now.getFullYear(), now.getMonth(), 1);
       break;
+    case "last_month":
+      from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return {
+        from,
+        to: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59),
+      };
     case "3months":
       from = new Date(now.getFullYear(), now.getMonth() - 2, 1);
       break;
