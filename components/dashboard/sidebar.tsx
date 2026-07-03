@@ -10,7 +10,6 @@ import {
   Users,
   Receipt,
   Settings,
-  Store,
   X,
   ShieldCheck,
   ClipboardList,
@@ -60,25 +59,31 @@ export function Sidebar({ shopName, planTier, isAdmin, onClose }: SidebarProps) 
   return (
     <aside className="flex flex-col h-full bg-sidebar text-sidebar-foreground overflow-hidden">
       {/* Logo / shop name */}
-      <div className="flex items-center justify-between px-4 py-5 border-b border-sidebar-border">
+      <div className="flex items-start justify-between px-3 pt-5 pb-4 border-b border-sidebar-border">
         <Link
           href="/dashboard"
           onClick={onClose}
-          className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
+          className="flex flex-col min-w-0 flex-1 pl-3 hover:opacity-80 transition-opacity"
         >
-          <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-            <Store className="h-[18px] w-[18px] text-primary-foreground" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold text-sidebar-foreground/50 uppercase tracking-widest">StoreMate</p>
-            <p className="text-sm font-semibold text-sidebar-foreground truncate leading-tight">{shopName}</p>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/storemate-logo.png"
+            alt="StoreMate"
+            style={{
+              height: 45,
+              width: "auto",
+              maxWidth: "80%",
+              display: "block",
+              filter: "drop-shadow(0 0 8px rgba(255,255,255,0.5))",
+            }}
+          />
+          <p className="mt-2 text-sm font-semibold text-sidebar-foreground truncate leading-tight">{shopName}</p>
         </Link>
         {onClose && (
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent -mr-2 h-8 w-8"
+            className="lg:hidden text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent -mr-2 h-8 w-8 mt-1 shrink-0"
             onClick={onClose}
           >
             <X className="h-4 w-4" />

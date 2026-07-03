@@ -11,10 +11,11 @@ const transporter = nodemailer.createTransport({
 const FROM = `"StoreMate" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`;
 
 function baseLayout(content: string) {
+  const logoHtml = `<img src="https://i.ibb.co/xqXJD4W0/Store-Mate-1-removebg-preview.png" alt="StoreMate" style="height:60px;width:auto;object-fit:contain" />`;
   return `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
       <div style="margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #f3f4f6">
-        <span style="font-size:20px;font-weight:700;color:#2DA86B">StoreMate</span>
+        ${logoHtml}
       </div>
       ${content}
       <div style="margin-top:24px;padding-top:16px;border-top:1px solid #f3f4f6">

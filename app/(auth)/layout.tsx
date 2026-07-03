@@ -1,5 +1,6 @@
-import { Check, Store } from "lucide-react";
+import { Check } from "lucide-react";
 import Link from "next/link";
+import logoSrc from "@/public/storemate-logo.png";
 
 const FEATURES = [
   "Full offline POS — works even without internet",
@@ -18,14 +19,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="absolute bottom-1/4 right-0 w-72 h-72 bg-[#EA580C]/5 rounded-full blur-3xl pointer-events-none" />
 
         {/* Logo */}
-        <Link
-          href="/"
-          className="relative z-10 flex items-center gap-3 w-fit hover:opacity-80 transition-opacity"
-        >
-          <div className="w-10 h-10 rounded-xl bg-[#2DA86B] flex items-center justify-center">
-            <Store className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-lg font-bold text-white">StoreMate</span>
+        <Link href="/" className="relative z-10 w-fit hover:opacity-80 transition-opacity">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={logoSrc.src}
+            alt="StoreMate"
+            style={{ height: 48, width: "auto", display: "block", filter: "drop-shadow(0 0 8px rgba(255,255,255,0.5))" }}
+          />
         </Link>
 
         {/* Hero copy */}
@@ -77,11 +77,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-10">
-            <Link href="/" className="inline-flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <Store className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">StoreMate</span>
+            <Link href="/" className="inline-flex items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={logoSrc.src} alt="StoreMate" style={{ height: 40, width: "auto" }} />
             </Link>
           </div>
 

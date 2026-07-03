@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import logoSrc from "@/public/storemate-logo.png";
 import {
   ShoppingCart,
   Package,
@@ -27,12 +28,12 @@ export default async function HomePage() {
       {/* ── Navigation ── */}
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#0a0f0c]/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between h-16">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#2DA86B] flex items-center justify-center">
-              <Store className="h-4 w-4 text-white" />
-            </div>
-            <span className="font-bold text-white text-lg tracking-tight">StoreMate</span>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={logoSrc.src}
+            alt="StoreMate"
+            style={{ height: 44, width: "auto", display: "block", filter: "drop-shadow(0 0 8px rgba(255,255,255,0.5))" }}
+          />
           <nav className="hidden md:flex items-center gap-6 text-sm text-white/60">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
@@ -548,12 +549,14 @@ export default async function HomePage() {
       {/* ── Footer ── */}
       <footer className="border-t border-white/5 py-10 px-4 sm:px-6">
         <div className="mx-auto max-w-6xl flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-[#2DA86B] flex items-center justify-center">
-              <Store className="h-3.5 w-3.5 text-white" />
-            </div>
-            <span className="font-bold text-white/80 text-base">StoreMate</span>
-            <span className="text-white/20 text-sm ml-1">— Smart shop management</span>
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={logoSrc.src}
+              alt="StoreMate"
+              style={{ height: 32, width: "auto", display: "block", filter: "drop-shadow(0 0 4px rgba(255,255,255,0.3))", opacity: 0.85 }}
+            />
+            <span className="text-white/20 text-sm">— Smart shop management</span>
           </div>
           <p className="text-xs text-white/20 order-last sm:order-none">
             © {new Date().getFullYear()} StoreMate. Built for Sri Lankan businesses.
