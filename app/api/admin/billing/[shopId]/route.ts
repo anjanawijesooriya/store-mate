@@ -72,15 +72,16 @@ export async function PATCH(
   }
 
   if (action === "unlock") {
-    const nextBilling = new Date();
-    nextBilling.setMonth(nextBilling.getMonth() + 1);
-    nextBilling.setDate(1);
+    // Give a fresh grace window — owner must pay before it expires.
+    // Only mark_paid transitions to ACTIVE.
+    const graceEndsAt = new Date();
+    graceEndsAt.setDate(graceEndsAt.getDate() + GRACE_DAYS);
     const shop = await db.shop.update({
       where: { id: shopId },
       data: {
-        billingStatus: BillingStatus.ACTIVE,
-        gracePeriodEndsAt: null,
-        nextBillingDate: nextBilling,
+        billingStatus: BillingStatus.GRACE,
+        gracePeriodEndsAt: graceEndsAt,
+        nextBillingDate: null,
       },
     });
     return Response.json({ shop });
