@@ -143,7 +143,10 @@ export async function GET() {
       });
     }
 
-    return Response.json({ notifications, total: notifications.length });
+    return Response.json(
+      { notifications, total: notifications.length },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (err) {
     if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     return apiError("Failed to load notifications", 500);

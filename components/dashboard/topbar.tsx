@@ -118,46 +118,55 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
 
   const fetchNotifications = useCallback(async (markSeen = false) => {
     try {
-      const res = await fetch("/api/notifications");
+      const res = await fetch("/api/notifications", { cache: "no-store" });
       if (!res.ok) return;
       const data: { notifications: NotificationItem[]; total: number } = await res.json();
       const items: NotificationItem[] = data.notifications ?? [];
-      const currentDismissed = getDismissedIds();
+      const currentIds = new Set(items.map((n) => n.id));
+
+      // Prune dismissed IDs that no longer exist so re-appearing notifications show again
+      const rawDismissed = getDismissedIds();
+      const currentDismissed = new Set([...rawDismissed].filter((id) => currentIds.has(id)));
+      if (currentDismissed.size !== rawDismissed.size) saveDismissed(currentDismissed);
+
       setAllFetched(items);
       setDismissed(currentDismissed);
+
       if (markSeen) {
         markAllSeen(items);
       } else {
-        const seen = getSeenIds();
-        setHasUnseen(items.some((n) => !seen.has(n.id) && !currentDismissed.has(n.id)));
+        // Prune seen IDs that no longer exist — so if a notification resolves and comes back
+        // it is treated as new rather than staying silently "seen" forever
+        const rawSeen = getSeenIds();
+        const prunedSeen = new Set([...rawSeen].filter((id) => currentIds.has(id)));
+        if (prunedSeen.size !== rawSeen.size) {
+          try { localStorage.setItem("notif-seen-ids", JSON.stringify([...prunedSeen])); } catch {}
+        }
+        setHasUnseen(items.some((n) => !prunedSeen.has(n.id) && !currentDismissed.has(n.id)));
       }
     } catch { /* ignore */ }
   }, []);
 
-  // Poll every 30 seconds — checks for unseen notifications and catches shop deletion
+  // Poll every 30 seconds
   useEffect(() => {
     fetchNotifications();
     const id = setInterval(() => fetchNotifications(), 30_000);
     return () => clearInterval(id);
   }, [fetchNotifications]);
 
+  // Re-fetch immediately when the tab becomes visible (browsers throttle intervals in background)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") fetchNotifications(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchNotifications]);
+
   async function handleBellOpen(open: boolean) {
     setNotifOpen(open);
     if (open) {
       setNotifLoading(true);
-      try {
-        const res = await fetch("/api/notifications");
-        if (res.ok) {
-          const data: { notifications: NotificationItem[]; total: number } = await res.json();
-          const items: NotificationItem[] = data.notifications ?? [];
-          const currentDismissed = getDismissedIds();
-          setAllFetched(items);
-          setDismissed(currentDismissed);
-          markAllSeen(items);
-        }
-      } catch { /* keep existing list */ } finally {
-        setNotifLoading(false);
-      }
+      await fetchNotifications(true);
+      setNotifLoading(false);
     }
   }
 
