@@ -96,6 +96,8 @@ function qtyStep(unit: string) {
 
 interface CompletedSale {
   id: string;
+  subtotal: number;
+  discount: number;
   total: number;
   amountPaid: number;
   paymentMethod: string;
@@ -662,6 +664,8 @@ export function POSClient() {
         setPendingCount((c) => c + 1);
         setCompletedSale({
           id: localId,
+          subtotal,
+          discount: discountAmt,
           total,
           amountPaid,
           paymentMethod,
@@ -697,6 +701,8 @@ export function POSClient() {
       const sale = data.sale;
       setCompletedSale({
         id: sale.id,
+        subtotal,
+        discount: discountAmt,
         total: sale.total,
         amountPaid: sale.amountPaid,
         paymentMethod: sale.paymentMethod,
@@ -731,6 +737,8 @@ export function POSClient() {
         setPendingCount((c) => c + 1);
         setCompletedSale({
           id: localId,
+          subtotal,
+          discount: discountAmt,
           total,
           amountPaid,
           paymentMethod,
@@ -1262,6 +1270,18 @@ export function POSClient() {
                 <Separator className="my-2 border-dashed" />
 
                 {/* Totals */}
+                {completedSale.discount > 0 && (
+                  <>
+                    <div className="flex justify-between text-muted-foreground text-sm">
+                      <span>Subtotal</span>
+                      <span className="font-mono">{formatLKR(completedSale.subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-[color:var(--brand-success)]">
+                      <span>Discount</span>
+                      <span className="font-mono">- {formatLKR(completedSale.discount)}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between font-bold text-base">
                   <span>Total</span>
                   <span className="text-primary">{formatLKR(completedSale.total)}</span>
