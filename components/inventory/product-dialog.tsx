@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const UNITS = ["pcs", "kg", "g", "l", "ml", "box", "pack", "dozen", "pair", "set"];
+const UNITS = ["pcs", "kg", "g", "l", "ml", "box", "pack", "dozen", "pair", "set", "sqft"];
 const CATEGORIES = ["Groceries", "Beverages", "Dairy", "Bakery", "Meat", "Vegetables", "Fruits",
   "Household", "Personal Care", "Stationery", "Electronics", "Clothing", "Medicine", "Hardware", "Other"];
 
