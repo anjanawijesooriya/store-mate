@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
-  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt,
+  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,9 @@ interface Shop {
   _count: { sales: number; products: number };
   smsAddonEnabled: boolean;
   smsCredits: number;
+  emailLowStock: boolean;
+  emailDailySummary: boolean;
+  emailReceiptEnabled: boolean;
 }
 
 const STATUS_CONFIG: Record<BillingStatus, { label: string; className: string }> = {
@@ -92,6 +95,25 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   });
   const [smsCreditsAmount, setSmsCreditsAmount] = useState("");
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
+
+  async function toggleEmailNotifs(shop: Shop, enabled: boolean) {
+    setTogglingEmail(shop.id);
+    try {
+      const res = await fetch("/api/admin/email-prefs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopId: shop.id, enabled }),
+      });
+      if (!res.ok) throw new Error();
+      await refresh();
+      toast.success(enabled ? "Email notifications enabled" : "Email notifications disabled");
+    } catch {
+      toast.error("Failed to update email notifications");
+    } finally {
+      setTogglingEmail(null);
+    }
+  }
 
   async function callAdmin(shopId: string, body: object) {
     const res = await fetch(`/api/admin/billing/${shopId}`, {
@@ -346,7 +368,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${plan.className}`}>
                         {plan.label} · {plan.price}
                       </span>
-                      <div className="mt-1.5">
+                      <div className="mt-1.5 flex flex-col gap-0.5">
                         {shop.smsAddonEnabled ? (
                           <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
                             <MessageSquare className="h-3 w-3" />
@@ -356,6 +378,17 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                             <WifiOff className="h-3 w-3" />
                             SMS off
+                          </span>
+                        )}
+                        {(shop.emailLowStock || shop.emailDailySummary || shop.emailReceiptEnabled) ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                            <Mail className="h-3 w-3" />
+                            Email on
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <Mail className="h-3 w-3" />
+                            Email off
                           </span>
                         )}
                       </div>
@@ -468,6 +501,29 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               <DropdownMenuItem onClick={() => { setSmsCreditsShop(shop); setSmsCreditsAmount(""); setSmsEnableMode(true); }} className="gap-2">
                                 <MessageSquare className="h-3.5 w-3.5" />
                                 Enable SMS add-on
+                              </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* Email notifications toggle */}
+                            {(shop.emailLowStock || shop.emailDailySummary || shop.emailReceiptEnabled) ? (
+                              <DropdownMenuItem
+                                onClick={() => toggleEmailNotifs(shop, false)}
+                                disabled={togglingEmail === shop.id}
+                                className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
+                              >
+                                <Mail className="h-3.5 w-3.5" />
+                                Disable email notifications
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => toggleEmailNotifs(shop, true)}
+                                disabled={togglingEmail === shop.id}
+                                className="gap-2"
+                              >
+                                <Mail className="h-3.5 w-3.5" />
+                                Enable email notifications
                               </DropdownMenuItem>
                             )}
 

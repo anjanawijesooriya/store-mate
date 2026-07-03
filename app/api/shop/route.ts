@@ -13,6 +13,7 @@ export async function GET() {
         category: true, address: true, planTier: true, trialEndsAt: true,
         billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true,
         smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsCredits: true,
+        emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true,
       },
     });
     if (!shop) return apiError("Shop not found", 404);

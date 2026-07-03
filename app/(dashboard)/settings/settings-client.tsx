@@ -42,6 +42,9 @@ interface Shop {
   smsDailySummary: boolean;
   smsReceiptEnabled: boolean;
   smsCredits: number;
+  emailLowStock: boolean;
+  emailDailySummary: boolean;
+  emailReceiptEnabled: boolean;
   billingStatus: BillingStatus;
   gracePeriodEndsAt: Date | null;
   nextBillingDate: Date | null;
@@ -124,6 +127,37 @@ export function SettingsClient({ shop }: { shop: Shop }) {
     smsReceiptEnabled: shop.smsReceiptEnabled,
   });
   const [smsSaving, setSmsSaving] = useState(false);
+
+  const [emailPrefs, setEmailPrefs] = useState({
+    emailLowStock:       shop.emailLowStock,
+    emailDailySummary:   shop.emailDailySummary,
+    emailReceiptEnabled: shop.emailReceiptEnabled,
+  });
+  const [emailSaving, setEmailSaving] = useState(false);
+
+  async function handleEmailToggle(key: keyof typeof emailPrefs, value: boolean) {
+    const prev = emailPrefs[key];
+    setEmailPrefs((p) => ({ ...p, [key]: value }));
+    setEmailSaving(true);
+    try {
+      const res = await fetch("/api/email/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: value }),
+      });
+      if (!res.ok) {
+        setEmailPrefs((p) => ({ ...p, [key]: prev }));
+        toast.error("Failed to update email preference");
+      } else {
+        toast.success("Email preference updated");
+      }
+    } catch {
+      setEmailPrefs((p) => ({ ...p, [key]: prev }));
+      toast.error("Failed to update email preference");
+    } finally {
+      setEmailSaving(false);
+    }
+  }
 
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
   const [pwSaving, setPwSaving] = useState(false);
@@ -401,6 +435,41 @@ export function SettingsClient({ shop }: { shop: Shop }) {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Email Notifications */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            Email Notifications
+          </CardTitle>
+          <CardDescription>
+            Email alerts sent to your registered email address — on by default, free to use
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {[
+            { key: "emailLowStock"       as const, label: "Low Stock Alert",      desc: "Daily morning alert when products are running low" },
+            { key: "emailDailySummary"   as const, label: "Daily Sales Summary",  desc: "Receive a summary at 9 PM with today's sales total" },
+            { key: "emailReceiptEnabled" as const, label: "Customer Receipt Email", desc: "Send receipts via email to customers after each sale" },
+          ].map((item) => (
+            <div key={item.key} className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Bell className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                </div>
+              </div>
+              <Toggle
+                checked={emailPrefs[item.key]}
+                onChange={(v) => handleEmailToggle(item.key, v)}
+                disabled={emailSaving}
+              />
+            </div>
+          ))}
         </CardContent>
       </Card>
 

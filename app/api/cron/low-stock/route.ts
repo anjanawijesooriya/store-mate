@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { verifyCronRequest } from "@/lib/cron-auth";
 import { sendSmsAndLog, buildLowStockMessage } from "@/lib/sms";
+import { sendLowStockEmail } from "@/lib/mailer";
 import { SmsType } from "@/lib/generated/prisma/enums";
 
 export const runtime = "nodejs";
@@ -11,20 +12,19 @@ export async function GET(req: Request) {
   }
 
   const shops = await db.shop.findMany({
-    where: { smsLowStock: true },
+    where: { OR: [{ smsLowStock: true }, { emailLowStock: true }] },
     select: {
-      id: true,
-      name: true,
-      phone: true,
+      id: true, name: true, phone: true,
+      smsLowStock: true, emailLowStock: true,
       products: {
         where: { isActive: true },
         select: { name: true, stockQty: true, lowStockAt: true },
       },
+      users: { where: { role: "OWNER" }, select: { name: true, email: true }, take: 1 },
     },
   });
 
-  let sent = 0;
-  let skipped = 0;
+  let smsSent = 0; let emailSent = 0; let skipped = 0;
   const errors: string[] = [];
 
   for (const shop of shops) {
@@ -34,11 +34,21 @@ export async function GET(req: Request) {
 
     if (lowItems.length === 0) { skipped++; continue; }
 
-    const message = buildLowStockMessage(shop.name, lowItems);
-    const result = await sendSmsAndLog(shop.id, shop.phone, message, SmsType.LOW_STOCK);
+    if (shop.smsLowStock) {
+      const r = await sendSmsAndLog(shop.id, shop.phone, buildLowStockMessage(shop.name, lowItems), SmsType.LOW_STOCK);
+      if (r.success) smsSent++; else errors.push(`sms:${shop.id}: ${r.error}`);
+    }
 
-    if (result.success) sent++; else errors.push(`${shop.id}: ${result.error}`);
+    const owner = shop.users[0];
+    if (shop.emailLowStock && owner?.email) {
+      try {
+        await sendLowStockEmail(owner.email, owner.name, shop.name, lowItems);
+        emailSent++;
+      } catch (e) {
+        errors.push(`email:${shop.id}: ${e}`);
+      }
+    }
   }
 
-  return Response.json({ sent, skipped, errors });
+  return Response.json({ smsSent, emailSent, skipped, errors });
 }

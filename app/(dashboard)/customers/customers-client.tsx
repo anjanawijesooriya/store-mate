@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Users, Plus, Search, Phone, CreditCard, Banknote, CheckCircle2, ShoppingBag, Lock } from "lucide-react";
+import { Users, Plus, Search, Phone, Mail, CreditCard, Banknote, CheckCircle2, ShoppingBag, Lock } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ interface Customer {
   id: string;
   name: string;
   phone: string | null;
+  email: string | null;
   address: string | null;
   creditBalance: number;
   totalSpent: number;
@@ -47,7 +48,7 @@ export function CustomersClient() {
 
   // Add customer dialog
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", address: "" });
+  const [form, setForm] = useState({ name: "", phone: "", email: "", address: "" });
   const [saving, setSaving] = useState(false);
 
   // Record payment dialog
@@ -118,7 +119,7 @@ export function CustomersClient() {
       if (!res.ok) { toast.error(data.error || "Failed to add customer"); return; }
       toast.success("Customer added");
       setAddOpen(false);
-      setForm({ name: "", phone: "", address: "" });
+      setForm({ name: "", phone: "", email: "", address: "" });
       fetchCustomers();
     } catch {
       toast.error("Failed to add customer");
@@ -243,6 +244,12 @@ export function CustomersClient() {
                         {c.phone}
                       </p>
                     )}
+                    {c.email && (
+                      <p className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
+                        <Mail className="h-3 w-3" />
+                        {c.email}
+                      </p>
+                    )}
                   </div>
                   {c.creditBalance > 0 && (
                     <Badge className="bg-destructive/10 text-destructive border-destructive/20 flex-shrink-0">
@@ -300,6 +307,10 @@ export function CustomersClient() {
             <div className="space-y-2">
               <Label htmlFor="cphone">Phone</Label>
               <Input id="cphone" type="tel" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} placeholder="0771234567" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cemail">Email <span className="text-muted-foreground font-normal text-xs">(for receipts)</span></Label>
+              <Input id="cemail" type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} placeholder="customer@example.com" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="caddress">Address</Label>

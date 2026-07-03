@@ -17,6 +17,7 @@ export default async function SettingsPage() {
         id: true, name: true, ownerName: true, phone: true,
         category: true, address: true, planTier: true, trialEndsAt: true,
         smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsCredits: true,
+      emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true,
         billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true,
         payments: {
           orderBy: { paidAt: "desc" },

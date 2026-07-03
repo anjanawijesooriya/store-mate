@@ -46,12 +46,17 @@ export async function POST(req: NextRequest) {
     const shop = await db.shop.findUnique({ where: { id: shopId }, select: { planTier: true } });
     if (shop?.planTier === "BASIC") return apiError("Customer management requires Standard plan or higher.", 403);
     const body = await req.json();
-    const { name, phone, address } = body;
+    const { name, phone, email, address } = body;
 
     if (!name) return apiError("Customer name is required");
 
+    const emailClean = email?.trim().toLowerCase() || null;
+    if (emailClean && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
+      return apiError("Invalid email address");
+    }
+
     const customer = await db.customer.create({
-      data: { shopId, name: name.trim(), phone: phone?.trim() || null, address: address?.trim() || null },
+      data: { shopId, name: name.trim(), phone: phone?.trim() || null, email: emailClean, address: address?.trim() || null },
     });
 
     return Response.json({ customer }, { status: 201 });

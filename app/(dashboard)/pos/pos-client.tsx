@@ -22,6 +22,7 @@ import {
   RefreshCw,
   User,
   MessageSquare,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,7 @@ interface Customer {
   id: string;
   name: string;
   phone: string | null;
+  email: string | null;
   creditBalance: number;
 }
 
@@ -112,6 +114,7 @@ interface ShopInfo {
   address: string | null;
   smsAddonEnabled: boolean;
   smsReceiptEnabled: boolean;
+  emailReceiptEnabled: boolean;
 }
 
 const PAYMENT_METHODS = [
@@ -235,8 +238,10 @@ export function POSClient() {
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [sendingSms, setSendingSms] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   const [walkInPhone, setWalkInPhone] = useState("");
+  const [walkInEmail, setWalkInEmail] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
   const subtotal = cart.reduce((s, i) => s + i.lineTotal, 0);
@@ -255,8 +260,9 @@ export function POSClient() {
           name: s.shop.name ?? "",
           phone: s.shop.phone ?? null,
           address: s.shop.address ?? null,
-          smsAddonEnabled: s.shop.smsAddonEnabled ?? false,
-          smsReceiptEnabled: s.shop.smsReceiptEnabled ?? false,
+          smsAddonEnabled:     s.shop.smsAddonEnabled     ?? false,
+          smsReceiptEnabled:   s.shop.smsReceiptEnabled   ?? false,
+          emailReceiptEnabled: s.shop.emailReceiptEnabled ?? true,
         });
       })
       .catch(() => {});
@@ -452,6 +458,32 @@ export function POSClient() {
       toast.error("Failed to send SMS");
     } finally {
       setSendingSms(false);
+    }
+  }
+
+  async function sendEmailReceipt(overrideEmail?: string) {
+    if (!completedSale || completedSale.isOffline) return;
+    setSendingEmail(true);
+    try {
+      const res = await fetch("/api/email/send-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          saleId: completedSale.id,
+          ...(overrideEmail?.trim() && { email: overrideEmail.trim() }),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error || "Failed to send email");
+        return;
+      }
+      toast.success("Receipt sent via email");
+      setWalkInEmail("");
+    } catch {
+      toast.error("Failed to send email");
+    } finally {
+      setSendingEmail(false);
     }
   }
 
@@ -1143,7 +1175,7 @@ export function POSClient() {
       </Dialog>
 
       {/* Receipt Dialog */}
-      <Dialog open={showReceipt} onOpenChange={(o) => { setShowReceipt(o); if (!o) setWalkInPhone(""); }}>
+      <Dialog open={showReceipt} onOpenChange={(o) => { setShowReceipt(o); if (!o) { setWalkInPhone(""); setWalkInEmail(""); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader className="print:hidden">
             <DialogTitle
@@ -1265,12 +1297,7 @@ export function POSClient() {
 
                 {!completedSale?.isOffline && shopInfo?.smsAddonEnabled && shopInfo?.smsReceiptEnabled && (
                   selectedCustomer?.phone ? (
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={sendSmsReceipt}
-                      disabled={sendingSms}
-                    >
+                    <Button variant="outline" className="flex-1" onClick={sendSmsReceipt} disabled={sendingSms}>
                       <MessageSquare className="h-4 w-4 mr-2" />
                       {sendingSms ? "Sending…" : "SMS Receipt"}
                     </Button>
@@ -1283,14 +1310,32 @@ export function POSClient() {
                         className="flex-1 h-9 text-sm"
                         type="tel"
                       />
-                      <Button
-                        variant="outline"
-                        className="h-9 px-3"
-                        onClick={sendSmsReceipt}
-                        disabled={sendingSms || !walkInPhone.trim()}
-                      >
+                      <Button variant="outline" className="h-9 px-3" onClick={sendSmsReceipt} disabled={sendingSms || !walkInPhone.trim()}>
                         <MessageSquare className="h-4 w-4" />
                         {sendingSms ? "…" : "Send"}
+                      </Button>
+                    </div>
+                  )
+                )}
+
+                {!completedSale?.isOffline && shopInfo?.emailReceiptEnabled && (
+                  selectedCustomer?.email ? (
+                    <Button variant="outline" className="flex-1" onClick={() => sendEmailReceipt()} disabled={sendingEmail}>
+                      <Mail className="h-4 w-4 mr-2" />
+                      {sendingEmail ? "Sending…" : "Email Receipt"}
+                    </Button>
+                  ) : (
+                    <div className="w-full flex gap-2">
+                      <Input
+                        placeholder="Walk-in email address"
+                        value={walkInEmail}
+                        onChange={(e) => setWalkInEmail(e.target.value)}
+                        className="flex-1 h-9 text-sm"
+                        type="email"
+                      />
+                      <Button variant="outline" className="h-9 px-3" onClick={() => sendEmailReceipt(walkInEmail)} disabled={sendingEmail || !walkInEmail.trim()}>
+                        <Mail className="h-4 w-4" />
+                        {sendingEmail ? "…" : "Send"}
                       </Button>
                     </div>
                   )
