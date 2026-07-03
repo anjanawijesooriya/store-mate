@@ -20,6 +20,8 @@ export default async function AdminBillingPage() {
       emailLowStock: true,
       emailDailySummary: true,
       emailReceiptEnabled: true,
+      maintenanceBanner: true,
+      maintenanceBannerMessage: true,
       trialEndsAt: true,
       gracePeriodEndsAt: true,
       nextBillingDate: true,

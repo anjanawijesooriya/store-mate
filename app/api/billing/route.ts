@@ -14,6 +14,8 @@ export async function GET() {
         trialEndsAt: true,
         gracePeriodEndsAt: true,
         nextBillingDate: true,
+        maintenanceBanner: true,
+        maintenanceBannerMessage: true,
         payments: {
           orderBy: { paidAt: "desc" },
           take: 12,

@@ -89,9 +89,11 @@ model Shop {
   emailDailySummary    Boolean      @default(true)
   emailReceiptEnabled  Boolean      @default(true)
   smsCredits        Int          @default(0)
-  billingStatus     BillingStatus @default(TRIAL)
-  gracePeriodEndsAt DateTime?
-  nextBillingDate   DateTime?
+  billingStatus          BillingStatus @default(TRIAL)
+  gracePeriodEndsAt      DateTime?
+  nextBillingDate        DateTime?
+  maintenanceBanner      Boolean       @default(false)
+  maintenanceBannerMessage String?
   createdAt         DateTime     @default(now())
   users             User[]
   products          Product[]

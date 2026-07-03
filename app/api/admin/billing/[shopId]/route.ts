@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { isAdmin } from "@/lib/admin-auth";
 import { apiError } from "@/lib/auth-helpers";
 import { BillingStatus, PlanTier } from "@/lib/generated/prisma/enums";
+import { sendMaintenanceEmail } from "@/lib/mailer";
 
 const GRACE_DAYS = 5;
 
@@ -101,6 +102,29 @@ export async function PATCH(
       where: { id: shopId },
       data: { trialEndsAt: base, billingStatus: BillingStatus.TRIAL },
     });
+    return Response.json({ shop });
+  }
+
+  if (action === "set_maintenance") {
+    const { enabled, message } = body;
+    const [shop, owner] = await Promise.all([
+      db.shop.update({
+        where: { id: shopId },
+        data: {
+          maintenanceBanner: !!enabled,
+          maintenanceBannerMessage: enabled ? (message?.trim() || null) : null,
+        },
+      }),
+      db.user.findFirst({
+        where: { shopId, role: "OWNER" },
+        select: { email: true, name: true },
+      }),
+    ]);
+
+    if (enabled && owner?.email) {
+      sendMaintenanceEmail(owner.email, owner.name ?? shop.ownerName, shop.name, message).catch(() => {});
+    }
+
     return Response.json({ shop });
   }
 

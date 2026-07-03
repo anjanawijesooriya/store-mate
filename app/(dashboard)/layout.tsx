@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { BillingBanner } from "@/components/dashboard/billing-banner";
+import { MaintenanceBanner } from "@/components/dashboard/maintenance-banner";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { PwaRegister } from "@/components/shared/pwa-register";
 import { Toaster } from "@/components/ui/sonner";
@@ -86,6 +87,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           shopName={shopName}
           onMenuClick={() => setSidebarOpen(true)}
         />
+        <MaintenanceBanner />
         <BillingBanner />
         <OfflineBanner />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">

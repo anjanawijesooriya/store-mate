@@ -22,6 +22,8 @@ export async function GET() {
       emailLowStock: true,
       emailDailySummary: true,
       emailReceiptEnabled: true,
+      maintenanceBanner: true,
+      maintenanceBannerMessage: true,
       trialEndsAt: true,
       gracePeriodEndsAt: true,
       nextBillingDate: true,

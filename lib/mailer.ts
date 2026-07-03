@@ -167,3 +167,52 @@ export async function sendReceiptEmail(to: string, data: ReceiptData) {
     `),
   });
 }
+
+const DEFAULT_MAINTENANCE_MESSAGE =
+  "System maintenance is in progress. Some features may be temporarily unavailable.";
+
+export async function sendMaintenanceEmail(
+  to: string,
+  ownerName: string,
+  shopName: string,
+  customMessage?: string | null
+) {
+  const body = customMessage?.trim() || DEFAULT_MAINTENANCE_MESSAGE;
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: `StoreMate — Scheduled Maintenance Notice for ${shopName}`,
+    html: baseLayout(`
+      <h2 style="font-size:18px;font-weight:700;color:#111827;margin:0 0 8px">Maintenance Notice</h2>
+      <p style="color:#6b7280;font-size:14px;margin:0 0 20px">Hi ${ownerName},</p>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px 20px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:18px">🔧</span>
+          <span style="font-weight:600;color:#1e40af;font-size:15px">System Maintenance</span>
+        </div>
+        <p style="color:#1e3a8a;font-size:14px;margin:0">${body}</p>
+      </div>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 8px">
+        Your shop <strong style="color:#111827">${shopName}</strong> may experience limited functionality during this period.
+        All your data is safe and will be fully accessible once maintenance is complete.
+      </p>
+      <p style="color:#6b7280;font-size:13px;margin:0">
+        We apologise for any inconvenience. If you have urgent concerns, please contact our support team.
+      </p>
+    `),
+  });
+}
+
+export async function sendMaintenanceBulkEmails(
+  recipients: { email: string; ownerName: string; shopName: string }[],
+  customMessage?: string | null
+) {
+  const results = await Promise.allSettled(
+    recipients.map((r) =>
+      sendMaintenanceEmail(r.email, r.ownerName, r.shopName, customMessage)
+    )
+  );
+  const sent  = results.filter((r) => r.status === "fulfilled").length;
+  const failed = results.filter((r) => r.status === "rejected").length;
+  return { sent, failed };
+}

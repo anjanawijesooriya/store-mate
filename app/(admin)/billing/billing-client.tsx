@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
-  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail,
+  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,8 @@ interface Shop {
   emailLowStock: boolean;
   emailDailySummary: boolean;
   emailReceiptEnabled: boolean;
+  maintenanceBanner: boolean;
+  maintenanceBannerMessage: string | null;
 }
 
 const STATUS_CONFIG: Record<BillingStatus, { label: string; className: string }> = {
@@ -100,6 +102,76 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [smsCreditsAmount, setSmsCreditsAmount] = useState("");
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
+
+  // Maintenance — per-shop dialog
+  const [maintenanceShop, setMaintenanceShop] = useState<Shop | null>(null);
+  const [maintenanceMsg, setMaintenanceMsg]   = useState("");
+  const [savingMaintenance, setSavingMaintenance] = useState(false);
+
+  // Maintenance — global dialog
+  const [globalMaintenanceOpen, setGlobalMaintenanceOpen] = useState(false);
+  const [globalMaintenanceMsg, setGlobalMaintenanceMsg]   = useState("");
+  const [globalMaintenanceEnable, setGlobalMaintenanceEnable] = useState(true);
+  const [savingGlobal, setSavingGlobal] = useState(false);
+
+  async function handleSetMaintenance(e: React.FormEvent) {
+    e.preventDefault();
+    if (!maintenanceShop) return;
+    setSavingMaintenance(true);
+    try {
+      await callAdmin(maintenanceShop.id, {
+        action: "set_maintenance",
+        enabled: true,
+        message: maintenanceMsg,
+      });
+      toast.success(`Maintenance banner enabled for ${maintenanceShop.name}`);
+      setMaintenanceShop(null);
+      await refresh();
+    } catch {
+      toast.error("Failed to set maintenance banner");
+    } finally {
+      setSavingMaintenance(false);
+    }
+  }
+
+  async function handleDisableMaintenance(shop: Shop) {
+    setLoading(shop.id + "maintenance");
+    try {
+      await callAdmin(shop.id, { action: "set_maintenance", enabled: false });
+      toast.success(`Maintenance banner removed for ${shop.name}`);
+      await refresh();
+    } catch {
+      toast.error("Failed to remove maintenance banner");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function handleGlobalMaintenance(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingGlobal(true);
+    try {
+      const res = await fetch("/api/admin/maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: globalMaintenanceEnable, message: globalMaintenanceMsg }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      toast.success(
+        globalMaintenanceEnable
+          ? `Maintenance banner enabled for all ${data.count} shops`
+          : `Maintenance banner cleared for all ${data.count} shops`
+      );
+      setGlobalMaintenanceOpen(false);
+      setGlobalMaintenanceMsg("");
+      await refresh();
+    } catch {
+      toast.error("Failed to update global maintenance");
+    } finally {
+      setSavingGlobal(false);
+    }
+  }
 
   async function toggleEmailNotifs(shop: Shop, enabled: boolean) {
     setTogglingEmail(shop.id);
@@ -287,6 +359,19 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
               : <Play className="h-4 w-4" />}
             Run Billing Check
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => {
+              setGlobalMaintenanceEnable(true);
+              setGlobalMaintenanceMsg("");
+              setGlobalMaintenanceOpen(true);
+            }}
+          >
+            <Wrench className="h-4 w-4" />
+            Maintenance
+          </Button>
           <Button variant="outline" size="sm" className="gap-2"
             onClick={async () => { await refresh(); toast.success("Refreshed"); }}>
             <RefreshCcw className="h-4 w-4" />
@@ -408,6 +493,12 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                           {dl > 0 ? `${dl}d left` : "Expired"}
                         </p>
                       )}
+                      {shop.maintenanceBanner && (
+                        <span className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">
+                          <Wrench className="h-3 w-3" />
+                          Maintenance
+                        </span>
+                      )}
                     </td>
 
                     {/* Key date */}
@@ -528,6 +619,27 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               >
                                 <Mail className="h-3.5 w-3.5" />
                                 Enable email notifications
+                              </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* Maintenance banner */}
+                            {shop.maintenanceBanner ? (
+                              <DropdownMenuItem
+                                onClick={() => handleDisableMaintenance(shop)}
+                                className="gap-2"
+                              >
+                                <Wrench className="h-3.5 w-3.5 text-blue-500" />
+                                Remove maintenance banner
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => { setMaintenanceShop(shop); setMaintenanceMsg(""); }}
+                                className="gap-2"
+                              >
+                                <Wrench className="h-3.5 w-3.5 text-blue-500" />
+                                Set maintenance banner
                               </DropdownMenuItem>
                             )}
 
@@ -837,6 +949,101 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
               Delete Permanently
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Per-shop maintenance dialog */}
+      <Dialog open={!!maintenanceShop} onOpenChange={(o) => !o && setMaintenanceShop(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wrench className="h-4 w-4 text-blue-500" />
+              Set Maintenance Banner
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSetMaintenance} className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              A banner will be shown to <span className="font-semibold text-foreground">{maintenanceShop?.name}</span> on every page until removed.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="maint-msg">Custom message <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+              <Input
+                id="maint-msg"
+                value={maintenanceMsg}
+                onChange={(e) => setMaintenanceMsg(e.target.value)}
+                placeholder="System maintenance in progress…"
+              />
+              <p className="text-xs text-muted-foreground">Leave blank to use the default message.</p>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setMaintenanceShop(null)} disabled={savingMaintenance}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={savingMaintenance} className="gap-2">
+                {savingMaintenance && <Loader2 className="h-4 w-4 animate-spin" />}
+                Enable Banner
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Global maintenance dialog */}
+      <Dialog open={globalMaintenanceOpen} onOpenChange={(o) => { if (!o) { setGlobalMaintenanceOpen(false); setGlobalMaintenanceMsg(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wrench className="h-4 w-4 text-blue-500" />
+              Global Maintenance Banner
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleGlobalMaintenance} className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This will update the maintenance banner for <span className="font-semibold text-foreground">all {shops.length} shops</span> at once.
+            </p>
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setGlobalMaintenanceEnable(true)}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${globalMaintenanceEnable ? "bg-blue-500 text-white" : "bg-background text-muted-foreground hover:bg-muted"}`}
+              >
+                Enable all
+              </button>
+              <button
+                type="button"
+                onClick={() => setGlobalMaintenanceEnable(false)}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${!globalMaintenanceEnable ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+              >
+                Clear all
+              </button>
+            </div>
+            {globalMaintenanceEnable && (
+              <div className="space-y-2">
+                <Label htmlFor="global-msg">Custom message <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+                <Input
+                  id="global-msg"
+                  value={globalMaintenanceMsg}
+                  onChange={(e) => setGlobalMaintenanceMsg(e.target.value)}
+                  placeholder="System maintenance in progress…"
+                />
+                <p className="text-xs text-muted-foreground">Leave blank to use the default message.</p>
+              </div>
+            )}
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setGlobalMaintenanceOpen(false)} disabled={savingGlobal}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={savingGlobal}
+                className="gap-2"
+                variant={globalMaintenanceEnable ? "default" : "outline"}
+              >
+                {savingGlobal && <Loader2 className="h-4 w-4 animate-spin" />}
+                {globalMaintenanceEnable ? "Enable for all shops" : "Clear from all shops"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
