@@ -71,7 +71,11 @@ function fmt(d: Date | null | string) {
 
 function daysLeft(d: Date | null) {
   if (!d) return null;
-  return Math.ceil((new Date(d).getTime() - Date.now()) / 86_400_000);
+  const end = new Date(d);
+  end.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.round((end.getTime() - today.getTime()) / 86_400_000));
 }
 
 const SMS_PRESETS = [10, 50, 100, 200];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, Lock, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,11 +14,16 @@ interface BillingInfo {
 
 function daysLeft(d: string | null) {
   if (!d) return null;
-  return Math.ceil((new Date(d).getTime() - Date.now()) / 86_400_000);
+  const end = new Date(d);
+  end.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.round((end.getTime() - today.getTime()) / 86_400_000));
 }
 
 export function BillingBanner() {
   const [billing, setBilling] = useState<BillingInfo | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     fetch("/api/billing")
@@ -26,7 +32,7 @@ export function BillingBanner() {
       .catch(() => {});
   }, []);
 
-  if (!billing) return null;
+  if (!billing || pathname === "/settings") return null;
 
   const { billingStatus, trialEndsAt, gracePeriodEndsAt } = billing;
 

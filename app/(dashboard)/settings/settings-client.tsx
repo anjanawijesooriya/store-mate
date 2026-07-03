@@ -212,9 +212,17 @@ export function SettingsClient({ shop }: { shop: Shop }) {
   }
 
   const plan = PLAN_LABELS[shop.planTier] ?? PLAN_LABELS.BASIC;
-  const trialDaysLeft = shop.trialEndsAt
-    ? Math.max(0, Math.ceil((new Date(shop.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-    : null;
+  function calendarDaysLeft(date: Date | string | null): number | null {
+    if (!date) return null;
+    const end = new Date(date);
+    end.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.round((end.getTime() - today.getTime()) / 86_400_000));
+  }
+
+  const trialDaysLeft = calendarDaysLeft(shop.trialEndsAt);
+  const graceDaysLeft = calendarDaysLeft(shop.gracePeriodEndsAt);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -291,7 +299,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
         }`}>
           <div>
             <p className="text-sm font-semibold text-foreground">
-              {trialDaysLeft > 0 ? `Free Trial — ${trialDaysLeft} days remaining` : "Trial Ended"}
+              {trialDaysLeft > 0 ? `Free Trial — ${trialDaysLeft} day${trialDaysLeft !== 1 ? "s" : ""} remaining` : "Trial Ended"}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {trialDaysLeft > 0
@@ -306,6 +314,33 @@ export function SettingsClient({ shop }: { shop: Shop }) {
             className="flex-shrink-0 ml-4"
           >
             <Button size="sm" className="font-semibold">Contact Admin</Button>
+          </a>
+        </div>
+      )}
+
+      {shop.billingStatus === "GRACE" && graceDaysLeft !== null && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {graceDaysLeft > 0
+                ? `Grace Period — ${graceDaysLeft} day${graceDaysLeft !== 1 ? "s" : ""} remaining`
+                : "Grace Period Ended"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {graceDaysLeft > 0
+                ? "Payment overdue — contact admin immediately to avoid being locked out."
+                : "Your grace period has ended. Contact admin to restore access."}
+            </p>
+          </div>
+          <a
+            href={`https://wa.me/${(process.env.NEXT_PUBLIC_ADMIN_PHONE ?? "").replace(/\D/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-shrink-0 ml-4"
+          >
+            <Button size="sm" variant="outline" className="font-semibold border-amber-500 text-amber-700 hover:bg-amber-50">
+              Contact Admin
+            </Button>
           </a>
         </div>
       )}
@@ -576,7 +611,9 @@ export function SettingsClient({ shop }: { shop: Shop }) {
           {shop.billingStatus === "GRACE" && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
               <p className="font-medium text-amber-800">
-                Payment overdue — access locked after {fmtDate(shop.gracePeriodEndsAt)}
+                Payment overdue — {graceDaysLeft !== null && graceDaysLeft > 0
+                  ? `${graceDaysLeft} day${graceDaysLeft !== 1 ? "s" : ""} until locked`
+                  : `access locked after ${fmtDate(shop.gracePeriodEndsAt)}`}
               </p>
               <p className="text-amber-700 text-xs mt-1">
                 Contact us immediately via WhatsApp to arrange payment.
