@@ -268,50 +268,59 @@ export function POSClient() {
       .catch(() => {});
   }, [session?.user?.shopId]);
 
-  // Load products on mount — cache for offline use
-  useEffect(() => {
-    async function loadProducts() {
-      setProductsLoading(true);
-      try {
-        const [displayRes, allRes] = await Promise.all([
-          fetch("/api/products?limit=12&page=1"),
-          fetch("/api/products?limit=500&page=1"),
-        ]);
-        if (!displayRes.ok) throw new Error("offline");
-        const display = await displayRes.json();
-        setRecentProducts(display.products ?? []);
+  // Fetch latest stock from the server and update state + IndexedDB cache
+  const refreshProducts = useCallback(async (silent = false) => {
+    if (!silent) setProductsLoading(true);
+    try {
+      const [displayRes, allRes] = await Promise.all([
+        fetch("/api/products?limit=12&page=1"),
+        fetch("/api/products?limit=500&page=1"),
+      ]);
+      if (!displayRes.ok) throw new Error("offline");
+      const display = await displayRes.json();
+      setRecentProducts(display.products ?? []);
 
-        if (allRes.ok && shopId) {
-          const all = await allRes.json();
-          const products: CachedProduct[] = (all.products ?? []).map(
-            (p: Product) => ({
-              id: p.id,
-              name: p.name,
-              sku: p.sku,
-              unit: p.unit,
-              sellPrice: Number(p.sellPrice),
-              stockQty: p.stockQty,
-              category: p.category,
-            })
-          );
-          setAllCached(products);
-          await cacheProducts(shopId, products);
-        }
-      } catch {
-        // Offline — load from IndexedDB
-        if (shopId) {
-          const cached = await getCachedProducts(shopId);
-          if (cached) {
-            setAllCached(cached);
-            setRecentProducts(cached.slice(0, 12).map(toProduct));
-          }
-        }
-      } finally {
-        setProductsLoading(false);
+      if (allRes.ok && shopId) {
+        const all = await allRes.json();
+        const products: CachedProduct[] = (all.products ?? []).map(
+          (p: Product) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            unit: p.unit,
+            sellPrice: Number(p.sellPrice),
+            stockQty: p.stockQty,
+            category: p.category,
+          })
+        );
+        setAllCached(products);
+        await cacheProducts(shopId, products);
       }
+    } catch {
+      // Offline — load from IndexedDB
+      if (shopId) {
+        const cached = await getCachedProducts(shopId);
+        if (cached) {
+          setAllCached(cached);
+          setRecentProducts(cached.slice(0, 12).map(toProduct));
+        }
+      }
+    } finally {
+      if (!silent) setProductsLoading(false);
     }
-    loadProducts();
   }, [shopId]);
+
+  // Load products on mount
+  useEffect(() => {
+    refreshProducts();
+  }, [refreshProducts]);
+
+  // Silently re-sync stock every 60 s while online (keeps multi-device stock accurate)
+  useEffect(() => {
+    if (!isOnline || !shopId) return;
+    const interval = setInterval(() => refreshProducts(true), 60_000);
+    return () => clearInterval(interval);
+  }, [isOnline, shopId, refreshProducts]);
 
   // Track pending offline sales count
   useEffect(() => {
@@ -702,6 +711,16 @@ export function POSClient() {
         createdAt: sale.createdAt,
         isOffline: false,
       });
+      // Optimistically deduct sold quantities from in-memory state + cache
+      if (shopId) {
+        await deductCachedStock(shopId, saleItems);
+        const updated = await getCachedProducts(shopId);
+        if (updated) {
+          setAllCached(updated);
+          setRecentProducts(updated.slice(0, 12).map(toProduct));
+        }
+      }
+
       setShowReceipt(true);
       setCheckoutOpen(false);
       toast.success("Sale completed!");
