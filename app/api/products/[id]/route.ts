@@ -66,8 +66,18 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const existing = await db.product.findFirst({ where: { id, shopId } });
     if (!existing) return apiError("Product not found", 404);
 
-    // Soft delete — preserve sales history
-    await db.product.update({ where: { id }, data: { isActive: false } });
+    const saleCount = await db.saleItem.count({ where: { productId: id } });
+
+    if (saleCount === 0) {
+      // No sales history — safe to hard delete (remove movements first to satisfy FK)
+      await db.$transaction([
+        db.stockMovement.deleteMany({ where: { productId: id } }),
+        db.product.delete({ where: { id } }),
+      ]);
+    } else {
+      // Has sales history — soft delete but clear SKU so it can be reused immediately
+      await db.product.update({ where: { id }, data: { isActive: false, sku: null } });
+    }
 
     return Response.json({ success: true });
   } catch (err) {

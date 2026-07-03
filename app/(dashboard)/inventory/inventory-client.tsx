@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Search, Package, Edit, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
@@ -17,6 +17,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { ProductDialog } from "@/components/inventory/product-dialog";
 import { StockAdjustDialog } from "@/components/inventory/stock-adjust-dialog";
 import { cn } from "@/lib/utils";
@@ -33,6 +40,7 @@ interface Product {
   lowStockAt: number;
   imageUrl: string | null;
   isActive: boolean;
+  warrantyPeriod: string | null;
 }
 
 function formatLKR(n: number) {
@@ -63,7 +71,6 @@ function StockBadge({ qty, low }: { qty: number; low: number }) {
 
 export function InventoryClient() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -72,6 +79,8 @@ export function InventoryClient() {
   const [addOpen, setAddOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
+  const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -94,15 +103,19 @@ export function InventoryClient() {
     fetchProducts();
   }, [fetchProducts]);
 
-  async function handleDelete(product: Product) {
-    if (!confirm(`Delete "${product.name}"? This cannot be undone.`)) return;
+  async function confirmDelete() {
+    if (!deleteProduct) return;
+    setDeleting(true);
     try {
-      const res = await fetch(`/api/products/${product.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/products/${deleteProduct.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
-      toast.success(`${product.name} removed`);
+      toast.success(`"${deleteProduct.name}" deleted`);
+      setDeleteProduct(null);
       fetchProducts();
     } catch {
       toast.error("Failed to delete product");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -173,6 +186,7 @@ export function InventoryClient() {
                 <TableHead className="font-semibold">Product</TableHead>
                 <TableHead className="font-semibold">SKU</TableHead>
                 <TableHead className="font-semibold">Category</TableHead>
+                <TableHead className="font-semibold">Warranty</TableHead>
                 <TableHead className="font-semibold text-right">Cost</TableHead>
                 <TableHead className="font-semibold text-right">Price</TableHead>
                 <TableHead className="font-semibold text-center">Stock</TableHead>
@@ -194,6 +208,9 @@ export function InventoryClient() {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {product.category ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {product.warrantyPeriod ?? "—"}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
                     {formatLKR(Number(product.costPrice))}
@@ -234,7 +251,7 @@ export function InventoryClient() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => handleDelete(product)}
+                        onClick={() => setDeleteProduct(product)}
                         title="Delete product"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -275,6 +292,43 @@ export function InventoryClient() {
           fetchProducts();
         }}
       />
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteProduct} onOpenChange={(o) => { if (!o && !deleting) setDeleteProduct(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Delete Product
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <p className="text-sm text-foreground">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">&ldquo;{deleteProduct?.name}&rdquo;</span>?
+            </p>
+            <div className="rounded-lg bg-destructive/8 border border-destructive/20 px-3 py-2.5 text-xs text-destructive leading-relaxed">
+              This action cannot be undone. The product and its stock history will be permanently removed. Past sales records are preserved.
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteProduct(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting…" : "Delete Product"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
