@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Users, Plus, Search, Phone, Mail, CreditCard, Banknote, CheckCircle2, ShoppingBag, Lock } from "lucide-react";
+import { Users, Plus, Search, Phone, Mail, CreditCard, Banknote, CheckCircle2, ShoppingBag, Lock, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
@@ -50,6 +53,15 @@ export function CustomersClient() {
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", email: "", address: "" });
   const [saving, setSaving] = useState(false);
+
+  // Edit dialog
+  const [editCustomer, setEditCustomer] = useState<Customer | null>(null);
+  const [editForm, setEditForm]         = useState({ name: "", phone: "", email: "", address: "" });
+  const [editSaving, setEditSaving]     = useState(false);
+
+  // Delete dialog
+  const [deleteCustomer, setDeleteCustomer] = useState<Customer | null>(null);
+  const [deleting, setDeleting]             = useState(false);
 
   // Record payment dialog
   const [payCustomer, setPayCustomer] = useState<Customer | null>(null);
@@ -125,6 +137,50 @@ export function CustomersClient() {
       toast.error("Failed to add customer");
     } finally {
       setSaving(false);
+    }
+  }
+
+  function openEdit(c: Customer) {
+    setEditCustomer(c);
+    setEditForm({ name: c.name, phone: c.phone ?? "", email: c.email ?? "", address: c.address ?? "" });
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editCustomer || !editForm.name) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/customers/${editCustomer.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", ...editForm }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Failed to update customer"); return; }
+      toast.success("Customer updated");
+      setEditCustomer(null);
+      fetchCustomers();
+    } catch {
+      toast.error("Failed to update customer");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteCustomer) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/customers/${deleteCustomer.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Failed to delete customer"); return; }
+      toast.success(`${deleteCustomer.name} deleted`);
+      setDeleteCustomer(null);
+      fetchCustomers();
+    } catch {
+      toast.error("Failed to delete customer");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -240,22 +296,43 @@ export function CustomersClient() {
                     <p className="font-semibold text-foreground">{c.name}</p>
                     {c.phone && (
                       <p className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
-                        <Phone className="h-3 w-3" />
+                        <Phone className="h-3 w-3 flex-shrink-0" />
                         {c.phone}
                       </p>
                     )}
                     {c.email && (
-                      <p className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
-                        <Mail className="h-3 w-3" />
-                        {c.email}
+                      <p className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 truncate">
+                        <Mail className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{c.email}</span>
                       </p>
                     )}
                   </div>
-                  {c.creditBalance > 0 && (
-                    <Badge className="bg-destructive/10 text-destructive border-destructive/20 flex-shrink-0">
-                      Owes
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {c.creditBalance > 0 && (
+                      <Badge className="bg-destructive/10 text-destructive border-destructive/20">
+                        Owes
+                      </Badge>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors">
+                        <MoreVertical className="h-4 w-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onClick={() => openEdit(c)} className="gap-2">
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setDeleteCustomer(c)}
+                          className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border text-center">
@@ -324,6 +401,64 @@ export function CustomersClient() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Customer dialog */}
+      <Dialog open={!!editCustomer} onOpenChange={(o) => !o && setEditCustomer(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Customer</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEdit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="ename">Name *</Label>
+              <Input id="ename" value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} required placeholder="e.g. Kamal Silva" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ephone">Phone</Label>
+              <Input id="ephone" type="tel" value={editForm.phone} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} placeholder="0771234567" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="eemail">Email <span className="text-muted-foreground font-normal text-xs">(for receipts)</span></Label>
+              <Input id="eemail" type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} placeholder="customer@example.com" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="eaddress">Address</Label>
+              <Input id="eaddress" value={editForm.address} onChange={(e) => setEditForm((p) => ({ ...p, address: e.target.value }))} placeholder="Optional" />
+            </div>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setEditCustomer(null)} disabled={editSaving}>Cancel</Button>
+              <Button type="submit" disabled={editSaving} className="font-semibold">
+                {editSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteCustomer} onOpenChange={(o) => !o && setDeleteCustomer(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Customer</DialogTitle>
+            <DialogDescription>
+              This will permanently remove <span className="font-semibold text-foreground">{deleteCustomer?.name}</span> and all their data. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteCustomer && deleteCustomer.creditBalance > 0 && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+              <span className="font-semibold">Warning:</span> This customer has {formatLKR(deleteCustomer.creditBalance)} outstanding credit balance.
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteCustomer(null)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting} className="font-semibold">
+              {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Delete Customer
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

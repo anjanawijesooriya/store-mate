@@ -43,12 +43,34 @@ export async function PATCH(
     const shop = await db.shop.findUnique({ where: { id: shopId }, select: { planTier: true } });
     if (shop?.planTier === "BASIC") return apiError("Customer management requires Standard plan or higher.", 403);
     const { id } = await params;
-    const { action, amount } = await req.json();
+    const body = await req.json();
+    const { action, amount } = body;
 
     const customer = await db.customer.findUnique({
       where: { id, shopId },
     });
     if (!customer) return apiError("Customer not found", 404);
+
+    if (action === "update") {
+      const { name, phone, email, address } = body;
+      if (!name?.trim()) return apiError("Customer name is required");
+
+      const emailClean = email?.trim().toLowerCase() || null;
+      if (emailClean && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
+        return apiError("Invalid email address");
+      }
+
+      const updated = await db.customer.update({
+        where: { id },
+        data: {
+          name: name.trim(),
+          phone: phone?.trim() || null,
+          email: emailClean,
+          address: address?.trim() || null,
+        },
+      });
+      return Response.json({ customer: updated });
+    }
 
     if (action === "record_payment") {
       const pay = Number(amount);
@@ -119,5 +141,26 @@ export async function PATCH(
   } catch (err) {
     if (err instanceof UnauthorizedError) return apiUnauthorized();
     return apiError("Failed to update customer", 500);
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const shopId = await getShopId();
+    const shop = await db.shop.findUnique({ where: { id: shopId }, select: { planTier: true } });
+    if (shop?.planTier === "BASIC") return apiError("Customer management requires Standard plan or higher.", 403);
+    const { id } = await params;
+
+    const customer = await db.customer.findUnique({ where: { id, shopId } });
+    if (!customer) return apiError("Customer not found", 404);
+
+    await db.customer.delete({ where: { id } });
+    return Response.json({ success: true });
+  } catch (err) {
+    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    return apiError("Failed to delete customer", 500);
   }
 }
