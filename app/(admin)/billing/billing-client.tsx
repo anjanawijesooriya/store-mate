@@ -323,12 +323,12 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Billing Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">{shops.length} shop{shops.length !== 1 ? "s" : ""} registered</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -704,7 +704,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Amount (LKR)</Label>
                 <Input type="number" value={paidForm.amount} className="h-10"

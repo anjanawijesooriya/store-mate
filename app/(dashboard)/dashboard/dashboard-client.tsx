@@ -195,7 +195,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           title="Today's Revenue"
           value={formatLKR(data.today.total)}
@@ -225,9 +225,9 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Sales chart */}
-        <Card className="lg:col-span-2 shadow-sm">
+        <Card className="md:col-span-2 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold">Sales — Last 7 Days</CardTitle>
           </CardHeader>

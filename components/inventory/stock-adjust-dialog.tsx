@@ -107,7 +107,7 @@ export function StockAdjustDialog({ open, product, onClose, onSave }: StockAdjus
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose(); } }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Adjust Stock</DialogTitle>
           <DialogDescription>
@@ -123,7 +123,7 @@ export function StockAdjustDialog({ open, product, onClose, onSave }: StockAdjus
               <SelectTrigger id="type" className="w-full">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="w-max min-w-(--anchor-width)">
+              <SelectContent className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)]">
                 {MOVEMENT_TYPES.map((t) => (
                   <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                 ))}

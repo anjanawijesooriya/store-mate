@@ -408,8 +408,8 @@ export function SalesClient() {
                   {expanded && (
                     <div className="px-4 pb-4 bg-muted/20 border-t border-border">
                       <div className="pt-4 space-y-3">
-                        <div className="rounded-lg bg-background border border-border overflow-hidden">
-                          <table className="w-full text-sm">
+                        <div className="rounded-lg bg-background border border-border overflow-hidden overflow-x-auto">
+                          <table className="w-full text-sm min-w-[460px]">
                             <thead>
                               <tr className="border-b bg-muted/30">
                                 <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Product</th>
@@ -799,7 +799,7 @@ export function SalesClient() {
                     {netOwed > 0 && (
                       <div className="space-y-3">
                         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Payment Method</Label>
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {["CASH","CARD","ONLINE","CREDIT"].map((m) => (
                             <button
                               key={m}

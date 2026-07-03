@@ -476,6 +476,87 @@ export function POSClient() {
     }
   }
 
+  function handlePrint() {
+    if (!completedSale) return;
+    const shop  = shopInfo?.name     || session?.user?.shopName || "";
+    const addr  = shopInfo?.address  || "";
+    const phone = shopInfo?.phone    || (session?.user as { phone?: string })?.phone || "";
+    const payLabel: Record<string, string> = { CASH: "Cash", CARD: "Card", ONLINE: "Online", CREDIT: "Credit" };
+
+    const itemsHtml = completedSale.items.map((it) => `
+      <div style="display:flex;justify-content:space-between;margin-top:6px;">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:6px;">${it.name}</span>
+        <span style="flex-shrink:0;font-weight:600;">${formatLKR(it.lineTotal)}</span>
+      </div>
+      <div style="font-size:11px;color:#555;">${it.quantity} ${it.unit} × ${formatLKR(it.unitPrice)}</div>
+      ${it.warrantyPeriod ? `<div style="font-size:11px;color:#555;">Warranty: ${it.warrantyPeriod}</div>` : ""}
+    `).join("");
+
+    const discountHtml = completedSale.discount > 0 ? `
+      <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
+        <span>Subtotal</span><span>${formatLKR(completedSale.subtotal)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;color:#16a34a;font-size:12px;">
+        <span>Discount</span><span>- ${formatLKR(completedSale.discount)}</span>
+      </div>` : "";
+
+    const cashHtml = completedSale.paymentMethod === "CASH" && completedSale.amountPaid > completedSale.total ? `
+      <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
+        <span>Tendered</span><span>${formatLKR(completedSale.amountPaid)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
+        <span>Change</span><span>${formatLKR(completedSale.amountPaid - completedSale.total)}</span>
+      </div>` : "";
+
+    const creditHtml = completedSale.paymentMethod === "CREDIT" ? `
+      <div style="display:flex;justify-content:space-between;color:#dc2626;font-weight:500;font-size:12px;">
+        <span>Amount Due (on credit)</span><span>${formatLKR(completedSale.total)}</span>
+      </div>` : "";
+
+    const html = `<!DOCTYPE html><html><head>
+<meta charset="utf-8"><title>Receipt</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Courier New',monospace;font-size:12px;color:#111;background:white;padding:12px;max-width:320px;margin:0 auto;}
+  .divider{border:none;border-top:1px dashed #999;margin:8px 0;}
+  @media print{body{padding:0;}}
+</style>
+</head><body>
+  <div style="text-align:center;">
+    <div style="font-size:15px;font-weight:bold;margin-bottom:2px;">${shop}</div>
+    ${addr  ? `<div style="font-size:11px;color:#555;">${addr}</div>` : ""}
+    ${phone ? `<div style="font-size:11px;color:#555;">Tel: ${phone}</div>` : ""}
+  </div>
+  <hr class="divider">
+  <div style="display:flex;justify-content:space-between;font-size:11px;color:#555;">
+    <span>${new Date(completedSale.createdAt).toLocaleString("en-LK",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+    <span>#${completedSale.id.slice(-6).toUpperCase()}</span>
+  </div>
+  ${selectedCustomer ? `<div style="font-size:11px;color:#555;margin-top:4px;">Customer: ${selectedCustomer.name}</div>` : ""}
+  <hr class="divider">
+  ${itemsHtml}
+  <hr class="divider">
+  ${discountHtml}
+  <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin:4px 0;">
+    <span>Total</span><span style="color:#16a34a;">${formatLKR(completedSale.total)}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
+    <span>Payment</span><span style="color:#111;font-weight:500;">${payLabel[completedSale.paymentMethod] ?? completedSale.paymentMethod}</span>
+  </div>
+  ${cashHtml}${creditHtml}
+  <hr class="divider">
+  <div style="text-align:center;font-weight:bold;margin-top:4px;">Thank you — Come again!</div>
+  <div style="text-align:center;font-size:11px;color:#555;">Please keep this receipt for your records.</div>
+</body></html>`;
+
+    const w = window.open("", "_blank", "width=380,height=600");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); w.close(); }, 300);
+  }
+
   async function sendEmailReceipt(overrideEmail?: string) {
     if (!completedSale || completedSale.isOffline) return;
     setSendingEmail(true);
@@ -760,9 +841,9 @@ export function POSClient() {
   const displayProducts = searchQuery ? searchResults : recentProducts;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-8rem)]">
+    <div className="flex flex-col md:flex-row gap-4 md:h-[calc(100vh-8rem)]">
       {/* Left — Product search */}
-      <div className="flex-1 flex flex-col gap-4 min-w-0">
+      <div className="h-[42vh] md:h-auto md:flex-1 min-h-0 flex flex-col gap-4 min-w-0">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -815,7 +896,7 @@ export function POSClient() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 overflow-y-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 overflow-y-auto flex-1 min-h-0 content-start">
           {productsLoading && Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="rounded-xl border border-border bg-card p-3 animate-pulse space-y-2">
               <div className="h-3 bg-muted rounded w-3/4" />
@@ -862,7 +943,7 @@ export function POSClient() {
       </div>
 
       {/* Right — Cart */}
-      <div className="w-full lg:w-96 flex flex-col border border-border rounded-xl bg-card shadow-sm overflow-hidden">
+      <div className="w-full md:w-80 lg:w-96 min-h-0 flex flex-col border border-border rounded-xl bg-card shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-primary" />
@@ -892,7 +973,7 @@ export function POSClient() {
           </div>
         ) : (
           <>
-            <ScrollArea className="flex-1">
+            <ScrollArea className="h-[28vh] md:flex-1 min-h-0">
               <div className="p-3 space-y-2">
                 {cart.map((item) => (
                   <div
@@ -965,7 +1046,7 @@ export function POSClient() {
               </div>
             </ScrollArea>
 
-            <div className="border-t border-border p-4 space-y-3">
+            <div className="border-t border-border p-4 space-y-3 flex-shrink-0">
               {/* Discount */}
               <div className="flex items-center gap-2">
                 <Tag className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -1199,7 +1280,7 @@ export function POSClient() {
 
       {/* Receipt Dialog */}
       <Dialog open={showReceipt} onOpenChange={(o) => { setShowReceipt(o); if (!o) { setWalkInPhone(""); setWalkInEmail(""); } }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader className="print:hidden">
             <DialogTitle
               className={cn(
@@ -1327,7 +1408,7 @@ export function POSClient() {
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={() => window.print()}
+                  onClick={handlePrint}
                 >
                   <Printer className="h-4 w-4 mr-2" />
                   Print

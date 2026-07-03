@@ -292,7 +292,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
       <PageHeader title="Settings" description="Manage your shop and account settings" />
 
       {shop.billingStatus === "TRIAL" && trialDaysLeft !== null && (
-        <div className={`rounded-lg border px-4 py-3 flex items-center justify-between ${
+        <div className={`rounded-lg border px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
           trialDaysLeft <= 7
             ? "border-[color:var(--brand-warning)]/30 bg-[color:var(--brand-warning)]/10"
             : "border-[color:var(--brand-success)]/30 bg-[color:var(--brand-success)]/10"
@@ -319,7 +319,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
       )}
 
       {shop.billingStatus === "GRACE" && graceDaysLeft !== null && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-center justify-between">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-foreground">
               {graceDaysLeft > 0
@@ -673,8 +673,8 @@ export function SettingsClient({ shop }: { shop: Shop }) {
               <Separator />
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Payment History</p>
-                <div className="rounded-lg border overflow-hidden">
-                  <table className="w-full text-xs">
+                <div className="rounded-lg border overflow-hidden overflow-x-auto">
+                  <table className="w-full text-xs min-w-[360px]">
                     <thead>
                       <tr className="border-b bg-muted/40">
                         <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Month</th>

@@ -91,7 +91,7 @@ export function ReportsClient({ planTier }: { planTier: string }) {
         title="Sales Reports"
         description="Understand your business performance"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Select value={period} onValueChange={(v) => v && setPeriod(v)}>
               <SelectTrigger className="w-40">
                 <span>{PERIODS.find((p) => p.value === period)?.label}</span>
@@ -118,7 +118,7 @@ export function ReportsClient({ planTier }: { planTier: string }) {
       />
 
       {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-xl" />
           ))}
@@ -126,7 +126,7 @@ export function ReportsClient({ planTier }: { planTier: string }) {
       ) : data ? (
         <>
           {/* Summary stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard
               title="Total Revenue"
               value={formatLKR(data.summary.totalRevenue)}
@@ -184,7 +184,7 @@ export function ReportsClient({ planTier }: { planTier: string }) {
           </div>
 
           {isPremium ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Revenue over time */}
               <Card className="shadow-sm">
                 <CardHeader className="pb-2">

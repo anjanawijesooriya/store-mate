@@ -10,7 +10,7 @@ export default function ReportsLoading() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="rounded-xl border bg-card p-4 space-y-3 shadow-sm">
             <div className="h-4 w-24 rounded bg-muted" />
@@ -20,7 +20,7 @@ export default function ReportsLoading() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[...Array(2)].map((_, i) => (
           <div key={i} className="rounded-xl border bg-card p-5 space-y-3 shadow-sm">
             <div className="h-5 w-40 rounded bg-muted" />

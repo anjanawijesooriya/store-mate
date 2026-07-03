@@ -179,15 +179,15 @@ export function InventoryClient() {
           }
         />
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden shadow-sm">
-          <Table>
+        <div className="rounded-xl border border-border overflow-hidden shadow-sm overflow-x-auto">
+          <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="font-semibold">Product</TableHead>
-                <TableHead className="font-semibold">SKU</TableHead>
-                <TableHead className="font-semibold">Category</TableHead>
-                <TableHead className="font-semibold">Warranty</TableHead>
-                <TableHead className="font-semibold text-right">Cost</TableHead>
+                <TableHead className="font-semibold hidden md:table-cell">SKU</TableHead>
+                <TableHead className="font-semibold hidden md:table-cell">Category</TableHead>
+                <TableHead className="font-semibold hidden lg:table-cell">Warranty</TableHead>
+                <TableHead className="font-semibold text-right hidden sm:table-cell">Cost</TableHead>
                 <TableHead className="font-semibold text-right">Price</TableHead>
                 <TableHead className="font-semibold text-center">Stock</TableHead>
                 <TableHead className="w-24"></TableHead>
@@ -203,16 +203,16 @@ export function InventoryClient() {
                     <p className="font-medium text-foreground">{product.name}</p>
                     <p className="text-xs text-muted-foreground">{product.unit}</p>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground font-mono">
+                  <TableCell className="text-sm text-muted-foreground font-mono hidden md:table-cell">
                     {product.sku ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
                     {product.category ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
                     {product.warrantyPeriod ?? "—"}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
+                  <TableCell className="text-right font-mono text-sm hidden sm:table-cell">
                     {formatLKR(Number(product.costPrice))}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm font-semibold">

@@ -336,17 +336,17 @@ export function CustomersClient() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border text-center">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Purchases</p>
                     <p className="text-sm font-semibold">{c._count.sales}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Total Spent</p>
-                    <p className="text-sm font-semibold font-mono">{formatLKR(c.totalSpent)}</p>
+                    <p className="text-xs font-semibold font-mono truncate">{formatLKR(c.totalSpent)}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Credit</p>
-                    <p className={`text-sm font-bold font-mono ${c.creditBalance > 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                    <p className={`text-xs font-bold font-mono truncate ${c.creditBalance > 0 ? "text-destructive" : "text-muted-foreground"}`}>
                       {formatLKR(c.creditBalance)}
                     </p>
                   </div>

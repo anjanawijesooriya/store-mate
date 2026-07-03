@@ -204,7 +204,7 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
               )}
             </button>
           } />
-          <DropdownMenuContent align="end" className="w-[360px] p-0 overflow-hidden">
+          <DropdownMenuContent align="end" className="w-[min(360px,calc(100vw-1rem))] p-0 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold">Notifications</span>
