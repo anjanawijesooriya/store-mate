@@ -30,6 +30,7 @@ interface Product {
   stockQty: number;
   lowStockAt: number;
   imageUrl: string | null;
+  warrantyPeriod: string | null;
 }
 
 interface ProductDialogProps {
@@ -51,6 +52,7 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
     sellPrice: "",
     stockQty: "",
     lowStockAt: "5",
+    warrantyPeriod: "",
   });
 
   useEffect(() => {
@@ -64,9 +66,10 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
         sellPrice: String(product.sellPrice),
         stockQty: String(product.stockQty),
         lowStockAt: String(product.lowStockAt),
+        warrantyPeriod: product.warrantyPeriod ?? "",
       });
     } else {
-      setForm({ name: "", sku: "", category: "", unit: "pcs", costPrice: "", sellPrice: "", stockQty: "", lowStockAt: "5" });
+      setForm({ name: "", sku: "", category: "", unit: "pcs", costPrice: "", sellPrice: "", stockQty: "", lowStockAt: "5", warrantyPeriod: "" });
     }
   }, [product, open]);
 
@@ -98,6 +101,7 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
           sellPrice: parseFloat(form.sellPrice),
           stockQty: parseFloat(form.stockQty || "0"),
           lowStockAt: parseFloat(form.lowStockAt || "5"),
+          warrantyPeriod: form.warrantyPeriod.trim() || null,
         }),
       });
 
@@ -236,6 +240,16 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
                 className="font-mono"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="warrantyPeriod">Warranty Period <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input
+              id="warrantyPeriod"
+              placeholder="e.g. 1 year, 6 months, 2 years"
+              value={form.warrantyPeriod}
+              onChange={(e) => update("warrantyPeriod", e.target.value)}
+            />
           </div>
 
           <DialogFooter className="gap-2 pt-2">

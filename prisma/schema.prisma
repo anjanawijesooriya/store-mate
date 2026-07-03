@@ -171,8 +171,9 @@ model Product {
   sellPrice  Decimal         @db.Decimal(10, 2)
   stockQty   Decimal         @db.Decimal(10, 2) @default(0)
   lowStockAt Decimal         @db.Decimal(10, 2) @default(5)
-  imageUrl   String?
-  isActive   Boolean         @default(true)
+  imageUrl        String?
+  warrantyPeriod  String?
+  isActive        Boolean         @default(true)
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
   movements  StockMovement[]

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
         where: { id: saleId, shopId },
         include: {
           items: {
-            include: { product: { select: { name: true, unit: true } } },
+            include: { product: { select: { name: true, unit: true, warrantyPeriod: true } } },
           },
           customer: { select: { name: true, email: true } },
         },
@@ -40,11 +40,12 @@ export async function POST(req: NextRequest) {
       shopPhone:     shop.phone,
       customerName:  sale.customer?.name ?? null,
       items:         sale.items.map((i) => ({
-        name:      i.product.name,
-        quantity:  Number(i.quantity),
-        unit:      i.product.unit,
-        unitPrice: Number(i.unitPrice),
-        lineTotal: Number(i.lineTotal),
+        name:          i.product.name,
+        quantity:      Number(i.quantity),
+        unit:          i.product.unit,
+        unitPrice:     Number(i.unitPrice),
+        lineTotal:     Number(i.lineTotal),
+        warrantyPeriod: i.product.warrantyPeriod ?? null,
       })),
       subtotal:      Number(sale.subtotal),
       discount:      Number(sale.discount),

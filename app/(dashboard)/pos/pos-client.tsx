@@ -66,6 +66,7 @@ interface Product {
   sellPrice: number;
   stockQty: number;
   category: string | null;
+  warrantyPeriod: string | null;
 }
 
 interface CartItem {
@@ -77,6 +78,7 @@ interface CartItem {
   quantity: number;
   lineTotal: number;
   stockQty: number;
+  warrantyPeriod: string | null;
 }
 
 const FRACTIONAL_UNITS = new Set(["kg", "g", "l", "L", "ml", "mL", "liter", "litre", "gram", "kilo", "oz", "lb"]);
@@ -103,6 +105,7 @@ interface CompletedSale {
     quantity: number;
     unitPrice: number;
     lineTotal: number;
+    warrantyPeriod?: string | null;
   }>;
   createdAt: string;
   isOffline?: boolean;
@@ -178,6 +181,7 @@ function toProduct(p: CachedProduct): Product {
     sellPrice: p.sellPrice,
     stockQty: p.stockQty,
     category: p.category,
+    warrantyPeriod: p.warrantyPeriod,
   };
 }
 
@@ -290,6 +294,7 @@ export function POSClient() {
             sellPrice: Number(p.sellPrice),
             stockQty: p.stockQty,
             category: p.category,
+            warrantyPeriod: p.warrantyPeriod ?? null,
           })
         );
         setAllCached(products);
@@ -526,6 +531,7 @@ export function POSClient() {
           quantity: 1,
           lineTotal: Number(product.sellPrice),
           stockQty: product.stockQty,
+          warrantyPeriod: product.warrantyPeriod ?? null,
         },
       ];
     });
@@ -625,6 +631,7 @@ export function POSClient() {
       quantity: i.quantity,
       unitPrice: i.unitPrice,
       lineTotal: i.lineTotal,
+      warrantyPeriod: i.warrantyPeriod ?? null,
     }));
 
     try {
@@ -693,20 +700,7 @@ export function POSClient() {
         total: sale.total,
         amountPaid: sale.amountPaid,
         paymentMethod: sale.paymentMethod,
-        items: sale.items.map(
-          (item: {
-            product: { name: string; unit: string };
-            quantity: number;
-            unitPrice: number;
-            lineTotal: number;
-          }) => ({
-            name: item.product.name,
-            unit: item.product.unit,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            lineTotal: item.lineTotal,
-          })
-        ),
+        items: receiptItems,
         createdAt: sale.createdAt,
         isOffline: false,
       });
@@ -901,6 +895,9 @@ export function POSClient() {
                       <p className="text-sm font-medium text-foreground line-clamp-1">
                         {item.name}
                       </p>
+                      {item.warrantyPeriod && (
+                        <p className="text-xs text-muted-foreground mt-0.5">Warranty: {item.warrantyPeriod}</p>
+                      )}
                       <div className="flex items-center gap-1 mt-1">
                         <input
                           type="number"
@@ -1256,6 +1253,9 @@ export function POSClient() {
                     <p className="text-xs text-muted-foreground">
                       {item.quantity} {item.unit} × {formatLKR(item.unitPrice)}
                     </p>
+                    {item.warrantyPeriod && (
+                      <p className="text-xs text-muted-foreground">Warranty: {item.warrantyPeriod}</p>
+                    )}
                   </div>
                 ))}
 

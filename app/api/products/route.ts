@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, sku, category, unit, costPrice, sellPrice, stockQty, lowStockAt, imageUrl } = body;
+    const { name, sku, category, unit, costPrice, sellPrice, stockQty, lowStockAt, imageUrl, warrantyPeriod } = body;
 
     if (!name || costPrice === undefined || sellPrice === undefined) {
       return apiError("Name, cost price and sell price are required");
@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
           stockQty: parseFloat(stockQty ?? 0),
           lowStockAt: parseFloat(lowStockAt ?? 5),
           imageUrl: imageUrl || null,
+          warrantyPeriod: warrantyPeriod?.trim() || null,
         },
       });
 
