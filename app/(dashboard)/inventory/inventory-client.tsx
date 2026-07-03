@@ -36,7 +36,8 @@ interface Product {
 }
 
 function formatLKR(n: number) {
-  return `LKR ${n.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const [int, dec] = Number(n).toFixed(2).split(".");
+  return `LKR ${int.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${dec}`;
 }
 
 function StockBadge({ qty, low }: { qty: number; low: number }) {

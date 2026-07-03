@@ -126,8 +126,12 @@ export async function sendReceiptEmail(to: string, data: ReceiptData) {
     </tr>`).join("");
 
   const payLabel: Record<string, string> = { CASH: "Cash", CARD: "Card", ONLINE: "Online Transfer", CREDIT: "Credit" };
-  const change = data.paymentMethod === "CASH" && data.amountPaid && data.amountPaid > data.total
-    ? `<tr><td style="padding:4px 8px;color:#6b7280;font-size:13px">Change</td><td style="padding:4px 8px;text-align:right;font-family:monospace;font-size:13px;color:#6b7280">${fmt(data.amountPaid - data.total)}</td></tr>` : "";
+  const cashRows = data.paymentMethod === "CASH" && data.amountPaid && data.amountPaid > 0
+    ? `<tr><td style="padding:4px 8px;color:#6b7280;font-size:13px">Cash Tendered</td><td style="padding:4px 8px;text-align:right;font-family:monospace;font-size:13px;color:#374151">${fmt(data.amountPaid)}</td></tr>` +
+      (data.amountPaid > data.total
+        ? `<tr><td style="padding:4px 8px;color:#6b7280;font-size:13px">Change</td><td style="padding:4px 8px;text-align:right;font-family:monospace;font-size:13px;color:#6b7280">${fmt(data.amountPaid - data.total)}</td></tr>`
+        : "")
+    : "";
 
   await transporter.sendMail({
     from: FROM,
@@ -154,7 +158,7 @@ export async function sendReceiptEmail(to: string, data: ReceiptData) {
         ${data.discount > 0 ? `<tr><td style="padding:4px 8px;color:#6b7280">Subtotal</td><td style="padding:4px 8px;text-align:right;font-family:monospace">${fmt(data.subtotal)}</td></tr><tr><td style="padding:4px 8px;color:#6b7280">Discount</td><td style="padding:4px 8px;text-align:right;font-family:monospace;color:#dc2626">−${fmt(data.discount)}</td></tr>` : ""}
         <tr style="border-top:2px solid #e5e7eb"><td style="padding:8px;font-weight:700;font-size:16px">Total</td><td style="padding:8px;text-align:right;font-family:monospace;font-weight:700;font-size:16px;color:#2DA86B">${fmt(data.total)}</td></tr>
         <tr><td style="padding:4px 8px;color:#6b7280">Payment</td><td style="padding:4px 8px;text-align:right;font-family:monospace">${payLabel[data.paymentMethod] ?? data.paymentMethod}</td></tr>
-        ${change}
+        ${cashRows}
       </table>
       <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px dashed #e5e7eb">
         <p style="font-weight:600;color:#111827;margin:0">Thank you — Come again!</p>

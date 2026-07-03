@@ -125,10 +125,9 @@ const PAYMENT_METHODS = [
 ];
 
 function formatLKR(n: number) {
-  return `LKR ${n.toLocaleString("en-LK", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  const [int, dec] = Number(n).toFixed(2).split(".");
+  const thousands = int.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `LKR ${thousands}.${dec}`;
 }
 
 async function checkConnectivity(): Promise<boolean> {
