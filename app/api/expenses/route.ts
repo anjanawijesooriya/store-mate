@@ -49,6 +49,56 @@ export async function GET(req: NextRequest) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    const shopId = await getShopId();
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) return apiError("Expense id is required");
+
+    const existing = await db.expense.findUnique({ where: { id } });
+    if (!existing || existing.shopId !== shopId) return apiError("Expense not found", 404);
+
+    const body = await req.json();
+    const { category, amount, note, expenseDate } = body;
+    if (!category || amount === undefined || !expenseDate) {
+      return apiError("Category, amount and date are required");
+    }
+
+    const expense = await db.expense.update({
+      where: { id },
+      data: {
+        category: category.trim(),
+        amount: parseFloat(amount),
+        note: note?.trim() || null,
+        expenseDate: new Date(expenseDate),
+      },
+    });
+    return Response.json({ expense });
+  } catch (err) {
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
+    return apiError("Failed to update expense", 500);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const shopId = await getShopId();
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) return apiError("Expense id is required");
+
+    const existing = await db.expense.findUnique({ where: { id } });
+    if (!existing || existing.shopId !== shopId) return apiError("Expense not found", 404);
+
+    await db.expense.delete({ where: { id } });
+    return Response.json({ success: true });
+  } catch (err) {
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
+    return apiError("Failed to delete expense", 500);
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const shopId = await getShopId();
