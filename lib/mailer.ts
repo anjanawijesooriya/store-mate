@@ -115,10 +115,12 @@ interface ReceiptData {
   createdAt: string | Date;
 }
 
-export async function sendReceiptEmail(to: string, data: ReceiptData) {
+export async function sendReceiptEmail(to: string, data: ReceiptData, appUrl?: string) {
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK", { minimumFractionDigits: 2 })}`;
   const date = new Date(data.createdAt).toLocaleString("en-LK", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const ref = data.saleId.slice(-6).toUpperCase();
+  const baseUrl = (appUrl || process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+  const receiptUrl = baseUrl ? `${baseUrl}/r/${data.saleId}` : null;
 
   const itemRows = data.items.map((i) => `
     <tr>
@@ -164,6 +166,12 @@ export async function sendReceiptEmail(to: string, data: ReceiptData) {
       <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px dashed #e5e7eb">
         <p style="font-weight:600;color:#111827;margin:0">Thank you — Come again!</p>
         <p style="font-size:12px;color:#9ca3af;margin:4px 0 0">Please keep this receipt for your records.</p>
+        ${receiptUrl ? `
+        <a href="${receiptUrl}" style="display:inline-block;margin-top:16px;padding:10px 24px;background:#2DA86B;color:#fff;font-size:13px;font-weight:600;text-decoration:none;border-radius:8px">
+          View &amp; Download PDF
+        </a>
+        <p style="font-size:11px;color:#d1d5db;margin:8px 0 0">Opens your receipt in the browser — use Print → Save as PDF to download.</p>
+        ` : ""}
       </div>
     `),
   });

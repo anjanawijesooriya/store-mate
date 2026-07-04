@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { CheckCircle } from "lucide-react";
+import { PrintButton } from "./print-button";
 
 export const metadata: Metadata = { title: "Your Receipt — StoreMate" };
 
@@ -120,6 +121,8 @@ export default async function ReceiptPage({ params }: { params: Promise<{ saleId
           <p className="text-xs text-gray-300 mt-1">Powered by StoreMate</p>
         </div>
       </div>
+
+      <PrintButton saleId={saleId} shopName={sale.shop.name} />
     </div>
   );
 }
