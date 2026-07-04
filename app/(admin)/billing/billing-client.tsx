@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
@@ -85,6 +85,9 @@ const SMS_PRESETS = [500, 1000, 2000, 5000];
 export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [shops, setShops] = useState<Shop[]>(initial);
   const [loading, setLoading] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [autoRefreshing, setAutoRefreshing] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Dialog state
   const [markPaidShop, setMarkPaidShop]     = useState<Shop | null>(null);
@@ -201,10 +204,20 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
     return res.json();
   }
 
-  async function refresh() {
+  const refresh = useCallback(async (silent = false) => {
+    if (silent) setAutoRefreshing(true);
     const res = await fetch("/api/admin/shops");
-    if (res.ok) setShops((await res.json()).shops);
-  }
+    if (res.ok) {
+      setShops((await res.json()).shops);
+      setLastUpdated(new Date());
+    }
+    if (silent) setAutoRefreshing(false);
+  }, []);
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => refresh(true), 30_000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [refresh]);
 
   async function handleAction(shop: Shop, action: string, extra?: object) {
     setLoading(shop.id + action);
@@ -371,11 +384,24 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
             <Wrench className="h-4 w-4" />
             Maintenance
           </Button>
-          <Button variant="outline" size="sm" className="gap-2"
-            onClick={async () => { await refresh(); toast.success("Refreshed"); }}>
-            <RefreshCcw className="h-4 w-4" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            {autoRefreshing && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                Updating…
+              </span>
+            )}
+            {!autoRefreshing && (
+              <span className="text-xs text-muted-foreground hidden sm:block">
+                Updated {lastUpdated.toLocaleTimeString("en-LK", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </span>
+            )}
+            <Button variant="outline" size="sm" className="gap-2"
+              onClick={async () => { await refresh(); toast.success("Refreshed"); }}>
+              <RefreshCcw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
