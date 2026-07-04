@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     where: { OR: [{ smsDailySummary: true }, { emailDailySummary: true }] },
     select: {
       id: true, name: true, phone: true,
-      smsDailySummary: true, emailDailySummary: true,
+      smsAddonEnabled: true, smsDailySummary: true, emailDailySummary: true,
       sales: {
         where: { createdAt: { gte: todayStart, lt: todayEnd }, status: "COMPLETED" },
         select: { total: true },
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     const salesCount = shop.sales.length;
     const revenue    = shop.sales.reduce((sum, s) => sum + Number(s.total), 0);
 
-    if (shop.smsDailySummary) {
+    if (shop.smsAddonEnabled && shop.smsDailySummary) {
       const r = await sendSmsAndLog(shop.id, shop.phone, buildDailySummaryMessage(shop.name, salesCount, revenue), SmsType.DAILY_SUMMARY);
       if (r.success) smsSent++; else errors.push(`sms:${shop.id}: ${r.error}`);
     }

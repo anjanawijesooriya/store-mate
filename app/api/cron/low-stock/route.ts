@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     where: { OR: [{ smsLowStock: true }, { emailLowStock: true }] },
     select: {
       id: true, name: true, phone: true,
-      smsLowStock: true, emailLowStock: true,
+      smsAddonEnabled: true, smsLowStock: true, emailLowStock: true,
       products: {
         where: { isActive: true },
         select: { name: true, stockQty: true, lowStockAt: true },
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
 
     if (lowItems.length === 0) { skipped++; continue; }
 
-    if (shop.smsLowStock) {
+    if (shop.smsAddonEnabled && shop.smsLowStock) {
       const r = await sendSmsAndLog(shop.id, shop.phone, buildLowStockMessage(shop.name, lowItems), SmsType.LOW_STOCK);
       if (r.success) smsSent++; else errors.push(`sms:${shop.id}: ${r.error}`);
     }
