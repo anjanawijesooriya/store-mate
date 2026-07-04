@@ -17,6 +17,7 @@ export async function GET(req: Request) {
   // TRIAL → GRACE: trial has ended, no payment on record
   const expiredTrials = await db.shop.findMany({
     where: {
+      isLifetime: false,
       billingStatus: BillingStatus.TRIAL,
       trialEndsAt: { lt: now },
     },
@@ -33,9 +34,10 @@ export async function GET(req: Request) {
     transitioned += expiredTrials.length;
   }
 
-  // ACTIVE → GRACE: next billing date passed
+  // ACTIVE → GRACE: next billing date passed (lifetime shops excluded)
   const overdueActive = await db.shop.findMany({
     where: {
+      isLifetime: false,
       billingStatus: BillingStatus.ACTIVE,
       nextBillingDate: { lt: now },
     },
@@ -52,9 +54,10 @@ export async function GET(req: Request) {
     transitioned += overdueActive.length;
   }
 
-  // GRACE → LOCKED: grace period expired
+  // GRACE → LOCKED: grace period expired (lifetime shops excluded — safety net)
   const graceExpired = await db.shop.findMany({
     where: {
+      isLifetime: false,
       billingStatus: BillingStatus.GRACE,
       gracePeriodEndsAt: { lt: now },
     },

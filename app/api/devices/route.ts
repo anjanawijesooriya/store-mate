@@ -20,6 +20,7 @@ export async function GET() {
         lastSeenAt:  d.lastSeenAt,
         createdAt:   d.createdAt,
         isCurrent:   d.deviceId === currentDeviceId,
+        isPrimary:   d.isPrimary,
       })),
     });
   } catch (err) {

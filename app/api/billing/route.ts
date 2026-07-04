@@ -9,6 +9,7 @@ export async function GET() {
       where: { id: shopId },
       select: {
         billingStatus: true,
+        isLifetime: true,
         planTier: true,
         smsBalance: true,
         trialEndsAt: true,

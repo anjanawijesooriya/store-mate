@@ -15,16 +15,19 @@ import {
   ClipboardList,
   Zap,
   Lock,
+  GitBranch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
+const PRIMARY_ONLY = ["/dashboard", "/reports", "/expenses"];
+
 const ALWAYS_VISIBLE = [
   { href: "/pos",       label: "Point of Sale",  icon: ShoppingCart },
-  { href: "/inventory", label: "Inventory",       icon: Package      },
-  { href: "/reports",   label: "Reports",         icon: BarChart3    },
-  { href: "/sales",     label: "Sales History",   icon: ClipboardList},
-  { href: "/settings",  label: "Settings",        icon: Settings     },
+  { href: "/sales",     label: "Sales History",  icon: ClipboardList},
+  { href: "/inventory", label: "Inventory",      icon: Package      },
+  { href: "/reports",   label: "Reports",        icon: BarChart3    },
+  { href: "/settings",  label: "Settings",       icon: Settings     },
 ];
 
 const PLAN_GATED = [
@@ -36,10 +39,11 @@ interface SidebarProps {
   shopName: string;
   planTier?: string;
   isAdmin?: boolean;
+  isNonPrimary?: boolean;
   onClose?: () => void;
 }
 
-export function Sidebar({ shopName, planTier, isAdmin, onClose }: SidebarProps) {
+export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [isOnline, setIsOnline] = useState(true);
   const isBasic = !planTier || planTier === "BASIC";
@@ -61,7 +65,7 @@ export function Sidebar({ shopName, planTier, isAdmin, onClose }: SidebarProps) 
       {/* Logo / shop name */}
       <div className="flex items-start justify-between px-3 pt-5 pb-4 border-b border-sidebar-border">
         <Link
-          href="/dashboard"
+          href={isNonPrimary ? "/pos" : "/dashboard"}
           onClick={onClose}
           className="flex flex-col min-w-0 flex-1 pl-3 hover:opacity-80 transition-opacity"
         >
@@ -95,6 +99,22 @@ export function Sidebar({ shopName, planTier, isAdmin, onClose }: SidebarProps) 
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {/* Always visible */}
         {ALWAYS_VISIBLE.map(({ href, label, icon: Icon }) => {
+          const restricted = isNonPrimary && PRIMARY_ONLY.includes(href);
+          if (restricted) {
+            return (
+              <div
+                key={href}
+                title="Primary device only"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/25 cursor-not-allowed select-none"
+              >
+                <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+                {label}
+                <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
+                  <GitBranch className="h-3 w-3" /> Primary
+                </span>
+              </div>
+            );
+          }
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
@@ -117,6 +137,22 @@ export function Sidebar({ shopName, planTier, isAdmin, onClose }: SidebarProps) 
 
         {/* Plan-gated items */}
         {PLAN_GATED.map((item) => {
+          // Branch mode restriction takes priority over plan gate
+          if (isNonPrimary && PRIMARY_ONLY.includes(item.href)) {
+            return (
+              <div
+                key={item.href}
+                title="Primary device only"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/25 cursor-not-allowed select-none"
+              >
+                <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
+                {item.label}
+                <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
+                  <GitBranch className="h-3 w-3" /> Primary
+                </span>
+              </div>
+            );
+          }
           if (isBasic) {
             return (
               <div

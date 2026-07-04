@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock, Monitor, Trash2, ShieldCheck, KeyRound } from "lucide-react";
+import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock, Monitor, Trash2, ShieldCheck, KeyRound, GitBranch } from "lucide-react";
 import { CATEGORY_LABELS } from "@/lib/shop-categories";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -48,6 +48,7 @@ interface Shop {
   billingStatus: BillingStatus;
   gracePeriodEndsAt: Date | null;
   nextBillingDate: Date | null;
+  isLifetime: boolean;
   payments: Payment[];
 }
 
@@ -105,6 +106,7 @@ interface DeviceInfo {
   lastSeenAt: string;
   createdAt: string;
   isCurrent: boolean;
+  isPrimary: boolean;
 }
 
 const DEVICE_LIMITS: Record<string, number> = {
@@ -187,6 +189,9 @@ export function SettingsClient({ shop }: { shop: Shop }) {
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [settingPrimaryId, setSettingPrimaryId] = useState<string | null>(null);
+  const [branchModeEnabled, setBranchModeEnabled] = useState(false);
+  const [isNonPrimary, setIsNonPrimary] = useState(false);
 
   useEffect(() => {
     fetch("/api/devices")
@@ -194,6 +199,13 @@ export function SettingsClient({ shop }: { shop: Shop }) {
       .then((d) => setDevices(d.devices ?? []))
       .catch(() => {})
       .finally(() => setDevicesLoading(false));
+    fetch("/api/shop/device-access")
+      .then((r) => r.ok ? r.json() : { branchModeEnabled: false, isPrimary: true })
+      .then((d) => {
+        setBranchModeEnabled(d.branchModeEnabled ?? false);
+        setIsNonPrimary((d.branchModeEnabled ?? false) && !(d.isPrimary ?? true));
+      })
+      .catch(() => {});
   }, []);
 
   async function removeDevice(id: string) {
@@ -208,6 +220,28 @@ export function SettingsClient({ shop }: { shop: Shop }) {
       toast.error("Failed to remove device");
     } finally {
       setRemovingId(null);
+    }
+  }
+
+  async function setPrimaryDevice(deviceSessionId: string) {
+    setSettingPrimaryId(deviceSessionId);
+    try {
+      const res = await fetch("/api/shop/devices/set-primary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceSessionId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Failed to set primary device"); return; }
+      setDevices((prev) => prev.map((d) => ({ ...d, isPrimary: d.id === deviceSessionId })));
+      // If this device just became primary, exit the restricted view immediately
+      const thisDevice = devices.find((d) => d.id === deviceSessionId);
+      if (thisDevice?.isCurrent) setIsNonPrimary(false);
+      toast.success("Primary device updated successfully");
+    } catch {
+      toast.error("Failed to set primary device");
+    } finally {
+      setSettingPrimaryId(null);
     }
   }
 
@@ -287,11 +321,91 @@ export function SettingsClient({ shop }: { shop: Shop }) {
     },
   ];
 
+  // Non-primary devices in branch mode: restricted view
+  if (isNonPrimary) {
+    const hasPrimarySet = devices.some((d) => d.isPrimary);
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Settings" description="Manage your shop and account settings" />
+        {!devicesLoading && !hasPrimarySet ? (
+          // No primary assigned (e.g. admin reset) — allow self-promotion
+          <>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 flex items-start gap-3">
+              <GitBranch className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">No Primary Device Set</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                  Branch mode is active but no primary device is assigned. You can set this device as primary below.
+                </p>
+              </div>
+            </div>
+            <Card className="shadow-sm max-w-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Monitor className="h-4 w-4 text-primary" />
+                  Registered Devices
+                </CardTitle>
+                <CardDescription>Set this device as primary to unlock full access</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="divide-y divide-border rounded-lg border overflow-hidden">
+                  {devices.map((device) => (
+                    <div key={device.id} className="flex items-center gap-3 px-4 py-3 bg-background">
+                      <Monitor className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{device.deviceName}</p>
+                        {device.isCurrent && (
+                          <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 flex items-center gap-1 mt-1">
+                            <ShieldCheck className="h-3 w-3" /> This device
+                          </Badge>
+                        )}
+                      </div>
+                      {device.isCurrent && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7 px-2 text-amber-700 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:hover:bg-amber-950/30"
+                          onClick={() => setPrimaryDevice(device.id)}
+                          disabled={settingPrimaryId === device.id}
+                        >
+                          {settingPrimaryId === device.id
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <><GitBranch className="h-3 w-3 mr-1" />Set as Primary</>}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          // Primary is already set — cannot self-promote
+          <div className="rounded-lg border border-border bg-muted/30 px-6 py-10 flex flex-col items-center text-center gap-3 max-w-lg">
+            <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
+              <GitBranch className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Branch Mode Active</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                This device does not have primary access. Settings can only be managed from the primary device.
+                To transfer primary access, ask the current primary device owner to go to Settings and set a new primary device.
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              If the primary device is lost or unavailable, contact your admin to reset it.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" description="Manage your shop and account settings" />
 
-      {shop.billingStatus === "TRIAL" && trialDaysLeft !== null && (
+      {!shop.isLifetime && shop.billingStatus === "TRIAL" && trialDaysLeft !== null && (
         <div className={`rounded-lg border px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
           trialDaysLeft <= 7
             ? "border-[color:var(--brand-warning)]/30 bg-[color:var(--brand-warning)]/10"
@@ -318,7 +432,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
         </div>
       )}
 
-      {shop.billingStatus === "GRACE" && graceDaysLeft !== null && (
+      {!shop.isLifetime && shop.billingStatus === "GRACE" && graceDaysLeft !== null && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-foreground">
@@ -579,93 +693,114 @@ export function SettingsClient({ shop }: { shop: Shop }) {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Current status */}
-          {(() => {
-            const cfg = BILLING_STATUS_CONFIG[shop.billingStatus];
-            const Icon = cfg.icon;
-            return (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Icon className={`h-5 w-5 ${cfg.color}`} />
-                  <div>
-                    <p className="font-semibold">{plan.label} Plan — {cfg.label}</p>
-                    <p className="text-sm text-muted-foreground">{plan.price}</p>
-                  </div>
+          {shop.isLifetime ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 rounded-full bg-yellow-500/15 flex items-center justify-center">
+                  <span className="text-yellow-600 text-xs font-bold">∞</span>
                 </div>
-                <Badge>{shop.planTier}</Badge>
+                <div>
+                  <p className="font-semibold">{plan.label} Plan — Lifetime License</p>
+                  <p className="text-sm text-muted-foreground">One-time payment · No renewal required</p>
+                </div>
               </div>
-            );
-          })()}
-
-          {/* Status-specific info */}
-          {shop.billingStatus === "TRIAL" && shop.trialEndsAt && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
-              <p className="font-medium text-blue-800">
-                Trial ends {fmtDate(shop.trialEndsAt)}
-              </p>
-              <p className="text-blue-700 text-xs mt-1">
-                Contact us via WhatsApp to continue after your trial.
-              </p>
+              <Badge className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/25">Lifetime</Badge>
             </div>
+          ) : (
+            (() => {
+              const cfg = BILLING_STATUS_CONFIG[shop.billingStatus];
+              const Icon = cfg.icon;
+              return (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Icon className={`h-5 w-5 ${cfg.color}`} />
+                    <div>
+                      <p className="font-semibold">{plan.label} Plan — {cfg.label}</p>
+                      <p className="text-sm text-muted-foreground">{plan.price}</p>
+                    </div>
+                  </div>
+                  <Badge>{shop.planTier}</Badge>
+                </div>
+              );
+            })()
           )}
 
-          {shop.billingStatus === "GRACE" && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
-              <p className="font-medium text-amber-800">
-                Payment overdue — {graceDaysLeft !== null && graceDaysLeft > 0
-                  ? `${graceDaysLeft} day${graceDaysLeft !== 1 ? "s" : ""} until locked`
-                  : `access locked after ${fmtDate(shop.gracePeriodEndsAt)}`}
-              </p>
-              <p className="text-amber-700 text-xs mt-1">
-                Contact us immediately via WhatsApp to arrange payment.
-              </p>
-            </div>
-          )}
+          {/* Status-specific info — hidden for lifetime shops */}
+          {!shop.isLifetime && (
+            <>
+              {shop.billingStatus === "TRIAL" && shop.trialEndsAt && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+                  <p className="font-medium text-blue-800">
+                    Trial ends {fmtDate(shop.trialEndsAt)}
+                  </p>
+                  <p className="text-blue-700 text-xs mt-1">
+                    Contact us via WhatsApp to continue after your trial.
+                  </p>
+                </div>
+              )}
 
-          {shop.billingStatus === "LOCKED" && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
-              <p className="font-medium text-red-800">Account locked — new sales disabled</p>
-              <p className="text-red-700 text-xs mt-1">
-                Contact us via WhatsApp to restore access. Your data is safe.
-              </p>
-            </div>
-          )}
+              {shop.billingStatus === "GRACE" && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+                  <p className="font-medium text-amber-800">
+                    Payment overdue — {graceDaysLeft !== null && graceDaysLeft > 0
+                      ? `${graceDaysLeft} day${graceDaysLeft !== 1 ? "s" : ""} until locked`
+                      : `access locked after ${fmtDate(shop.gracePeriodEndsAt)}`}
+                  </p>
+                  <p className="text-amber-700 text-xs mt-1">
+                    Contact us immediately via WhatsApp to arrange payment.
+                  </p>
+                </div>
+              )}
 
-          {shop.billingStatus === "ACTIVE" && shop.nextBillingDate && (
-            <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
-              <p className="text-muted-foreground">
-                Next billing date: <span className="font-medium text-foreground">{fmtDate(shop.nextBillingDate)}</span>
-              </p>
-            </div>
+              {shop.billingStatus === "LOCKED" && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
+                  <p className="font-medium text-red-800">Account locked — new sales disabled</p>
+                  <p className="text-red-700 text-xs mt-1">
+                    Contact us via WhatsApp to restore access. Your data is safe.
+                  </p>
+                </div>
+              )}
+
+              {shop.billingStatus === "ACTIVE" && shop.nextBillingDate && (
+                <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+                  <p className="text-muted-foreground">
+                    Next billing date: <span className="font-medium text-foreground">{fmtDate(shop.nextBillingDate)}</span>
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           <Separator />
 
-          {/* Plan tiers */}
-          <div className="space-y-2 text-sm">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Available Plans</p>
-            {[
-              { tier: "BASIC",    label: "Basic — LKR 5,000/mo",  desc: "1 device, up to 500 products, POS & inventory" },
-              { tier: "STANDARD", label: "Standard — LKR 8,000/mo", desc: "3 devices, unlimited products, customers & expenses" },
-              { tier: "PREMIUM",  label: "Premium — LKR 13,000/mo", desc: "Unlimited devices, advanced analytics, priority support" },
-            ].map((t) => (
-              <div
-                key={t.tier}
-                className={`flex items-start justify-between rounded-lg border p-3 ${
-                  shop.planTier === t.tier ? "border-primary bg-primary/5" : "border-border"
-                }`}
-              >
-                <div>
-                  <p className="font-medium">{t.label}</p>
-                  <p className="text-xs text-muted-foreground">{t.desc}</p>
+          {/* Plan tiers — hidden for lifetime shops */}
+          {!shop.isLifetime && (
+            <div className="space-y-2 text-sm">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Available Plans</p>
+              {[
+                { tier: "BASIC",    label: "Basic — LKR 5,000/mo",  desc: "1 device, up to 500 products, POS & inventory" },
+                { tier: "STANDARD", label: "Standard — LKR 8,000/mo", desc: "3 devices, unlimited products, customers & expenses" },
+                { tier: "PREMIUM",  label: "Premium — LKR 13,000/mo", desc: "Unlimited devices, advanced analytics, priority support" },
+              ].map((t) => (
+                <div
+                  key={t.tier}
+                  className={`flex items-start justify-between rounded-lg border p-3 ${
+                    shop.planTier === t.tier ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <div>
+                    <p className="font-medium">{t.label}</p>
+                    <p className="text-xs text-muted-foreground">{t.desc}</p>
+                  </div>
+                  {shop.planTier === t.tier ? (
+                    <Badge variant="secondary" className="text-xs">Current</Badge>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">Contact us to upgrade</p>
+                  )}
                 </div>
-                {shop.planTier === t.tier ? (
-                  <Badge variant="secondary" className="text-xs">Current</Badge>
-                ) : (
-                  <p className="text-xs text-muted-foreground mt-1">Contact us to upgrade</p>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Payment history */}
           {shop.payments.length > 0 && (
@@ -733,11 +868,16 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                 <div key={device.id} className="flex items-center gap-3 px-4 py-3 bg-background">
                   <Monitor className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium text-foreground truncate">{device.deviceName}</p>
                       {device.isCurrent && (
                         <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 flex items-center gap-1">
                           <ShieldCheck className="h-3 w-3" /> This device
+                        </Badge>
+                      )}
+                      {branchModeEnabled && device.isPrimary && (
+                        <Badge className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 flex items-center gap-1">
+                          <GitBranch className="h-3 w-3" /> Primary
                         </Badge>
                       )}
                     </div>
@@ -748,28 +888,43 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                       })}
                     </p>
                   </div>
-                  {device.isCurrent ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                      onClick={() => signOut({ callbackUrl: "/login" })}
-                    >
-                      Sign out
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                      onClick={() => removeDevice(device.id)}
-                      disabled={removingId === device.id}
-                    >
-                      {removingId === device.id
-                        ? <Loader2 className="h-3 w-3 animate-spin" />
-                        : <Trash2 className="h-3 w-3" />}
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {branchModeEnabled && !device.isPrimary && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7 px-2 text-amber-700 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:hover:bg-amber-950/30"
+                        onClick={() => setPrimaryDevice(device.id)}
+                        disabled={settingPrimaryId === device.id}
+                      >
+                        {settingPrimaryId === device.id
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <><GitBranch className="h-3 w-3 mr-1" />Set Primary</>}
+                      </Button>
+                    )}
+                    {device.isCurrent ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                        onClick={() => signOut({ callbackUrl: "/login" })}
+                      >
+                        Sign out
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                        onClick={() => removeDevice(device.id)}
+                        disabled={removingId === device.id}
+                      >
+                        {removingId === device.id
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <Trash2 className="h-3 w-3" />}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

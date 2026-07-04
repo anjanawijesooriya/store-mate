@@ -500,7 +500,7 @@ export function POSClient() {
         <span>Discount</span><span>- ${formatLKR(completedSale.discount)}</span>
       </div>` : "";
 
-    const cashHtml = completedSale.paymentMethod === "CASH" && completedSale.amountPaid > completedSale.total ? `
+    const cashHtml = completedSale.paymentMethod === "CASH" && completedSale.amountPaid >= completedSale.total ? `
       <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
         <span>Tendered</span><span>${formatLKR(completedSale.amountPaid)}</span>
       </div>
@@ -784,8 +784,8 @@ export function POSClient() {
         id: sale.id,
         subtotal,
         discount: discountAmt,
-        total: sale.total,
-        amountPaid: sale.amountPaid,
+        total: Number(sale.total),
+        amountPaid: Number(sale.amountPaid),
         paymentMethod: sale.paymentMethod,
         items: receiptItems,
         createdAt: sale.createdAt,
@@ -1376,7 +1376,7 @@ export function POSClient() {
                   </span>
                 </div>
 
-                {completedSale.paymentMethod === "CASH" && completedSale.amountPaid > completedSale.total && (
+                {completedSale.paymentMethod === "CASH" && completedSale.amountPaid >= completedSale.total && (
                   <>
                     <div className="flex justify-between text-muted-foreground">
                       <span>Tendered</span>

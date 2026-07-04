@@ -24,6 +24,8 @@ export async function GET() {
       emailReceiptEnabled: true,
       maintenanceBanner: true,
       maintenanceBannerMessage: true,
+      branchModeEnabled: true,
+      isLifetime: true,
       trialEndsAt: true,
       gracePeriodEndsAt: true,
       nextBillingDate: true,
@@ -44,6 +46,8 @@ export async function GET() {
   const result = shops.map(({ users, ...s }) => ({
     ...s,
     email: users[0]?.email ?? null,
+    smsBalance: Number(s.smsBalance),
+    payments: s.payments.map((p) => ({ ...p, amount: Number(p.amount) })),
   }));
 
   return Response.json({ shops: result });

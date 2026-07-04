@@ -23,10 +23,13 @@ export async function PATCH(
       return apiError("amount, planTier and billingMonth are required");
     }
 
-    // Next billing always falls on the 1st of the month after the billing month
-    const nextBilling = new Date(billingMonth);
-    nextBilling.setMonth(nextBilling.getMonth() + 1);
-    nextBilling.setDate(1);
+    // For lifetime payments there is no next billing date
+    let nextBillingDate: Date | null = null;
+    if (billingMonth !== "LIFETIME") {
+      nextBillingDate = new Date(billingMonth);
+      nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+      nextBillingDate.setDate(1);
+    }
 
     const [shop] = await db.$transaction([
       db.shop.update({
@@ -34,7 +37,7 @@ export async function PATCH(
         data: {
           billingStatus: BillingStatus.ACTIVE,
           planTier: planTier as PlanTier,
-          nextBillingDate: nextBilling,
+          nextBillingDate,
           gracePeriodEndsAt: null,
         },
       }),

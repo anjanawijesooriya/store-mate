@@ -18,7 +18,7 @@ export default async function SettingsPage() {
         category: true, address: true, planTier: true, trialEndsAt: true,
         smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsBalance: true,
       emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true,
-        billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true,
+        billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true, isLifetime: true,
         payments: {
           orderBy: { paidAt: "desc" },
           take: 12,

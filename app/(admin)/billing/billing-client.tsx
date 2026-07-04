@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
-  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench,
+  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench, GitBranch, Infinity,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,8 @@ interface Shop {
   emailReceiptEnabled: boolean;
   maintenanceBanner: boolean;
   maintenanceBannerMessage: string | null;
+  branchModeEnabled: boolean;
+  isLifetime: boolean;
 }
 
 const STATUS_CONFIG: Record<BillingStatus, { label: string; className: string }> = {
@@ -85,7 +87,7 @@ const SMS_PRESETS = [500, 1000, 2000, 5000];
 export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [shops, setShops] = useState<Shop[]>(initial);
   const [loading, setLoading] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -105,6 +107,8 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [smsBalanceAmount, setSmsBalanceAmount] = useState("");
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
+  const [togglingBranch, setTogglingBranch] = useState<string | null>(null);
+  const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
 
   // Maintenance — per-shop dialog
   const [maintenanceShop, setMaintenanceShop] = useState<Shop | null>(null);
@@ -194,6 +198,55 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
     }
   }
 
+  async function toggleBranchMode(shop: Shop, enabled: boolean) {
+    setTogglingBranch(shop.id);
+    try {
+      const res = await fetch(`/api/admin/shops/${shop.id}/branch-mode`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error();
+      await refresh();
+      toast.success(enabled ? "Branch Mode enabled" : "Branch Mode disabled");
+    } catch {
+      toast.error("Failed to update Branch Mode");
+    } finally {
+      setTogglingBranch(null);
+    }
+  }
+
+  async function resetPrimaryDevice(shop: Shop) {
+    setTogglingBranch(shop.id);
+    try {
+      const res = await fetch(`/api/admin/shops/${shop.id}/branch-mode`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Primary device reset — owner must set a new primary from Settings");
+    } catch {
+      toast.error("Failed to reset primary device");
+    } finally {
+      setTogglingBranch(null);
+    }
+  }
+
+  async function toggleLifetime(shop: Shop, enable: boolean) {
+    setTogglingLifetime(shop.id);
+    try {
+      const res = await fetch(`/api/admin/shops/${shop.id}/lifetime`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enable }),
+      });
+      if (!res.ok) throw new Error();
+      await refresh();
+      toast.success(enable ? "Lifetime license activated" : "Lifetime license removed — shop will follow monthly billing");
+    } catch {
+      toast.error("Failed to update lifetime status");
+    } finally {
+      setTogglingLifetime(null);
+    }
+  }
+
   async function callAdmin(shopId: string, body: object) {
     const res = await fetch(`/api/admin/billing/${shopId}`, {
       method: "PATCH",
@@ -215,6 +268,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   }, []);
 
   useEffect(() => {
+    setLastUpdated(new Date());
     intervalRef.current = setInterval(() => refresh(true), 30_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [refresh]);
@@ -391,7 +445,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                 Updating…
               </span>
             )}
-            {!autoRefreshing && (
+            {!autoRefreshing && lastUpdated && (
               <span className="text-xs text-muted-foreground hidden sm:block">
                 Updated {lastUpdated.toLocaleTimeString("en-LK", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
               </span>
@@ -505,15 +559,27 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                             Email off
                           </span>
                         )}
+                        {shop.branchModeEnabled && (
+                          <span className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                            <GitBranch className="h-3 w-3" />
+                            Branch Mode
+                          </span>
+                        )}
                       </div>
                     </td>
 
                     {/* Status */}
                     <td className="px-4 py-3.5">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.className}`}>
-                        {status.label}
-                      </span>
-                      {dl !== null && (
+                      {shop.isLifetime ? (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border border-yellow-500/25">
+                          <Infinity className="h-3 w-3" /> Lifetime
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.className}`}>
+                          {status.label}
+                        </span>
+                      )}
+                      {!shop.isLifetime && dl !== null && (
                         <p className={`text-xs mt-1 font-medium ${dl <= 3 ? "text-red-500" : "text-muted-foreground"}`}>
                           {dl > 0 ? `${dl}d left` : "Expired"}
                         </p>
@@ -527,7 +593,9 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                     </td>
 
                     {/* Key date */}
-                    <td className="px-4 py-3.5 text-xs text-muted-foreground whitespace-nowrap">{keyDate}</td>
+                    <td className="px-4 py-3.5 text-xs text-muted-foreground whitespace-nowrap">
+                      {shop.isLifetime ? "—" : keyDate}
+                    </td>
 
                     {/* Activity */}
                     <td className="px-4 py-3.5">
@@ -555,9 +623,10 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                           variant="outline"
                           className="text-xs h-8 px-3 gap-1.5"
                           onClick={() => {
+                            const tier = (["BASIC","STANDARD","PREMIUM"].includes(shop.planTier) ? shop.planTier : "STANDARD") as PlanTier;
                             setPaidForm({
-                              amount: PLAN_CONFIG[shop.planTier].price.replace(/\D/g, ""),
-                              planTier: shop.planTier,
+                              amount: PLAN_CONFIG[tier].price.replace(/\D/g, ""),
+                              planTier: tier,
                               billingMonth: new Date().toISOString().slice(0, 7),
                               reference: "", note: "",
                             });
@@ -644,6 +713,62 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               >
                                 <Mail className="h-3.5 w-3.5" />
                                 Enable email notifications
+                              </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* Branch Mode toggle */}
+                            {shop.branchModeEnabled ? (
+                              <DropdownMenuItem
+                                onClick={() => toggleBranchMode(shop, false)}
+                                disabled={togglingBranch === shop.id}
+                                className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
+                              >
+                                <GitBranch className="h-3.5 w-3.5" />
+                                Disable Branch Mode
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => toggleBranchMode(shop, true)}
+                                disabled={togglingBranch === shop.id}
+                                className="gap-2"
+                              >
+                                <GitBranch className="h-3.5 w-3.5" />
+                                Enable Branch Mode
+                              </DropdownMenuItem>
+                            )}
+                            {shop.branchModeEnabled && (
+                              <DropdownMenuItem
+                                onClick={() => resetPrimaryDevice(shop)}
+                                disabled={togglingBranch === shop.id}
+                                className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10"
+                              >
+                                <GitBranch className="h-3.5 w-3.5" />
+                                Reset Primary Device
+                              </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* Lifetime license */}
+                            {shop.isLifetime ? (
+                              <DropdownMenuItem
+                                onClick={() => toggleLifetime(shop, false)}
+                                disabled={togglingLifetime === shop.id}
+                                className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
+                              >
+                                <Infinity className="h-3.5 w-3.5" />
+                                Remove Lifetime License
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => toggleLifetime(shop, true)}
+                                disabled={togglingLifetime === shop.id}
+                                className="gap-2"
+                              >
+                                <Infinity className="h-3.5 w-3.5" />
+                                Mark as Lifetime License
                               </DropdownMenuItem>
                             )}
 
@@ -737,9 +862,35 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                   placeholder="8000" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Billing Month</Label>
-                <Input type="month" value={paidForm.billingMonth} className="h-10"
-                  onChange={(e) => setPaidForm((p) => ({ ...p, billingMonth: e.target.value }))} />
+                <Label className="text-sm font-medium">Billing Period</Label>
+                <div className="flex rounded-md border border-border overflow-hidden h-10">
+                  <button
+                    type="button"
+                    onClick={() => setPaidForm((p) => ({ ...p, billingMonth: new Date().toISOString().slice(0, 7) }))}
+                    className={`flex-1 text-xs font-medium transition-colors px-2 ${
+                      paidForm.billingMonth !== "LIFETIME"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaidForm((p) => ({ ...p, billingMonth: "LIFETIME" }))}
+                    className={`flex-1 text-xs font-medium transition-colors px-2 border-l border-border ${
+                      paidForm.billingMonth === "LIFETIME"
+                        ? "bg-yellow-500 text-white"
+                        : "bg-background text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    Lifetime
+                  </button>
+                </div>
+                {paidForm.billingMonth !== "LIFETIME" && (
+                  <Input type="month" value={paidForm.billingMonth} className="h-10 mt-1.5"
+                    onChange={(e) => setPaidForm((p) => ({ ...p, billingMonth: e.target.value }))} />
+                )}
               </div>
             </div>
             <div className="space-y-1.5">

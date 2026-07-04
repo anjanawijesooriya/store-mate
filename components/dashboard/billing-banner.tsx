@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 
 interface BillingInfo {
   billingStatus: "TRIAL" | "ACTIVE" | "GRACE" | "LOCKED";
+  isLifetime: boolean;
   trialEndsAt: string | null;
   gracePeriodEndsAt: string | null;
 }
@@ -32,7 +33,7 @@ export function BillingBanner() {
       .catch(() => {});
   }, []);
 
-  if (!billing || pathname === "/settings") return null;
+  if (!billing || billing.isLifetime || pathname === "/settings") return null;
 
   const { billingStatus, trialEndsAt, gracePeriodEndsAt } = billing;
 

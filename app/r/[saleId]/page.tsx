@@ -101,7 +101,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ saleId
             <span>Total</span>
             <span>{fmtLKR(total)}</span>
           </div>
-          {sale.paymentMethod === "CASH" && amountPaid > total && (
+          {sale.paymentMethod === "CASH" && amountPaid >= total && (
             <>
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Cash Paid</span>

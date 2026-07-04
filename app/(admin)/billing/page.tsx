@@ -22,6 +22,8 @@ export default async function AdminBillingPage() {
       emailReceiptEnabled: true,
       maintenanceBanner: true,
       maintenanceBannerMessage: true,
+      branchModeEnabled: true,
+      isLifetime: true,
       trialEndsAt: true,
       gracePeriodEndsAt: true,
       nextBillingDate: true,

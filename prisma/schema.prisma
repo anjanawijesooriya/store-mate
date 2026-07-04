@@ -94,6 +94,8 @@ model Shop {
   nextBillingDate        DateTime?
   maintenanceBanner      Boolean       @default(false)
   maintenanceBannerMessage String?
+  branchModeEnabled      Boolean       @default(false)
+  isLifetime             Boolean       @default(false)
   createdAt         DateTime     @default(now())
   users             User[]
   products          Product[]
@@ -112,6 +114,7 @@ model DeviceSession {
   userId      String
   deviceId    String
   deviceName  String?
+  isPrimary   Boolean  @default(false)
   lastSeenAt  DateTime @default(now())
   createdAt   DateTime @default(now())
 

@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { DashboardClient } from "./dashboard-client";
+import { BranchGuard } from "@/components/dashboard/branch-guard";
 
 async function getDashboardData(shopId: string) {
   const now = new Date();
@@ -127,5 +128,5 @@ export default async function DashboardPage() {
 
   const data = await getDashboardData(session.user.shopId);
 
-  return <DashboardClient data={data} />;
+  return <BranchGuard><DashboardClient data={data} /></BranchGuard>;
 }

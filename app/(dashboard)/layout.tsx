@@ -15,6 +15,17 @@ import { SessionProvider } from "next-auth/react";
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isNonPrimary, setIsNonPrimary] = useState(false);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    fetch("/api/shop/device-access")
+      .then((r) => r.ok ? r.json() : { branchModeEnabled: false, isPrimary: true })
+      .then(({ branchModeEnabled, isPrimary }) => {
+        setIsNonPrimary(branchModeEnabled && !isPrimary);
+      })
+      .catch(() => {});
+  }, [status]);
 
   // Global interceptor: sign out immediately if any API returns device_revoked
   useEffect(() => {
@@ -76,6 +87,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           shopName={shopName}
           planTier={planTier}
           isAdmin={isAdmin}
+          isNonPrimary={isNonPrimary}
           onClose={() => setSidebarOpen(false)}
         />
       </div>

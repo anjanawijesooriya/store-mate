@@ -20,6 +20,7 @@ export async function GET() {
         where: { id: shopId },
         select: {
           billingStatus: true,
+          isLifetime: true,
           trialEndsAt: true,
           gracePeriodEndsAt: true,
           smsBalance: true,
@@ -53,8 +54,10 @@ export async function GET() {
     const notifications: NotificationItem[] = [];
     const now = new Date();
 
-    // ── Billing alerts ──────────────────────────────────────────
-    if (shop.billingStatus === "LOCKED") {
+    // ── Billing alerts (skipped for lifetime shops) ─────────────
+    if (shop.isLifetime) {
+      // no billing notifications ever
+    } else if (shop.billingStatus === "LOCKED") {
       notifications.push({
         id: "billing-locked",
         type: "billing",
