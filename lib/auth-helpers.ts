@@ -14,15 +14,15 @@ export async function getShopId(): Promise<string> {
   return session.user.shopId;
 }
 
-export async function getShopWithPlan(): Promise<{ shopId: string; planTier: string; smsCredits: number }> {
+export async function getShopWithPlan(): Promise<{ shopId: string; planTier: string; smsBalance: number }> {
   const session = await auth();
   if (!session?.user?.shopId) throw new UnauthorizedError();
   const shop = await db.shop.findUnique({
     where: { id: session.user.shopId },
-    select: { planTier: true, smsCredits: true },
+    select: { planTier: true, smsBalance: true },
   });
   if (!shop) throw new UnauthorizedError();
-  return { shopId: session.user.shopId, planTier: shop.planTier as string, smsCredits: shop.smsCredits };
+  return { shopId: session.user.shopId, planTier: shop.planTier as string, smsBalance: Number(shop.smsBalance) };
 }
 
 export async function getSession() {

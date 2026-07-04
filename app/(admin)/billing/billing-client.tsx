@@ -44,7 +44,7 @@ interface Shop {
   payments: Array<{ paidAt: Date; amount: number; billingMonth: string; planTier: string; reference: string | null; note: string | null }>;
   _count: { sales: number; products: number };
   smsAddonEnabled: boolean;
-  smsCredits: number;
+  smsBalance: number;
   emailLowStock: boolean;
   emailDailySummary: boolean;
   emailReceiptEnabled: boolean;
@@ -80,7 +80,7 @@ function daysLeft(d: Date | null) {
   return Math.max(0, Math.round((end.getTime() - today.getTime()) / 86_400_000));
 }
 
-const SMS_PRESETS = [10, 50, 100, 200];
+const SMS_PRESETS = [500, 1000, 2000, 5000];
 
 export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [shops, setShops] = useState<Shop[]>(initial);
@@ -99,7 +99,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
     billingMonth: new Date().toISOString().slice(0, 7),
     reference: "", note: "",
   });
-  const [smsCreditsAmount, setSmsCreditsAmount] = useState("");
+  const [smsBalanceAmount, setSmsBalanceAmount] = useState("");
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
 
@@ -243,11 +243,10 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
 
   async function handleAddCredits() {
     if (!smsCreditsShop) return;
-    const amount = parseInt(smsCreditsAmount);
-    if (!amount || amount <= 0) return;
+    const lkrAmount = parseFloat(smsBalanceAmount);
+    if (!lkrAmount || lkrAmount <= 0) return;
     setLoading(smsCreditsShop.id + "sms_credits");
     try {
-      // If enabling mode, enable addon first then add credits
       if (smsEnableMode) {
         const enableRes = await fetch("/api/admin/sms-addon", {
           method: "POST",
@@ -256,18 +255,18 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
         });
         if (!enableRes.ok) throw new Error("Failed to enable SMS add-on");
       }
-      const creditsRes = await fetch("/api/admin/sms-credits", {
+      const balanceRes = await fetch("/api/admin/sms-credits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shopId: smsCreditsShop.id, credits: amount }),
+        body: JSON.stringify({ shopId: smsCreditsShop.id, amount: lkrAmount }),
       });
-      if (!creditsRes.ok) throw new Error("Failed to add credits");
+      if (!balanceRes.ok) throw new Error("Failed to add balance");
       toast.success(smsEnableMode
-        ? `SMS add-on enabled with ${amount} credits for ${smsCreditsShop.name}`
-        : `Added ${amount} SMS credits to ${smsCreditsShop.name}`
+        ? `SMS add-on enabled with Rs. ${lkrAmount.toFixed(2)} for ${smsCreditsShop.name}`
+        : `Added Rs. ${lkrAmount.toFixed(2)} SMS balance to ${smsCreditsShop.name}`
       );
       setSmsCreditsShop(null);
-      setSmsCreditsAmount("");
+      setSmsBalanceAmount("");
       setSmsEnableMode(false);
       await refresh();
     } catch (err) {
@@ -461,7 +460,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                         {shop.smsAddonEnabled ? (
                           <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
                             <MessageSquare className="h-3 w-3" />
-                            SMS · {shop.smsCredits} credits
+                            SMS · Rs. {Number(shop.smsBalance).toFixed(2)}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -587,13 +586,13 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                                   <WifiOff className="h-3.5 w-3.5" />
                                   Disable SMS add-on
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setSmsCreditsShop(shop); setSmsCreditsAmount(""); }} className="gap-2">
+                                <DropdownMenuItem onClick={() => { setSmsCreditsShop(shop); setSmsBalanceAmount(""); }} className="gap-2">
                                   <Plus className="h-3.5 w-3.5" />
-                                  Add SMS credits
+                                  Add SMS balance
                                 </DropdownMenuItem>
                               </>
                             ) : (
-                              <DropdownMenuItem onClick={() => { setSmsCreditsShop(shop); setSmsCreditsAmount(""); setSmsEnableMode(true); }} className="gap-2">
+                              <DropdownMenuItem onClick={() => { setSmsCreditsShop(shop); setSmsBalanceAmount(""); setSmsEnableMode(true); }} className="gap-2">
                                 <MessageSquare className="h-3.5 w-3.5" />
                                 Enable SMS add-on
                               </DropdownMenuItem>
@@ -746,7 +745,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       </Dialog>
 
       {/* ── Add SMS Credits dialog ── */}
-      <Dialog open={!!smsCreditsShop} onOpenChange={(o) => { if (!o) { setSmsCreditsShop(null); setSmsCreditsAmount(""); setSmsEnableMode(false); } }}>
+      <Dialog open={!!smsCreditsShop} onOpenChange={(o) => { if (!o) { setSmsCreditsShop(null); setSmsBalanceAmount(""); setSmsEnableMode(false); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -756,7 +755,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
           </DialogHeader>
           {smsEnableMode && (
             <p className="text-sm text-muted-foreground -mt-1">
-              Set the opening credit balance for <span className="font-semibold text-foreground">{smsCreditsShop?.name}</span>. SMS will activate immediately.
+              Set the opening LKR balance for <span className="font-semibold text-foreground">{smsCreditsShop?.name}</span>. SMS will activate immediately.
             </p>
           )}
           <div className="space-y-4">
@@ -765,52 +764,53 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                 <p className="text-sm font-semibold text-foreground">{smsCreditsShop?.name}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Current balance</p>
               </div>
-              <span className="text-2xl font-bold text-foreground tabular-nums">{smsCreditsShop?.smsCredits ?? 0}</span>
+              <span className="text-2xl font-bold text-foreground tabular-nums">Rs. {Number(smsCreditsShop?.smsBalance ?? 0).toFixed(2)}</span>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Credits to add</Label>
+              <Label className="text-sm font-medium">Amount to add (LKR)</Label>
               <div className="flex gap-2 flex-wrap">
                 {SMS_PRESETS.map((preset) => (
                   <button
                     key={preset}
-                    onClick={() => setSmsCreditsAmount(String(preset))}
+                    onClick={() => setSmsBalanceAmount(String(preset))}
                     className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors ${
-                      smsCreditsAmount === String(preset)
+                      smsBalanceAmount === String(preset)
                         ? "bg-primary text-primary-foreground border-primary"
                         : "border-border bg-card hover:bg-muted text-foreground"
                     }`}
                   >
-                    +{preset}
+                    Rs. {preset.toLocaleString()}
                   </button>
                 ))}
               </div>
               <Input
                 type="number"
                 min="1"
-                value={smsCreditsAmount}
-                onChange={(e) => setSmsCreditsAmount(e.target.value)}
-                placeholder="Or enter custom amount"
+                step="0.01"
+                value={smsBalanceAmount}
+                onChange={(e) => setSmsBalanceAmount(e.target.value)}
+                placeholder="Or enter custom LKR amount"
                 className="h-10 mt-2"
               />
             </div>
 
-            {smsCreditsAmount && parseInt(smsCreditsAmount) > 0 && (
+            {smsBalanceAmount && parseFloat(smsBalanceAmount) > 0 && (
               <div className="rounded-md bg-primary/5 border border-primary/20 px-3 py-2 text-xs text-primary">
-                New balance will be <span className="font-bold">{(smsCreditsShop?.smsCredits ?? 0) + parseInt(smsCreditsAmount)} credits</span>
+                New balance will be <span className="font-bold">Rs. {(Number(smsCreditsShop?.smsBalance ?? 0) + parseFloat(smsBalanceAmount)).toFixed(2)}</span>
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setSmsCreditsShop(null); setSmsCreditsAmount(""); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setSmsCreditsShop(null); setSmsBalanceAmount(""); }}>Cancel</Button>
             <Button
-              disabled={!smsCreditsAmount || parseInt(smsCreditsAmount) <= 0 || loading === smsCreditsShop?.id + "sms_credits"}
+              disabled={!smsBalanceAmount || parseFloat(smsBalanceAmount) <= 0 || loading === smsCreditsShop?.id + "sms_credits"}
               onClick={handleAddCredits} className="gap-2"
             >
               {loading === smsCreditsShop?.id + "sms_credits"
                 ? <Loader2 className="h-4 w-4 animate-spin" />
                 : <Plus className="h-4 w-4" />}
-              {smsEnableMode ? "Enable & Add Credits" : "Add Credits"}
+              {smsEnableMode ? "Enable & Add Balance" : "Add Balance"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -833,7 +833,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
             <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 space-y-1.5 text-xs text-amber-700 dark:text-amber-400">
               <p>• SMS receipts will stop sending immediately</p>
               <p>• Low-stock and daily summary alerts will be paused</p>
-              <p>• Remaining credits ({smsDisableShop?.smsCredits ?? 0}) are preserved and restored if re-enabled</p>
+              <p>• Remaining balance (Rs. {Number(smsDisableShop?.smsBalance ?? 0).toFixed(2)}) is preserved and restored if re-enabled</p>
             </div>
           </div>
           <DialogFooter>

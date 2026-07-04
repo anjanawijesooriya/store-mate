@@ -88,7 +88,7 @@ model Shop {
   emailLowStock        Boolean      @default(true)
   emailDailySummary    Boolean      @default(true)
   emailReceiptEnabled  Boolean      @default(true)
-  smsCredits        Int          @default(0)
+  smsBalance        Decimal      @default(0) @db.Decimal(10, 2)
   billingStatus          BillingStatus @default(TRIAL)
   gracePeriodEndsAt      DateTime?
   nextBillingDate        DateTime?

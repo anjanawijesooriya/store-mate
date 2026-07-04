@@ -16,7 +16,7 @@ export default async function SettingsPage() {
       select: {
         id: true, name: true, ownerName: true, phone: true,
         category: true, address: true, planTier: true, trialEndsAt: true,
-        smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsCredits: true,
+        smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsBalance: true,
       emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true,
         billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true,
         payments: {
@@ -40,6 +40,7 @@ export default async function SettingsPage() {
   const serialized = {
     ...shop,
     email: owner?.email ?? null,
+    smsBalance: Number(shop.smsBalance),
     payments: shop.payments.map((p) => ({
       ...p,
       amount: Number(p.amount),

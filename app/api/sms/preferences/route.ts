@@ -6,7 +6,6 @@ const SMS_PREFS_SELECT = {
   smsLowStock: true,
   smsDailySummary: true,
   smsReceiptEnabled: true,
-  smsMonthlyUsage: true,
 } as const;
 
 export async function GET() {

@@ -18,7 +18,7 @@ export async function GET() {
       planTier: true,
       billingStatus: true,
       smsAddonEnabled: true,
-      smsCredits: true,
+      smsBalance: true,
       emailLowStock: true,
       emailDailySummary: true,
       emailReceiptEnabled: true,

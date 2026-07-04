@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { SmsType } from "@/lib/generated/prisma/enums";
 
+const SMS_COST_PER_PAGE = 0.59;
+
 interface SmsResult {
   success: boolean;
   messageId?: string;
@@ -9,39 +11,41 @@ interface SmsResult {
 
 function toSriLankaE164(phone: string): string {
   const digits = phone.replace(/\D/g, "");
-  if (digits.startsWith("94")) return digits;        // already 94XXXXXXXXX
-  if (digits.startsWith("0")) return "94" + digits.slice(1); // 07X → 94 7X
-  return "94" + digits;                               // bare 7X → 94 7X
+  if (digits.startsWith("94")) return digits;
+  if (digits.startsWith("0")) return "94" + digits.slice(1);
+  return "94" + digits;
 }
 
 export async function sendSms(to: string, message: string): Promise<SmsResult> {
-  const userId = process.env.NOTIFYLK_USER_ID;
-  const apiKey = process.env.NOTIFYLK_API_KEY;
-  const senderId = process.env.NOTIFYLK_SENDER_ID || "NotifyDEMO";
+  const userId = process.env.SMSLENZ_USER_ID;
+  const apiKey = process.env.SMSLENZ_API_KEY;
+  const senderId = process.env.SMSLENZ_SENDER_ID || "StoreMate";
 
   if (!userId || !apiKey) {
-    console.warn("SMS not configured — NOTIFYLK_USER_ID or NOTIFYLK_API_KEY missing");
+    console.warn("SMS not configured — SMSLENZ_USER_ID or SMSLENZ_API_KEY missing");
     return { success: false, error: "SMS provider not configured" };
   }
 
   const formattedTo = toSriLankaE164(to);
 
   try {
-    const res = await fetch("https://app.notify.lk/api/v1/send", {
+    const res = await fetch("https://smslenz.lk/api/send-sms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_id: userId,
         api_key: apiKey,
         sender_id: senderId,
-        to: formattedTo,
+        contact: formattedTo,
         message,
       }),
     });
     const data = await res.json();
-    console.log("notify.lk response:", JSON.stringify(data));
-    if (data.status === "success") return { success: true, messageId: data.data };
-    const errMsg = data.message || data.error || data.description || `notify.lk error (status: ${data.status ?? res.status})`;
+    console.log("smslenz.lk response:", JSON.stringify(data));
+    if (data.status === "success" || data.success === true) {
+      return { success: true, messageId: String(data.message_id ?? data.id ?? "") };
+    }
+    const errMsg = data.message || data.error || data.description || `smslenz error (status: ${data.status ?? res.status})`;
     return { success: false, error: errMsg };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
@@ -54,12 +58,13 @@ export async function sendSmsAndLog(
   shopId: string,
   to: string,
   message: string,
-  type: SmsType
+  type: SmsType,
+  pages = 1
 ): Promise<SmsResult> {
-  // Check credits before sending
-  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { smsCredits: true } });
-  if (!shop || shop.smsCredits <= 0) {
-    return { success: false, error: "No SMS credits remaining" };
+  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { smsBalance: true } });
+  const balance = Number(shop?.smsBalance ?? 0);
+  if (!shop || balance <= 0) {
+    return { success: false, error: "Insufficient SMS balance" };
   }
 
   const result = await sendSms(to, message);
@@ -69,7 +74,11 @@ export async function sendSmsAndLog(
       data: { shopId, to, type, message, status: result.success ? "sent" : "failed", error: result.error ?? null },
     });
     if (result.success) {
-      await db.shop.update({ where: { id: shopId }, data: { smsCredits: { decrement: 1 } } });
+      const cost = SMS_COST_PER_PAGE * pages;
+      await db.shop.update({
+        where: { id: shopId },
+        data: { smsBalance: { decrement: cost } },
+      });
     }
   } catch (logErr) {
     console.error("SMS log write failed:", logErr);
@@ -87,8 +96,7 @@ export function buildDailySummaryMessage(shopName: string, salesCount: number, r
   return `StoreMate Daily Summary - ${shopName}\n\nToday: ${salesCount} sales, LKR ${revenue.toLocaleString()} revenue.\n\nPowered by StoreMate.`;
 }
 
-export function buildReceiptMessage(shopName: string, total: number, items: { name: string; qty: number }[]): string {
-  const preview = items.slice(0, 3).map((i) => `${i.name} x${i.qty}`).join(", ");
-  const more = items.length > 3 ? ` +${items.length - 3} more` : "";
-  return `Receipt from ${shopName}\n\n${preview}${more}\n\nTotal: LKR ${total.toLocaleString()}\n\nThank you!`;
+export function buildReceiptLinkMessage(shopName: string, saleId: string): string {
+  const appUrl = (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+  return `Receipt - ${shopName}\n\nView your receipt:\n${appUrl}/r/${saleId}\n\nThank you!`;
 }

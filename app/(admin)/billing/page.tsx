@@ -16,7 +16,7 @@ export default async function AdminBillingPage() {
       planTier: true,
       billingStatus: true,
       smsAddonEnabled: true,
-      smsCredits: true,
+      smsBalance: true,
       emailLowStock: true,
       emailDailySummary: true,
       emailReceiptEnabled: true,
@@ -38,6 +38,7 @@ export default async function AdminBillingPage() {
   const serialized = shops.map(({ users, ...s }) => ({
     ...s,
     email: users[0]?.email ?? null,
+    smsBalance: Number(s.smsBalance),
     payments: s.payments.map((p) => ({ ...p, amount: Number(p.amount) })),
   }));
 

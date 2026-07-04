@@ -9,19 +9,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { shopId, credits } = await req.json();
-    if (!shopId || !credits || Number(credits) <= 0) {
-      return apiError("shopId and a positive credits amount are required");
+    const { shopId, amount, credits } = await req.json();
+    const lkrAmount = Number(amount ?? credits ?? 0);
+    if (!shopId || lkrAmount <= 0) {
+      return apiError("shopId and a positive LKR amount are required");
     }
 
     const shop = await db.shop.update({
       where: { id: shopId },
-      data: { smsCredits: { increment: Number(credits) } },
-      select: { id: true, name: true, smsCredits: true },
+      data: { smsBalance: { increment: lkrAmount } },
+      select: { id: true, name: true, smsBalance: true },
     });
 
-    return Response.json({ success: true, shop });
+    return Response.json({ success: true, shop: { ...shop, smsBalance: Number(shop.smsBalance) } });
   } catch {
-    return apiError("Failed to add SMS credits", 500);
+    return apiError("Failed to add SMS balance", 500);
   }
 }

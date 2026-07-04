@@ -22,7 +22,7 @@ export async function GET() {
           billingStatus: true,
           trialEndsAt: true,
           gracePeriodEndsAt: true,
-          smsCredits: true,
+          smsBalance: true,
           smsAddonEnabled: true,
           smsLowStock: true,
           smsDailySummary: true,
@@ -92,25 +92,26 @@ export async function GET() {
       }
     }
 
-    // ── SMS credits ──────────────────────────────────────────────
+    // ── SMS balance ──────────────────────────────────────────────
     const smsEnabled = shop.smsAddonEnabled && (shop.smsLowStock || shop.smsDailySummary || shop.smsReceiptEnabled);
     if (smsEnabled) {
-      if (shop.smsCredits === 0) {
+      const smsBalance = Number(shop.smsBalance);
+      if (smsBalance <= 0) {
         notifications.push({
           id: "sms-empty",
           type: "sms",
           severity: "warning",
-          title: "No SMS credits",
-          body: "SMS notifications are paused. Ask admin to top up credits.",
+          title: "No SMS balance",
+          body: "SMS notifications are paused. Ask admin to top up your balance.",
           href: "/settings",
         });
-      } else if (shop.smsCredits <= 5) {
+      } else if (smsBalance < 3) {
         notifications.push({
           id: "sms-low",
           type: "sms",
           severity: "info",
-          title: `${shop.smsCredits} SMS credit${shop.smsCredits === 1 ? "" : "s"} remaining`,
-          body: "Running low. Ask admin to top up credits before they run out.",
+          title: `Rs. ${smsBalance.toFixed(2)} SMS balance remaining`,
+          body: "Running low (less than 5 SMS). Ask admin to top up before it runs out.",
           href: "/settings",
         });
       }

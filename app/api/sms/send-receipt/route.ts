@@ -1,7 +1,7 @@
-﻿import { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
-import { sendSmsAndLog, buildReceiptMessage } from "@/lib/sms";
+import { sendSmsAndLog, buildReceiptLinkMessage } from "@/lib/sms";
 import { SmsType } from "@/lib/generated/prisma/enums";
 
 export async function POST(req: NextRequest) {
@@ -21,7 +21,6 @@ export async function POST(req: NextRequest) {
     const sale = await db.sale.findUnique({
       where: { id: saleId, shopId },
       include: {
-        items: { include: { product: { select: { name: true } } } },
         customer: { select: { phone: true } },
       },
     });
@@ -30,12 +29,8 @@ export async function POST(req: NextRequest) {
     const recipientPhone = walkInPhone?.trim() || sale.customer?.phone;
     if (!recipientPhone) return apiError("No phone number — enter a number to send the receipt", 400);
 
-    const message = buildReceiptMessage(
-      shop.name,
-      Number(sale.total),
-      sale.items.map((i) => ({ name: i.product.name, qty: Number(i.quantity) }))
-    );
-    const result = await sendSmsAndLog(shopId, recipientPhone, message, SmsType.RECEIPT);
+    const message = buildReceiptLinkMessage(shop.name, saleId);
+    const result = await sendSmsAndLog(shopId, recipientPhone, message, SmsType.RECEIPT, 1);
 
     return Response.json({ success: result.success, error: result.error ?? null });
   } catch (err) {
@@ -43,4 +38,3 @@ export async function POST(req: NextRequest) {
     return apiError("Failed to send receipt SMS", 500);
   }
 }
-

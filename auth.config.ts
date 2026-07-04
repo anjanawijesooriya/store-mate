@@ -22,7 +22,8 @@ export const authConfig: NextAuthConfig = {
         || pathname.startsWith("/billing")
         || pathname.startsWith("/api/admin/");
       const isStaticRoute = pathname === "/manifest.webmanifest" || pathname.startsWith("/icons/") || pathname.startsWith("/_next/");
-      const isPublicRoute = isAuthRoute || isApiAuthRoute || isAdminRoute || pathname === "/" || isStaticRoute;
+      const isReceiptRoute = pathname.startsWith("/r/") || pathname.startsWith("/api/receipt/");
+      const isPublicRoute = isAuthRoute || isApiAuthRoute || isAdminRoute || pathname === "/" || isStaticRoute || isReceiptRoute;
 
       if (isApiAuthRoute) return true;
       if (!isLoggedIn && !isPublicRoute) return false; // redirect to /login

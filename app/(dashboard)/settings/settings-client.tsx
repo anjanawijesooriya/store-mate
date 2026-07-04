@@ -41,7 +41,7 @@ interface Shop {
   smsLowStock: boolean;
   smsDailySummary: boolean;
   smsReceiptEnabled: boolean;
-  smsCredits: number;
+  smsBalance: number;
   emailLowStock: boolean;
   emailDailySummary: boolean;
   emailReceiptEnabled: boolean;
@@ -428,7 +428,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
           </CardTitle>
           <CardDescription>
             {shop.smsAddonEnabled
-              ? <>Configure which alerts are sent to your phone · <span className="font-medium">{shop.smsCredits} credit{shop.smsCredits !== 1 ? "s" : ""} remaining</span></>
+              ? <>Configure which alerts are sent to your phone · <span className="font-medium">Rs. {Number(shop.smsBalance).toFixed(2)} balance</span></>
               : "Send SMS alerts and receipts to customers"}
           </CardDescription>
         </CardHeader>
@@ -451,9 +451,9 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                   />
                 </div>
               ))}
-              {shop.smsCredits === 0 && (
+              {Number(shop.smsBalance) <= 0 && (
                 <p className="text-xs text-amber-600 dark:text-amber-400 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2">
-                  No SMS credits remaining — contact admin to top up.
+                  No SMS balance remaining — contact admin to top up.
                 </p>
               )}
             </>
