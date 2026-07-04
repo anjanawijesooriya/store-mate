@@ -274,3 +274,15 @@ model Payment {
 
   @@index([shopId])
 }
+
+model BackupLog {
+  id        String   @id @default(cuid())
+  type      String
+  status    String
+  fileId    String?
+  fileName  String?
+  fileSize  Int?
+  driveUrl  String?
+  error     String?
+  createdAt DateTime @default(now())
+}

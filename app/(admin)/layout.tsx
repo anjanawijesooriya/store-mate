@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin-auth";
 import { AdminLogoutButton } from "@/components/admin/admin-logout-button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Database } from "lucide-react";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   if (!(await isAdmin())) redirect("/admin-login");
@@ -23,9 +23,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
         </div>
 
-        <span className="text-xs text-muted-foreground flex-1 hidden sm:block">
-          Internal billing console
-        </span>
+        <nav className="flex items-center gap-1 flex-1">
+          <a href="/billing" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
+            Billing
+          </a>
+          <a href="/backup" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
+            <Database className="h-3 w-3" />
+            Backups
+          </a>
+        </nav>
 
         <ThemeToggle />
         <AdminLogoutButton />
