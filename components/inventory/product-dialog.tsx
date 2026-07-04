@@ -13,11 +13,56 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const UNITS = ["pcs", "kg", "g", "l", "ml", "box", "pack", "dozen", "pair", "set", "sqft"];
-const CATEGORIES = ["Groceries", "Beverages", "Dairy", "Bakery", "Meat", "Vegetables", "Fruits",
-  "Household", "Personal Care", "Stationery", "Electronics", "Clothing", "Medicine", "Hardware", "Other"];
+
+const CATEGORY_GROUPS: { label: string; items: string[] }[] = [
+  {
+    label: "Food & Beverages",
+    items: ["Groceries", "Beverages", "Dairy & Eggs", "Bakery & Bread", "Meat & Seafood",
+            "Vegetables", "Fruits", "Snacks & Confectionery", "Spices & Condiments", "Frozen Foods"],
+  },
+  {
+    label: "Health & Beauty",
+    items: ["Makeup & Cosmetics", "Skincare", "Hair Care", "Salon & Spa Products",
+            "Perfumes & Fragrances", "Personal Care", "Medicine & Supplements", "Baby Products"],
+  },
+  {
+    label: "Electronics & Tech",
+    items: ["Mobile Phones", "Mobile Accessories", "Computers & Laptops", "Computer Accessories",
+            "Audio & Visual", "Cameras & Photography", "Batteries & Chargers", "Electronics"],
+  },
+  {
+    label: "Home & Living",
+    items: ["Household Items", "Kitchen & Cookware", "Furniture & Home Decor",
+            "Cleaning Products", "Bedding & Linens", "Garden & Outdoor"],
+  },
+  {
+    label: "Clothing & Fashion",
+    items: ["Clothing", "Footwear", "Fashion Accessories", "Jewellery & Watches", "Bags & Luggage", "Kids Clothing"],
+  },
+  {
+    label: "Automotive",
+    items: ["Vehicle Spare Parts", "Vehicle Accessories", "Lubricants & Oils", "Tyres & Wheels"],
+  },
+  {
+    label: "Hardware & Tools",
+    items: ["Hardware", "Tools & Equipment", "Electrical Supplies", "Plumbing Supplies", "Building Materials"],
+  },
+  {
+    label: "Stationery & Office",
+    items: ["Stationery", "Books & Magazines", "Office Supplies", "Art & Craft"],
+  },
+  {
+    label: "Sports & Leisure",
+    items: ["Sports Equipment", "Toys & Games"],
+  },
+  {
+    label: "Other",
+    items: ["Pet Supplies", "Agriculture & Farming", "Other"],
+  },
+];
 
 interface Product {
   id: string;
@@ -167,12 +212,21 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
           <div className="space-y-2">
             <Label htmlFor="category">Category</Label>
             <Select value={form.category} onValueChange={(v) => v && update("category", v)}>
-              <SelectTrigger id="category">
+              <SelectTrigger id="category" className="w-full">
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+              <SelectContent
+                align="start"
+                alignItemWithTrigger={false}
+                className="max-h-72 min-w-[240px] max-w-[calc(100vw-2rem)]"
+              >
+                {CATEGORY_GROUPS.map((group) => (
+                  <SelectGroup key={group.label}>
+                    <SelectLabel>{group.label}</SelectLabel>
+                    {group.items.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
