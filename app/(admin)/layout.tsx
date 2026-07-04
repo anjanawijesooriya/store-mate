@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin-auth";
 import { AdminLogoutButton } from "@/components/admin/admin-logout-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { ShieldCheck } from "lucide-react";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -26,6 +27,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           Internal billing console
         </span>
 
+        <ThemeToggle />
         <AdminLogoutButton />
       </header>
 
