@@ -113,6 +113,10 @@ const DEVICE_LIMITS: Record<string, number> = {
   BASIC: 1, STANDARD: 3, PREMIUM: Infinity,
 };
 
+function isOnline(lastSeenAt: string): boolean {
+  return Date.now() - new Date(lastSeenAt).getTime() < 5 * 60 * 1000; // 5 min
+}
+
 export function SettingsClient({ shop }: { shop: Shop }) {
   const { update: updateSession } = useSession();
   const [saving, setSaving] = useState(false);
@@ -357,11 +361,23 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                       <Monitor className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{device.deviceName}</p>
-                        {device.isCurrent && (
-                          <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 flex items-center gap-1 mt-1">
-                            <ShieldCheck className="h-3 w-3" /> This device
-                          </Badge>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          {device.isCurrent && (
+                            <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 flex items-center gap-1">
+                              <ShieldCheck className="h-3 w-3" /> This device
+                            </Badge>
+                          )}
+                          {(device.isCurrent || isOnline(device.lastSeenAt)) ? (
+                            <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                              Online
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              Last seen {new Date(device.lastSeenAt).toLocaleString("en-LK", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       {device.isCurrent && (
                         <Button
@@ -884,12 +900,19 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Last seen {new Date(device.lastSeenAt).toLocaleString("en-LK", {
-                        day: "numeric", month: "short", year: "numeric",
-                        hour: "2-digit", minute: "2-digit",
-                      })}
-                    </p>
+                    {(device.isCurrent || isOnline(device.lastSeenAt)) ? (
+                      <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 font-medium">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        Online now
+                      </span>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Last seen {new Date(device.lastSeenAt).toLocaleString("en-LK", {
+                          day: "numeric", month: "short", year: "numeric",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {branchModeEnabled && !device.isPrimary && (
