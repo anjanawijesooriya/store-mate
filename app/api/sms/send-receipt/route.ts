@@ -30,9 +30,12 @@ export async function POST(req: NextRequest) {
     if (!recipientPhone) return apiError("No phone number — enter a number to send the receipt", 400);
 
     const message = buildReceiptLinkMessage(shop.name, saleId);
-    const result = await sendSmsAndLog(shopId, recipientPhone, message, SmsType.RECEIPT, 1);
 
-    return Response.json({ success: result.success, error: result.error ?? null });
+    // Fire and don't await — return immediately so the POS doesn't block
+    sendSmsAndLog(shopId, recipientPhone, message, SmsType.RECEIPT, 1)
+      .catch((err) => console.error("Receipt SMS delivery error:", err));
+
+    return Response.json({ success: true });
   } catch (err) {
     if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     return apiError("Failed to send receipt SMS", 500);
