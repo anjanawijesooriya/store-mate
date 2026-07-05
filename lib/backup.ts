@@ -19,17 +19,19 @@ function getTransporter() {
 
 async function exportAllData() {
   const [
-    shops, users, products, sales, saleItems, customers,
-    expenses, payments, stockMovements, smsLogs, backupLogs,
+    shopGroups, shops, users, products, sales, saleItems, customers,
+    expenses, payments, maintenancePayments, stockMovements, smsLogs, backupLogs,
   ] = await Promise.all([
+    db.shopGroup.findMany(),
     db.shop.findMany(),
-    db.user.findMany({ select: { id: true, shopId: true, name: true, phone: true, email: true, role: true, createdAt: true } }),
+    db.user.findMany({ select: { id: true, shopId: true, name: true, phone: true, email: true, passwordHash: true, role: true, createdAt: true } }),
     db.product.findMany(),
     db.sale.findMany(),
     db.saleItem.findMany(),
     db.customer.findMany(),
     db.expense.findMany(),
     db.payment.findMany(),
+    db.maintenancePayment.findMany(),
     db.stockMovement.findMany(),
     db.smsLog.findMany({ orderBy: { createdAt: "desc" }, take: 1000 }),
     db.backupLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
@@ -38,11 +40,11 @@ async function exportAllData() {
   return {
     _meta: {
       exportedAt: new Date().toISOString(),
-      version: "1.0",
-      tables: ["shops", "users", "products", "sales", "saleItems", "customers", "expenses", "payments", "stockMovements", "smsLogs", "backupLogs"],
+      version: "2.0",
+      tables: ["shopGroups", "shops", "users", "products", "sales", "saleItems", "customers", "expenses", "payments", "maintenancePayments", "stockMovements", "smsLogs", "backupLogs"],
     },
-    shops, users, products, sales, saleItems, customers,
-    expenses, payments, stockMovements, smsLogs, backupLogs,
+    shopGroups, shops, users, products, sales, saleItems, customers,
+    expenses, payments, maintenancePayments, stockMovements, smsLogs, backupLogs,
   };
 }
 
