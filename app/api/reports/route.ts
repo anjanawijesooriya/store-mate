@@ -1,38 +1,29 @@
 ﻿import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
+import { localMidnightUTC, localMonthStartUTC } from "@/lib/timezone";
 
-function getDateRange(period: string): { from: Date; to: Date } {
-  const now = new Date();
-  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  let from: Date;
+function getDateRange(period: string, tz: string): { from: Date; to: Date } {
+  // End of local today = 1 ms before tomorrow's local midnight
+  const to = new Date(localMidnightUTC(tz, 1).getTime() - 1);
 
   switch (period) {
     case "today":
-      from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      break;
+      return { from: localMidnightUTC(tz, 0), to };
     case "week":
-      from = new Date(to);
-      from.setDate(from.getDate() - 6);
-      from.setHours(0, 0, 0, 0);
-      break;
+      return { from: localMidnightUTC(tz, -6), to }; // 6 days ago → 7-day window
     case "month":
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
-      break;
+      return { from: localMonthStartUTC(tz, 0), to };
     case "last_month":
-      from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       return {
-        from,
-        to: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59),
+        from: localMonthStartUTC(tz, -1),
+        to:   new Date(localMonthStartUTC(tz, 0).getTime() - 1),
       };
     case "3months":
-      from = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-      break;
+      return { from: localMonthStartUTC(tz, -2), to };
     default:
-      from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return { from: localMidnightUTC(tz, 0), to };
   }
-
-  return { from, to };
 }
 
 export async function GET(req: NextRequest) {
@@ -42,7 +33,7 @@ export async function GET(req: NextRequest) {
     const period = searchParams.get("period") ?? "week";
     // Browser timezone passed by the client so hour/day extraction is in local time
     const tz = searchParams.get("tz") ?? "UTC";
-    const { from, to } = getDateRange(period);
+    const { from, to } = getDateRange(period, tz);
 
     const [salesRaw, expensesRaw] = await Promise.all([
       db.sale.findMany({

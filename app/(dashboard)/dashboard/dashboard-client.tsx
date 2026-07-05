@@ -297,9 +297,12 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                         {p.totalQty} {p.product?.unit ?? "pcs"} sold
                       </p>
                     </div>
-                    <Badge variant="secondary" className="text-xs font-mono flex-shrink-0">
-                      {formatLKR(p.totalRevenue)}
-                    </Badge>
+                    <div className="flex flex-col items-end flex-shrink-0">
+                      <Badge variant="secondary" className="text-xs font-mono">
+                        {formatLKR(p.totalRevenue)}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground mt-0.5">gross</span>
+                    </div>
                   </li>
                 ))}
               </ul>

@@ -3,15 +3,16 @@ import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { DashboardClient } from "./dashboard-client";
 import { BranchGuard } from "@/components/dashboard/branch-guard";
+import { localMidnightUTC, localMonthStartUTC } from "@/lib/timezone";
+
+// Sri Lanka Standard Time — change here if multi-timezone support is added later
+const SHOP_TZ = "Asia/Colombo";
 
 async function getDashboardData(shopId: string) {
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterdayStart = new Date(todayStart);
-  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-  const weekStart = new Date(todayStart);
-  weekStart.setDate(weekStart.getDate() - 7);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const todayStart     = localMidnightUTC(SHOP_TZ, 0);   // today local midnight
+  const yesterdayStart = localMidnightUTC(SHOP_TZ, -1);  // yesterday local midnight
+  const weekStart      = localMidnightUTC(SHOP_TZ, -6);  // 6 days ago → 7-day window
+  const monthStart     = localMonthStartUTC(SHOP_TZ, 0); // 1st of current local month
 
   const [todaySales, yesterdaySales, weekSales, monthSales, topProducts, weeklySalesChart] =
     await Promise.all([
@@ -46,16 +47,22 @@ async function getDashboardData(shopId: string) {
         orderBy: { _sum: { lineTotal: "desc" } },
         take: 5,
       }),
+      // AT TIME ZONE 'UTC' promotes the stored timestamp to timestamptz,
+      // then AT TIME ZONE SHOP_TZ converts to local time before DATE() extracts
+      // the local calendar date — fixes UTC midnight vs local midnight mismatch.
+      // SHOP_TZ is a compile-time constant so it's safe to embed as a SQL
+      // literal. Using a bind parameter here causes PostgreSQL to fail to match
+      // the GROUP BY expression to the SELECT expression (error 42803).
       db.$queryRaw<Array<{ date: string; total: number; count: number }>>`
         SELECT
-          DATE("createdAt") as date,
-          COALESCE(SUM(total), 0)::float as total,
-          COUNT(id)::int as count
+          DATE(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo') AS date,
+          COALESCE(SUM(total), 0)::float AS total,
+          COUNT(id)::int AS count
         FROM "Sale"
         WHERE "shopId" = ${shopId}
           AND "createdAt" >= ${weekStart}
           AND status = 'COMPLETED'
-        GROUP BY DATE("createdAt")
+        GROUP BY DATE(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')
         ORDER BY date ASC
       `,
     ]);
