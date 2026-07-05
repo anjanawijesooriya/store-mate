@@ -380,10 +380,11 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   }
 
   const summary = {
-    total:  shops.length,
-    active: shops.filter((s) => s.billingStatus === "ACTIVE").length,
-    trial:  shops.filter((s) => s.billingStatus === "TRIAL").length,
-    atRisk: shops.filter((s) => s.billingStatus === "GRACE" || s.billingStatus === "LOCKED").length,
+    total:    shops.length,
+    lifetime: shops.filter((s) => s.isLifetime).length,
+    active:   shops.filter((s) => s.billingStatus === "ACTIVE" && !s.isLifetime).length,
+    trial:    shops.filter((s) => s.billingStatus === "TRIAL").length,
+    atRisk:   shops.filter((s) => s.billingStatus === "GRACE" || s.billingStatus === "LOCKED").length,
   };
 
   return (
@@ -460,12 +461,13 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {[
-          { label: "Total Shops",   count: summary.total,  icon: Users,      color: "text-primary",                               bg: "bg-primary/10" },
-          { label: "Active",        count: summary.active, icon: TrendingUp,  color: "text-green-600 dark:text-green-400",         bg: "bg-green-500/10" },
-          { label: "Trial",         count: summary.trial,  icon: Clock,       color: "text-blue-600 dark:text-blue-400",           bg: "bg-blue-500/10" },
-          { label: "Grace / Locked",count: summary.atRisk, icon: ShieldAlert, color: "text-red-600 dark:text-red-400",             bg: "bg-red-500/10" },
+          { label: "Total Shops",    count: summary.total,    icon: Users,      color: "text-primary",                                  bg: "bg-primary/10" },
+          { label: "Lifetime",       count: summary.lifetime, icon: Infinity,   color: "text-yellow-600 dark:text-yellow-400",          bg: "bg-yellow-500/10" },
+          { label: "Active",         count: summary.active,   icon: TrendingUp, color: "text-green-600 dark:text-green-400",            bg: "bg-green-500/10" },
+          { label: "Trial",          count: summary.trial,    icon: Clock,      color: "text-blue-600 dark:text-blue-400",              bg: "bg-blue-500/10" },
+          { label: "Grace / Locked", count: summary.atRisk,   icon: ShieldAlert,color: "text-red-600 dark:text-red-400",               bg: "bg-red-500/10" },
         ].map((s) => (
           <Card key={s.label} className="shadow-sm overflow-hidden relative">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-primary/40 via-primary/10 to-transparent" />
