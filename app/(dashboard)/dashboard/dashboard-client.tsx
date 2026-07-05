@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import {
   BarChart3,
   Package,
@@ -155,6 +157,10 @@ function OnboardingCard({
 }
 
 export function DashboardClient({ data }: { data: DashboardData }) {
+  const router = useRouter();
+  // Silently re-render server data on tab focus / every 30 s
+  useAutoRefresh(useCallback(() => router.refresh(), [router]));
+
   const chartData = data.weeklySalesChart.map((d) => ({
     ...d,
     label: formatDate(d.date),

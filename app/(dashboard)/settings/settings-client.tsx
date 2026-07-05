@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { signOut, useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock, Monitor, Trash2, ShieldCheck, KeyRound } from "lucide-react";
@@ -119,6 +121,7 @@ function isOnline(lastSeenAt: string): boolean {
 
 export function SettingsClient({ shop }: { shop: Shop }) {
   const { update: updateSession } = useSession();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: shop.name,
@@ -197,12 +200,11 @@ export function SettingsClient({ shop }: { shop: Shop }) {
   const [deviceLockEnabled, setDeviceLockEnabled] = useState(false);
   const [isNonPrimary, setIsNonPrimary] = useState(false);
 
-  useEffect(() => {
+  const refreshDevices = useCallback(() => {
     fetch("/api/devices")
       .then((r) => r.ok ? r.json() : { devices: [] })
       .then((d) => setDevices(d.devices ?? []))
-      .catch(() => {})
-      .finally(() => setDevicesLoading(false));
+      .catch(() => {});
     fetch("/api/shop/device-access")
       .then((r) => r.ok ? r.json() : { deviceLockEnabled: false, isPrimary: true })
       .then((d) => {
@@ -211,6 +213,17 @@ export function SettingsClient({ shop }: { shop: Shop }) {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    refreshDevices();
+    setDevicesLoading(false);
+  }, [refreshDevices]);
+
+  // Refresh server-rendered shop data (billing, plan) + device list on tab focus / 30 s
+  useAutoRefresh(useCallback(() => {
+    router.refresh();
+    refreshDevices();
+  }, [router, refreshDevices]));
 
   async function removeDevice(id: string) {
     setRemovingId(id);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { toast } from "sonner";
 import { Download, BarChart3, TrendingUp, CreditCard, Clock, TrendingDown, Lock } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
@@ -69,15 +70,19 @@ export function ReportsClient({ planTier }: { planTier: string }) {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setLoading(true);
+  const fetchReport = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     fetch(`/api/reports?period=${period}&tz=${encodeURIComponent(tz)}`)
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(() => toast.error("Failed to load reports"))
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   }, [period]);
+
+  useEffect(() => { fetchReport(); }, [fetchReport]);
+
+  useAutoRefresh(useCallback(() => fetchReport(true), [fetchReport]));
 
   function exportCSV() {
     if (!data) return;

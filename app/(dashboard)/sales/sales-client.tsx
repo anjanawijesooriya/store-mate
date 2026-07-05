@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { toast } from "sonner";
 import {
   Receipt,
@@ -158,8 +159,8 @@ export function SalesClient() {
 
   const limit = 20;
 
-  const fetchSales = useCallback(async (p: number, per: string) => {
-    setLoading(true);
+  const fetchSales = useCallback(async (p: number, per: string, silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const { from, to } = getDateRange(per);
       const res = await fetch(`/api/sales?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&page=${p}&limit=${limit}`);
@@ -187,6 +188,8 @@ export function SalesClient() {
   }, []);
 
   useEffect(() => { fetchSales(page, period); }, [page, period, fetchSales]);
+
+  useAutoRefresh(useCallback(() => fetchSales(page, period, true), [fetchSales, page, period]));
 
   // Product search for exchange step 2
   useEffect(() => {

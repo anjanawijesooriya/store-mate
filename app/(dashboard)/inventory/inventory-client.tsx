@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Search, Package, Edit, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
@@ -82,8 +83,8 @@ export function InventoryClient() {
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
+  const fetchProducts = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
@@ -102,6 +103,8 @@ export function InventoryClient() {
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  useAutoRefresh(useCallback(() => fetchProducts(true), [fetchProducts]));
 
   async function confirmDelete() {
     if (!deleteProduct) return;

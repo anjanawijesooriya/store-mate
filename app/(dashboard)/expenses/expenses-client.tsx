@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { toast } from "sonner";
 import { Receipt, Plus, Loader2, Calendar, Lock, Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
@@ -57,8 +58,8 @@ export function ExpensesClient() {
     expenseDate: new Date().toISOString().split("T")[0],
   });
 
-  const fetchExpenses = useCallback(async () => {
-    setLoading(true);
+  const fetchExpenses = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (categoryFilter) params.set("category", categoryFilter);
@@ -76,6 +77,8 @@ export function ExpensesClient() {
   }, [categoryFilter]);
 
   useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
+
+  useAutoRefresh(useCallback(() => fetchExpenses(true), [fetchExpenses]));
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();

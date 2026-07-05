@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { toast } from "sonner";
 import { Users, Plus, Search, Phone, Mail, CreditCard, Banknote, CheckCircle2, ShoppingBag, Lock, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
@@ -71,8 +72,8 @@ export function CustomersClient() {
   const [loadingPending, setLoadingPending] = useState(false);
   const [planBlocked, setPlanBlocked] = useState(false);
 
-  const fetchCustomers = useCallback(async () => {
-    setLoading(true);
+  const fetchCustomers = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
@@ -98,6 +99,8 @@ export function CustomersClient() {
     const t = setTimeout(fetchCustomers, 200);
     return () => clearTimeout(t);
   }, [fetchCustomers]);
+
+  useAutoRefresh(useCallback(() => fetchCustomers(true), [fetchCustomers]));
 
   useEffect(() => {
     if (!payCustomer) { setPendingSales([]); return; }
