@@ -10,5 +10,5 @@ export default async function BackupPage() {
     take: 50,
   });
 
-  return <BackupClient logs={logs} />;
+  return <BackupClient logs={logs} configError={null} />;
 }

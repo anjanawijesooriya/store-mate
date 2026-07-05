@@ -45,9 +45,12 @@ async function main() {
   console.log(`📅 Backup created: ${backup._meta.exportedAt}`);
   console.log(`🔌 Target DB:      ${maskUrl(process.env.DATABASE_URL ?? "(not set)")}\n`);
 
-  // Import Prisma after env is ready
-  const { PrismaClient } = await import("../lib/generated/prisma/index.js");
-  const db = new PrismaClient();
+  // Import Prisma after env is ready — must use PrismaPg adapter (driver-adapter config)
+  const { PrismaClient } = await import("../lib/generated/prisma/client");
+  const { PrismaPg } = await import("@prisma/adapter-pg");
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = new PrismaClient({ adapter } as any);
 
   try {
     // ── 1. Shops ─────────────────────────────────────────────────────────────
@@ -120,10 +123,11 @@ async function main() {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function restore<T>(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function restore(
   label: string,
-  records: T[],
-  fn: (r: T) => Promise<unknown>
+  records: any[],
+  fn: (r: any) => Promise<unknown>
 ) {
   if (!records?.length) {
     console.log(`  ⏭  ${label}: no records`);
