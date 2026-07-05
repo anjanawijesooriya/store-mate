@@ -1,4 +1,4 @@
-﻿import { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 import { MovementType } from "@/lib/generated/prisma/enums";
@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
 
     const product = await db.product.findFirst({ where: { id: productId, shopId, isActive: true } });
     if (!product) return apiError("Product not found", 404);
+    if (product.isService) return apiError("Stock adjustments do not apply to services", 400);
 
     // Special action: zero out stock (no quantity needed)
     if (type === "SET_OUT_OF_STOCK") {
@@ -84,4 +85,3 @@ export async function POST(req: NextRequest) {
     return apiError("Failed to adjust stock", 500);
   }
 }
-

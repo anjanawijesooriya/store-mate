@@ -194,6 +194,7 @@ model Product {
   lowStockAt Decimal         @db.Decimal(10, 2) @default(5)
   imageUrl        String?
   warrantyPeriod  String?
+  isService       Boolean         @default(false)
   isActive        Boolean         @default(true)
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt

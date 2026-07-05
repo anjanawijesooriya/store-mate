@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Search, Package, Edit, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Plus, Search, Package, Wrench, Edit, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,7 @@ interface Product {
   imageUrl: string | null;
   isActive: boolean;
   warrantyPeriod: string | null;
+  isService: boolean;
 }
 
 function formatLKR(n: number) {
@@ -70,8 +71,11 @@ function StockBadge({ qty, low }: { qty: number; low: number }) {
   );
 }
 
+type TabMode = "product" | "service";
+
 export function InventoryClient() {
   const searchParams = useSearchParams();
+  const [tab, setTab] = useState<TabMode>("product");
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -87,24 +91,30 @@ export function InventoryClient() {
     if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.set("type", tab);
       if (search) params.set("search", search);
-      if (filter) params.set("filter", filter);
+      if (filter && tab === "product") params.set("filter", filter);
       const res = await fetch(`/api/products?${params}`);
       const data = await res.json();
       setProducts(data.products ?? []);
       setTotal(data.total ?? 0);
     } catch {
-      toast.error("Failed to load products");
+      toast.error("Failed to load");
     } finally {
       setLoading(false);
     }
-  }, [search, filter]);
+  }, [search, filter, tab]);
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
   useAutoRefresh(useCallback(() => fetchProducts(true), [fetchProducts]));
+
+  // Reset filter when switching to service tab
+  useEffect(() => {
+    if (tab === "service") setFilter("");
+  }, [tab]);
 
   async function confirmDelete() {
     if (!deleteProduct) return;
@@ -116,49 +126,83 @@ export function InventoryClient() {
       setDeleteProduct(null);
       fetchProducts();
     } catch {
-      toast.error("Failed to delete product");
+      toast.error("Failed to delete");
     } finally {
       setDeleting(false);
     }
   }
 
+  const isServiceTab = tab === "service";
+  const itemLabel = isServiceTab ? "service" : "product";
+  const itemLabelPlural = isServiceTab ? "services" : "products";
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Inventory"
-        description={`${total} product${total !== 1 ? "s" : ""}`}
+        description={`${total} ${total !== 1 ? itemLabelPlural : itemLabel}`}
         action={
           <Button onClick={() => setAddOpen(true)} className="font-semibold">
             <Plus className="h-4 w-4 mr-2" />
-            Add Product
+            {isServiceTab ? "Add Service" : "Add Product"}
           </Button>
         }
       />
+
+      {/* Tab toggle */}
+      <div className="flex gap-1 p-1 bg-muted/50 rounded-lg w-fit">
+        <button
+          onClick={() => setTab("product")}
+          className={cn(
+            "flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all",
+            tab === "product"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Package className="h-4 w-4" />
+          Products
+        </button>
+        <button
+          onClick={() => setTab("service")}
+          className={cn(
+            "flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all",
+            tab === "service"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Wrench className="h-4 w-4" />
+          Services
+        </button>
+      </div>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search products or SKU..."
+            placeholder={isServiceTab ? "Search services..." : "Search products or SKU..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
           />
         </div>
-        <div className="flex gap-2">
-          {["", "low-stock"].map((f) => (
-            <Button
-              key={f}
-              variant={filter === f ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter(f)}
-              className={cn(f === "low-stock" && filter === f && "bg-[color:var(--brand-warning)] border-[color:var(--brand-warning)]")}
-            >
-              {f === "" ? "All" : "Low Stock"}
-            </Button>
-          ))}
-        </div>
+        {!isServiceTab && (
+          <div className="flex gap-2">
+            {["", "low-stock"].map((f) => (
+              <Button
+                key={f}
+                variant={filter === f ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilter(f)}
+                className={cn(f === "low-stock" && filter === f && "bg-[color:var(--brand-warning)] border-[color:var(--brand-warning)]")}
+              >
+                {f === "" ? "All" : "Low Stock"}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -168,16 +212,18 @@ export function InventoryClient() {
         </div>
       ) : products.length === 0 ? (
         <EmptyState
-          icon={Package}
-          title="No products yet"
+          icon={isServiceTab ? Wrench : Package}
+          title={isServiceTab ? "No services yet" : "No products yet"}
           description={
             filter === "low-stock"
               ? "No products are running low on stock right now."
-              : "Add your first product to start managing your inventory."
+              : isServiceTab
+                ? "Add services like repairs, installations, or consultations."
+                : "Add your first product to start managing your inventory."
           }
           action={
             filter === ""
-              ? { label: "Add Product", onClick: () => setAddOpen(true) }
+              ? { label: isServiceTab ? "Add Service" : "Add Product", onClick: () => setAddOpen(true) }
               : undefined
           }
         />
@@ -186,13 +232,13 @@ export function InventoryClient() {
           <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="font-semibold">Product</TableHead>
-                <TableHead className="font-semibold hidden md:table-cell">SKU</TableHead>
+                <TableHead className="font-semibold">{isServiceTab ? "Service" : "Product"}</TableHead>
+                {!isServiceTab && <TableHead className="font-semibold hidden md:table-cell">SKU</TableHead>}
                 <TableHead className="font-semibold hidden md:table-cell">Category</TableHead>
-                <TableHead className="font-semibold hidden lg:table-cell">Warranty</TableHead>
+                {!isServiceTab && <TableHead className="font-semibold hidden lg:table-cell">Warranty</TableHead>}
                 <TableHead className="font-semibold text-right hidden sm:table-cell">Cost</TableHead>
                 <TableHead className="font-semibold text-right">Price</TableHead>
-                <TableHead className="font-semibold text-center">Stock</TableHead>
+                {!isServiceTab && <TableHead className="font-semibold text-center">Stock</TableHead>}
                 <TableHead className="w-24"></TableHead>
               </TableRow>
             </TableHeader>
@@ -206,47 +252,55 @@ export function InventoryClient() {
                     <p className="font-medium text-foreground">{product.name}</p>
                     <p className="text-xs text-muted-foreground">{product.unit}</p>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground font-mono hidden md:table-cell">
-                    {product.sku ?? "—"}
-                  </TableCell>
+                  {!isServiceTab && (
+                    <TableCell className="text-sm text-muted-foreground font-mono hidden md:table-cell">
+                      {product.sku ?? "—"}
+                    </TableCell>
+                  )}
                   <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
                     {product.category ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
-                    {product.warrantyPeriod ?? "—"}
-                  </TableCell>
+                  {!isServiceTab && (
+                    <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
+                      {product.warrantyPeriod ?? "—"}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right font-mono text-sm hidden sm:table-cell">
                     {formatLKR(Number(product.costPrice))}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm font-semibold">
                     {formatLKR(Number(product.sellPrice))}
                   </TableCell>
-                  <TableCell className="text-center">
-                    <button
-                      onClick={() => setAdjustProduct(product)}
-                      className="inline-flex"
-                      title="Adjust stock"
-                    >
-                      <StockBadge qty={Number(product.stockQty)} low={Number(product.lowStockAt)} />
-                    </button>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
+                  {!isServiceTab && (
+                    <TableCell className="text-center">
+                      <button
                         onClick={() => setAdjustProduct(product)}
+                        className="inline-flex"
                         title="Adjust stock"
                       >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
+                        <StockBadge qty={Number(product.stockQty)} low={Number(product.lowStockAt)} />
+                      </button>
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {!isServiceTab && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setAdjustProduct(product)}
+                          title="Adjust stock"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => setEditProduct(product)}
-                        title="Edit product"
+                        title={isServiceTab ? "Edit service" : "Edit product"}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -255,7 +309,7 @@ export function InventoryClient() {
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
                         onClick={() => setDeleteProduct(product)}
-                        title="Delete product"
+                        title={isServiceTab ? "Delete service" : "Delete product"}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -271,6 +325,7 @@ export function InventoryClient() {
       {/* Dialogs */}
       <ProductDialog
         open={addOpen}
+        isService={isServiceTab}
         onClose={() => setAddOpen(false)}
         onSave={() => {
           setAddOpen(false);
@@ -286,15 +341,17 @@ export function InventoryClient() {
           fetchProducts();
         }}
       />
-      <StockAdjustDialog
-        open={!!adjustProduct}
-        product={adjustProduct}
-        onClose={() => setAdjustProduct(null)}
-        onSave={() => {
-          setAdjustProduct(null);
-          fetchProducts();
-        }}
-      />
+      {!isServiceTab && (
+        <StockAdjustDialog
+          open={!!adjustProduct}
+          product={adjustProduct}
+          onClose={() => setAdjustProduct(null)}
+          onSave={() => {
+            setAdjustProduct(null);
+            fetchProducts();
+          }}
+        />
+      )}
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteProduct} onOpenChange={(o) => { if (!o && !deleting) setDeleteProduct(null); }}>
@@ -302,7 +359,7 @@ export function InventoryClient() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <Trash2 className="h-5 w-5" />
-              Delete Product
+              Delete {isServiceTab ? "Service" : "Product"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-1">
@@ -311,7 +368,7 @@ export function InventoryClient() {
               <span className="font-semibold">&ldquo;{deleteProduct?.name}&rdquo;</span>?
             </p>
             <div className="rounded-lg bg-destructive/8 border border-destructive/20 px-3 py-2.5 text-xs text-destructive leading-relaxed">
-              This action cannot be undone. The product and its stock history will be permanently removed. Past sales records are preserved.
+              This action cannot be undone. Past sales records are preserved.
             </div>
           </div>
           <DialogFooter className="gap-2">
@@ -327,7 +384,7 @@ export function InventoryClient() {
               onClick={confirmDelete}
               disabled={deleting}
             >
-              {deleting ? "Deleting…" : "Delete Product"}
+              {deleting ? "Deleting…" : `Delete ${isServiceTab ? "Service" : "Product"}`}
             </Button>
           </DialogFooter>
         </DialogContent>

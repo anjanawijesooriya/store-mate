@@ -43,6 +43,7 @@ export async function GET() {
         FROM "Product"
         WHERE "shopId" = ${shopId}
           AND "isActive" = true
+          AND "isService" = false
           AND "stockQty" <= "lowStockAt"
         ORDER BY "stockQty" ASC
         LIMIT 10

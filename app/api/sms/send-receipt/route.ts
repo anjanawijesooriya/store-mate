@@ -31,9 +31,10 @@ export async function POST(req: NextRequest) {
 
     const message = buildReceiptLinkMessage(shop.name, saleId);
 
-    // Fire and don't await — return immediately so the POS doesn't block
-    sendSmsAndLog(shopId, recipientPhone, message, SmsType.RECEIPT, 1)
-      .catch((err) => console.error("Receipt SMS delivery error:", err));
+    const result = await sendSmsAndLog(shopId, recipientPhone, message, SmsType.RECEIPT, 1);
+    if (!result.success) {
+      return apiError(result.error ?? "SMS delivery failed — please try again", 502);
+    }
 
     return Response.json({ success: true });
   } catch (err) {

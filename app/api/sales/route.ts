@@ -86,12 +86,13 @@ export async function POST(req: NextRequest) {
         lineTotal: qty * unitPrice,
         stockQty: Number(product.stockQty),
         productName: product.name,
+        isService: product.isService,
       };
     });
 
-    // Check stock
+    // Check stock — services have no stock requirement
     for (const item of saleItems) {
-      if (item.stockQty < item.quantity) {
+      if (!item.isService && item.stockQty < item.quantity) {
         return apiError(`Insufficient stock for ${item.productName} (have ${item.stockQty}, need ${item.quantity})`);
       }
     }
@@ -128,8 +129,9 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Decrement stock and create movements
+      // Decrement stock and create movements — skip for services (no inventory)
       for (const item of saleItems) {
+        if (item.isService) continue;
         await tx.product.update({
           where: { id: item.productId },
           data: { stockQty: { decrement: item.quantity } },

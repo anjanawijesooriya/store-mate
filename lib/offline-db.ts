@@ -42,6 +42,7 @@ export interface CachedProduct {
   stockQty: number;
   category: string | null;
   warrantyPeriod: string | null;
+  isService: boolean;
 }
 
 export interface PendingSale {

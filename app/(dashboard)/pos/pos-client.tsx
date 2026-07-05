@@ -23,6 +23,7 @@ import {
   User,
   MessageSquare,
   Mail,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,7 @@ interface Product {
   stockQty: number;
   category: string | null;
   warrantyPeriod: string | null;
+  isService: boolean;
 }
 
 interface CartItem {
@@ -79,6 +81,7 @@ interface CartItem {
   lineTotal: number;
   stockQty: number;
   warrantyPeriod: string | null;
+  isService: boolean;
 }
 
 const FRACTIONAL_UNITS = new Set(["kg", "g", "l", "L", "ml", "mL", "liter", "litre", "gram", "kilo", "oz", "lb"]);
@@ -184,6 +187,7 @@ function toProduct(p: CachedProduct): Product {
     stockQty: p.stockQty,
     category: p.category,
     warrantyPeriod: p.warrantyPeriod,
+    isService: p.isService ?? false,
   };
 }
 
@@ -197,6 +201,7 @@ export function POSClient() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [recentProducts, setRecentProducts] = useState<Product[]>([]);
+  const [allServices, setAllServices] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [allCached, setAllCached] = useState<CachedProduct[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -278,13 +283,19 @@ export function POSClient() {
   const refreshProducts = useCallback(async (silent = false) => {
     if (!silent) setProductsLoading(true);
     try {
-      const [displayRes, allRes] = await Promise.all([
-        fetch("/api/products?limit=12&page=1"),
+      const [displayRes, servicesRes, allRes] = await Promise.all([
+        fetch("/api/products?type=product&limit=50&page=1"),
+        fetch("/api/products?type=service&limit=100"),
         fetch("/api/products?limit=500&page=1"),
       ]);
       if (!displayRes.ok) throw new Error("offline");
       const display = await displayRes.json();
       setRecentProducts(display.products ?? []);
+
+      if (servicesRes.ok) {
+        const svc = await servicesRes.json();
+        setAllServices(svc.products ?? []);
+      }
 
       if (allRes.ok && shopId) {
         const all = await allRes.json();
@@ -298,6 +309,7 @@ export function POSClient() {
             stockQty: p.stockQty,
             category: p.category,
             warrantyPeriod: p.warrantyPeriod ?? null,
+            isService: p.isService ?? false,
           })
         );
         setAllCached(products);
@@ -309,7 +321,8 @@ export function POSClient() {
         const cached = await getCachedProducts(shopId);
         if (cached) {
           setAllCached(cached);
-          setRecentProducts(cached.slice(0, 12).map(toProduct));
+          setRecentProducts(cached.filter((p) => !p.isService).slice(0, 50).map(toProduct));
+          setAllServices(cached.filter((p) => p.isService).map(toProduct));
         }
       }
     } finally {
@@ -590,7 +603,7 @@ export function POSClient() {
       if (existing) {
         const step = qtyStep(product.unit);
         const newQty = Math.round((existing.quantity + step) * 10000) / 10000;
-        if (newQty > product.stockQty) {
+        if (!product.isService && newQty > product.stockQty) {
           toast.warning(`Only ${product.stockQty} ${product.unit} in stock`);
           return prev;
         }
@@ -600,7 +613,7 @@ export function POSClient() {
             : i
         );
       }
-      if (product.stockQty <= 0) {
+      if (!product.isService && product.stockQty <= 0) {
         toast.error(`${product.name} is out of stock`);
         return prev;
       }
@@ -616,6 +629,7 @@ export function POSClient() {
           lineTotal: Number(product.sellPrice),
           stockQty: product.stockQty,
           warrantyPeriod: product.warrantyPeriod ?? null,
+          isService: product.isService,
         },
       ];
     });
@@ -632,7 +646,7 @@ export function POSClient() {
           const step = qtyStep(i.unit);
           const newQty = Math.round((i.quantity + delta * step) * 10000) / 10000;
           if (newQty <= 0) return null as unknown as CartItem;
-          if (newQty > i.stockQty) {
+          if (!i.isService && newQty > i.stockQty) {
             toast.warning(`Only ${i.stockQty} ${i.unit} in stock`);
             return i;
           }
@@ -648,7 +662,7 @@ export function POSClient() {
         .map((i) => {
           if (i.productId !== productId) return i;
           if (isNaN(qty) || qty <= 0) return null as unknown as CartItem;
-          if (qty > i.stockQty) {
+          if (!i.isService && qty > i.stockQty) {
             toast.warning(`Only ${i.stockQty} ${i.unit} in stock`);
             return { ...i, quantity: i.stockQty, lineTotal: i.stockQty * i.unitPrice };
           }
@@ -841,6 +855,38 @@ export function POSClient() {
 
   const displayProducts = searchQuery ? searchResults : recentProducts;
 
+  function ProductCard({ product }: { product: Product }) {
+    return (
+      <button
+        onClick={() => addToCart(product)}
+        disabled={!product.isService && product.stockQty <= 0}
+        className={cn(
+          "text-left rounded-xl border border-border bg-card p-3 hover:border-primary hover:shadow-sm transition-all active:scale-95",
+          !product.isService && product.stockQty <= 0 && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">
+          {product.name}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{product.unit}</p>
+        <p className="mt-1.5 text-base font-bold text-primary font-mono">
+          {formatLKR(Number(product.sellPrice))}
+        </p>
+        {product.isService && (
+          <p className="text-xs text-blue-500 font-medium mt-0.5">Service</p>
+        )}
+        {!product.isService && product.stockQty <= 0 && (
+          <p className="text-xs text-destructive font-medium mt-0.5">Out of stock</p>
+        )}
+        {!product.isService && product.stockQty > 0 && product.stockQty <= 5 && (
+          <p className="text-xs text-[color:var(--brand-warning)] font-medium mt-0.5">
+            Only {product.stockQty} left
+          </p>
+        )}
+      </button>
+    );
+  }
+
   return (
     <div className="flex flex-col md:flex-row gap-4 md:h-[calc(100vh-8rem)]">
       {/* Left — Product search */}
@@ -850,7 +896,7 @@ export function POSClient() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
               ref={searchRef}
-              placeholder="Search product name or scan barcode..."
+              placeholder="Search product name or service name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 h-12 text-base"
@@ -897,47 +943,47 @@ export function POSClient() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 overflow-y-auto flex-1 min-h-0 content-start">
-          {productsLoading && Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="rounded-xl border border-border bg-card p-3 animate-pulse space-y-2">
-              <div className="h-3 bg-muted rounded w-3/4" />
-              <div className="h-3 bg-muted rounded w-1/2" />
-              <div className="h-5 bg-muted rounded w-2/3 mt-1" />
+        <div className="overflow-y-auto flex-1 min-h-0 space-y-4">
+          {productsLoading && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 content-start">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-border bg-card p-3 animate-pulse space-y-2">
+                  <div className="h-3 bg-muted rounded w-3/4" />
+                  <div className="h-3 bg-muted rounded w-1/2" />
+                  <div className="h-5 bg-muted rounded w-2/3 mt-1" />
+                </div>
+              ))}
             </div>
-          ))}
-          {!productsLoading && displayProducts.map((product) => (
-            <button
-              key={product.id}
-              onClick={() => addToCart(product)}
-              disabled={product.stockQty <= 0}
-              className={cn(
-                "text-left rounded-xl border border-border bg-card p-3 hover:border-primary hover:shadow-sm transition-all active:scale-95",
-                product.stockQty <= 0 && "opacity-50 cursor-not-allowed"
-              )}
-            >
-              <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">
-                {product.name}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">{product.unit}</p>
-              <p className="mt-1.5 text-base font-bold text-primary font-mono">
-                {formatLKR(Number(product.sellPrice))}
-              </p>
-              {product.stockQty <= 0 && (
-                <p className="text-xs text-destructive font-medium mt-0.5">
-                  Out of stock
-                </p>
-              )}
-              {product.stockQty > 0 && product.stockQty <= 5 && (
-                <p className="text-xs text-[color:var(--brand-warning)] font-medium mt-0.5">
-                  Only {product.stockQty} left
-                </p>
-              )}
-            </button>
-          ))}
+          )}
 
-          {!productsLoading && displayProducts.length === 0 && searchQuery && (
-            <div className="col-span-full py-12 text-center text-sm text-muted-foreground">
-              No products found for &quot;{searchQuery}&quot;
+          {/* Services — pinned section (hidden while searching, search results include them) */}
+          {!productsLoading && !searchQuery && allServices.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-0.5">Services</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
+                {allServices.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Products grid */}
+          {!productsLoading && (
+            <div className="space-y-2">
+              {!searchQuery && allServices.length > 0 && (
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-0.5">Products</p>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 content-start">
+                {displayProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+                {displayProducts.length === 0 && searchQuery && (
+                  <div className="col-span-full py-12 text-center text-sm text-muted-foreground">
+                    No products found for &quot;{searchQuery}&quot;
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1419,6 +1465,17 @@ export function POSClient() {
                   <Printer className="h-4 w-4 mr-2" />
                   Print
                 </Button>
+
+                {!completedSale?.isOffline && (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => window.open(`/r/${completedSale!.id}`, "_blank")}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download PDF
+                  </Button>
+                )}
 
                 {!completedSale?.isOffline && shopInfo?.smsAddonEnabled && shopInfo?.smsReceiptEnabled && (
                   selectedCustomer?.phone ? (

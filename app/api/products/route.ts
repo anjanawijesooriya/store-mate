@@ -1,4 +1,4 @@
-﻿import { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
@@ -9,19 +9,21 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search") ?? "";
     const category = searchParams.get("category") ?? "";
     const filter = searchParams.get("filter") ?? "";
+    const type = searchParams.get("type") ?? ""; // "service" | "product" | "" (all)
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "50");
 
-    // For low-stock we need a raw query since Prisma can't compare two columns
+    // For low-stock we need a raw query since Prisma can't compare two columns.
+    // Services are never low-stock so always excluded from this view.
     if (filter === "low-stock") {
       const products = await db.$queryRaw<Array<{
         id: string; name: string; sku: string | null; category: string | null;
         unit: string; "costPrice": string; "sellPrice": string; "stockQty": string;
         "lowStockAt": string; "imageUrl": string | null; "isActive": boolean;
-        "createdAt": Date; "updatedAt": Date;
+        "isService": boolean; "createdAt": Date; "updatedAt": Date;
       }>>`
         SELECT * FROM "Product"
-        WHERE "shopId" = ${shopId} AND "isActive" = true AND "stockQty" <= "lowStockAt"
+        WHERE "shopId" = ${shopId} AND "isActive" = true AND "isService" = false AND "stockQty" <= "lowStockAt"
         ORDER BY "stockQty" ASC
         LIMIT ${limit} OFFSET ${(page - 1) * limit}
       `;
@@ -31,6 +33,8 @@ export async function GET(req: NextRequest) {
     const where = {
       shopId,
       isActive: true,
+      ...(type === "service" && { isService: true }),
+      ...(type === "product" && { isService: false }),
       ...(search && {
         OR: [
           { name: { contains: search, mode: "insensitive" as const } },
@@ -70,16 +74,21 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, sku, category, unit, costPrice, sellPrice, stockQty, lowStockAt, imageUrl, warrantyPeriod } = body;
+    const { name, sku, category, unit, costPrice, sellPrice, stockQty, lowStockAt, imageUrl, warrantyPeriod, isService } = body;
 
-    if (!name || costPrice === undefined || sellPrice === undefined) {
-      return apiError("Name, cost price and sell price are required");
+    if (!name || sellPrice === undefined) {
+      return apiError("Name and sell price are required");
+    }
+    if (!isService && costPrice === undefined) {
+      return apiError("Cost price is required for products");
     }
 
     if (sku) {
       const existing = await db.product.findUnique({ where: { shopId_sku: { shopId, sku } } });
       if (existing) return apiError("A product with this SKU already exists", 409);
     }
+
+    const serviceMode = !!isService;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const product = await db.$transaction(async (tx: any) => {
@@ -89,17 +98,19 @@ export async function POST(req: NextRequest) {
           name: name.trim(),
           sku: sku?.trim() || null,
           category: category?.trim() || null,
-          unit: unit || "pcs",
-          costPrice: parseFloat(costPrice),
+          unit: unit || (serviceMode ? "job" : "pcs"),
+          costPrice: parseFloat(costPrice ?? 0),
           sellPrice: parseFloat(sellPrice),
-          stockQty: parseFloat(stockQty ?? 0),
-          lowStockAt: parseFloat(lowStockAt ?? 5),
+          stockQty: serviceMode ? 0 : parseFloat(stockQty ?? 0),
+          lowStockAt: serviceMode ? 0 : parseFloat(lowStockAt ?? 5),
           imageUrl: imageUrl || null,
-          warrantyPeriod: warrantyPeriod?.trim() || null,
+          warrantyPeriod: serviceMode ? null : (warrantyPeriod?.trim() || null),
+          isService: serviceMode,
         },
       });
 
-      if (parseFloat(stockQty ?? 0) > 0) {
+      // Only create stock movement for physical products with opening stock
+      if (!serviceMode && parseFloat(stockQty ?? 0) > 0) {
         await tx.stockMovement.create({
           data: {
             productId: p.id,
@@ -120,4 +131,3 @@ export async function POST(req: NextRequest) {
     return apiError("Failed to create product", 500);
   }
 }
-

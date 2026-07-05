@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const UNITS = ["pcs", "kg", "g", "l", "ml", "box", "pack", "dozen", "pair", "set", "sqft"];
+const PRODUCT_UNITS = ["pcs", "kg", "g", "l", "ml", "box", "pack", "dozen", "pair", "set", "sqft"];
+const SERVICE_UNITS = ["job", "visit", "hour", "session", "repair", "installation", "service", "pcs"];
 
 const CATEGORY_GROUPS: { label: string; items: string[] }[] = [
   {
@@ -59,6 +60,10 @@ const CATEGORY_GROUPS: { label: string; items: string[] }[] = [
     items: ["Sports Equipment", "Toys & Games"],
   },
   {
+    label: "Services",
+    items: ["Repair & Maintenance", "Installation", "Consultation", "Delivery", "Cleaning", "Tailoring", "Other Services"],
+  },
+  {
     label: "Other",
     items: ["Pet Supplies", "Agriculture & Farming", "Other"],
   },
@@ -76,6 +81,7 @@ interface Product {
   lowStockAt: number;
   imageUrl: string | null;
   warrantyPeriod: string | null;
+  isService?: boolean;
 }
 
 interface ProductDialogProps {
@@ -83,16 +89,18 @@ interface ProductDialogProps {
   product?: Product | null;
   onClose: () => void;
   onSave: () => void;
+  isService?: boolean;
 }
 
-export function ProductDialog({ open, product, onClose, onSave }: ProductDialogProps) {
+export function ProductDialog({ open, product, onClose, onSave, isService: forceService }: ProductDialogProps) {
   const isEdit = !!product;
+  const serviceMode = forceService ?? product?.isService ?? false;
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: "",
     sku: "",
     category: "",
-    unit: "pcs",
+    unit: serviceMode ? "job" : "pcs",
     costPrice: "",
     sellPrice: "",
     stockQty: "",
@@ -114,9 +122,19 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
         warrantyPeriod: product.warrantyPeriod ?? "",
       });
     } else {
-      setForm({ name: "", sku: "", category: "", unit: "pcs", costPrice: "", sellPrice: "", stockQty: "", lowStockAt: "5", warrantyPeriod: "" });
+      setForm({
+        name: "",
+        sku: "",
+        category: "",
+        unit: serviceMode ? "job" : "pcs",
+        costPrice: "",
+        sellPrice: "",
+        stockQty: "",
+        lowStockAt: "5",
+        warrantyPeriod: "",
+      });
     }
-  }, [product, open]);
+  }, [product, open, serviceMode]);
 
   function update(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -124,8 +142,12 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.sellPrice || !form.costPrice) {
-      toast.error("Name, cost price and sell price are required");
+    if (!form.name || !form.sellPrice) {
+      toast.error(serviceMode ? "Service name and price are required" : "Name, cost price and sell price are required");
+      return;
+    }
+    if (!serviceMode && !form.costPrice) {
+      toast.error("Cost price is required");
       return;
     }
 
@@ -134,50 +156,64 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
       const url = isEdit ? `/api/products/${product!.id}` : "/api/products";
       const method = isEdit ? "PATCH" : "POST";
 
+      const body: Record<string, unknown> = {
+        name: form.name,
+        sku: form.sku || null,
+        category: form.category || null,
+        unit: form.unit,
+        sellPrice: parseFloat(form.sellPrice),
+        isService: serviceMode,
+      };
+
+      if (serviceMode) {
+        body.costPrice = parseFloat(form.costPrice || "0");
+      } else {
+        body.costPrice = parseFloat(form.costPrice);
+        body.stockQty = parseFloat(form.stockQty || "0");
+        body.lowStockAt = parseFloat(form.lowStockAt || "5");
+        body.warrantyPeriod = form.warrantyPeriod.trim() || null;
+      }
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name,
-          sku: form.sku || null,
-          category: form.category || null,
-          unit: form.unit,
-          costPrice: parseFloat(form.costPrice),
-          sellPrice: parseFloat(form.sellPrice),
-          stockQty: parseFloat(form.stockQty || "0"),
-          lowStockAt: parseFloat(form.lowStockAt || "5"),
-          warrantyPeriod: form.warrantyPeriod.trim() || null,
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Failed to save product");
+        toast.error(data.error || "Failed to save");
         return;
       }
 
-      toast.success(isEdit ? "Product updated" : "Product added");
+      toast.success(isEdit ? (serviceMode ? "Service updated" : "Product updated") : (serviceMode ? "Service added" : "Product added"));
       onSave();
     } catch {
-      toast.error("Failed to save product");
+      toast.error("Failed to save");
     } finally {
       setLoading(false);
     }
   }
 
+  const title = isEdit
+    ? (serviceMode ? "Edit Service" : "Edit Product")
+    : (serviceMode ? "Add Service" : "Add Product");
+
+  const units = serviceMode ? SERVICE_UNITS : PRODUCT_UNITS;
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Product" : "Add Product"}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Product Name *</Label>
+            <Label htmlFor="name">{serviceMode ? "Service Name" : "Product Name"} *</Label>
             <Input
               id="name"
-              placeholder="e.g. Sunlight Soap 100g"
+              placeholder={serviceMode ? "e.g. Screen Repair, Oil Change" : "e.g. Sunlight Soap 100g"}
               value={form.name}
               onChange={(e) => update("name", e.target.value)}
               required
@@ -185,23 +221,25 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="sku">SKU / Barcode</Label>
-              <Input
-                id="sku"
-                placeholder="e.g. 4890123456789"
-                value={form.sku}
-                onChange={(e) => update("sku", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="unit">Unit</Label>
+            {!serviceMode && (
+              <div className="space-y-2">
+                <Label htmlFor="sku">SKU / Barcode</Label>
+                <Input
+                  id="sku"
+                  placeholder="e.g. 4890123456789"
+                  value={form.sku}
+                  onChange={(e) => update("sku", e.target.value)}
+                />
+              </div>
+            )}
+            <div className={`space-y-2 ${serviceMode ? "col-span-2" : ""}`}>
+              <Label htmlFor="unit">{serviceMode ? "Unit / Billing Type" : "Unit"}</Label>
               <Select value={form.unit} onValueChange={(v) => v && update("unit", v)}>
                 <SelectTrigger id="unit">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {UNITS.map((u) => (
+                  {units.map((u) => (
                     <SelectItem key={u} value={u}>{u}</SelectItem>
                   ))}
                 </SelectContent>
@@ -232,9 +270,12 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 items-end">
             <div className="space-y-2">
-              <Label htmlFor="costPrice">Cost Price (LKR) *</Label>
+              <Label htmlFor="costPrice">
+                {serviceMode ? "Labour Cost (LKR)" : "Cost Price (LKR) *"}
+                {serviceMode && <span className="text-muted-foreground font-normal"> (optional)</span>}
+              </Label>
               <Input
                 id="costPrice"
                 type="number"
@@ -243,12 +284,12 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
                 placeholder="0.00"
                 value={form.costPrice}
                 onChange={(e) => update("costPrice", e.target.value)}
-                required
+                required={!serviceMode}
                 className="font-mono"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sellPrice">Sell Price (LKR) *</Label>
+              <Label htmlFor="sellPrice">{serviceMode ? "Charge Price (LKR) *" : "Sell Price (LKR) *"}</Label>
               <Input
                 id="sellPrice"
                 type="number"
@@ -263,48 +304,58 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="stockQty">{isEdit ? "Current Stock" : "Opening Stock"}</Label>
-              <Input
-                id="stockQty"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0"
-                value={form.stockQty}
-                onChange={(e) => update("stockQty", e.target.value)}
-                className="font-mono"
-                disabled={isEdit}
-              />
-              {isEdit && (
-                <p className="text-xs text-muted-foreground">Use stock adjustment to change stock level</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lowStockAt">Low Stock Alert At</Label>
-              <Input
-                id="lowStockAt"
-                type="number"
-                step="1"
-                min="0"
-                placeholder="5"
-                value={form.lowStockAt}
-                onChange={(e) => update("lowStockAt", e.target.value)}
-                className="font-mono"
-              />
-            </div>
-          </div>
+          {!serviceMode && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="stockQty">{isEdit ? "Current Stock" : "Opening Stock"}</Label>
+                  <Input
+                    id="stockQty"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0"
+                    value={form.stockQty}
+                    onChange={(e) => update("stockQty", e.target.value)}
+                    className="font-mono"
+                    disabled={isEdit}
+                  />
+                  {isEdit && (
+                    <p className="text-xs text-muted-foreground">Use stock adjustment to change stock level</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lowStockAt">Low Stock Alert At</Label>
+                  <Input
+                    id="lowStockAt"
+                    type="number"
+                    step="1"
+                    min="0"
+                    placeholder="5"
+                    value={form.lowStockAt}
+                    onChange={(e) => update("lowStockAt", e.target.value)}
+                    className="font-mono"
+                  />
+                </div>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="warrantyPeriod">Warranty Period <span className="text-muted-foreground font-normal">(optional)</span></Label>
-            <Input
-              id="warrantyPeriod"
-              placeholder="e.g. 1 year, 6 months, 2 years"
-              value={form.warrantyPeriod}
-              onChange={(e) => update("warrantyPeriod", e.target.value)}
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="warrantyPeriod">Warranty Period <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input
+                  id="warrantyPeriod"
+                  placeholder="e.g. 1 year, 6 months, 2 years"
+                  value={form.warrantyPeriod}
+                  onChange={(e) => update("warrantyPeriod", e.target.value)}
+                />
+              </div>
+            </>
+          )}
+
+          {serviceMode && (
+            <div className="rounded-lg bg-blue-500/8 border border-blue-500/20 px-3 py-2.5 text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
+              Services are always available in POS — no stock tracking or deductions.
+            </div>
+          )}
 
           <DialogFooter className="gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
@@ -312,7 +363,7 @@ export function ProductDialog({ open, product, onClose, onSave }: ProductDialogP
             </Button>
             <Button type="submit" disabled={loading} className="font-semibold">
               {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {isEdit ? "Save Changes" : "Add Product"}
+              {isEdit ? "Save Changes" : (serviceMode ? "Add Service" : "Add Product")}
             </Button>
           </DialogFooter>
         </form>
