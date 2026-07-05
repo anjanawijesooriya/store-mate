@@ -15,7 +15,6 @@ import {
   ClipboardList,
   Zap,
   Lock,
-  GitBranch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -110,7 +109,7 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
                 <Icon className="h-[18px] w-[18px] flex-shrink-0" />
                 {label}
                 <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
-                  <GitBranch className="h-3 w-3" /> Primary
+                  <Lock className="h-3 w-3" /> Primary
                 </span>
               </div>
             );
@@ -137,7 +136,7 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
 
         {/* Plan-gated items */}
         {PLAN_GATED.map((item) => {
-          // Branch mode restriction takes priority over plan gate
+          // Device Lock restriction takes priority over plan gate
           if (isNonPrimary && PRIMARY_ONLY.includes(item.href)) {
             return (
               <div
@@ -148,7 +147,7 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
                 <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
                 {item.label}
                 <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
-                  <GitBranch className="h-3 w-3" /> Primary
+                  <Lock className="h-3 w-3" /> Primary
                 </span>
               </div>
             );

@@ -103,7 +103,8 @@ model Shop {
   nextBillingDate        DateTime?
   maintenanceBanner      Boolean       @default(false)
   maintenanceBannerMessage String?
-  branchModeEnabled      Boolean       @default(false)
+  branchModeEnabled      Boolean       @default(false) // reserved for future multi-branch
+  deviceLockEnabled      Boolean       @default(false) // restricts non-primary devices
   isLifetime             Boolean       @default(false)
   // Branch Mode — null means standalone shop, set when owner links branches
   shopGroupId       String?

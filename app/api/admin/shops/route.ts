@@ -25,6 +25,7 @@ export async function GET() {
       maintenanceBanner: true,
       maintenanceBannerMessage: true,
       branchModeEnabled: true,
+      deviceLockEnabled: true,
       isLifetime: true,
       trialEndsAt: true,
       gracePeriodEndsAt: true,

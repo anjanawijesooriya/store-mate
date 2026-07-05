@@ -9,11 +9,11 @@ export async function POST(req: NextRequest) {
 
     const shop = await db.shop.findUnique({
       where: { id: shopId },
-      select: { branchModeEnabled: true },
+      select: { deviceLockEnabled: true },
     });
 
-    if (!shop?.branchModeEnabled) {
-      return apiError("Branch mode is not enabled for this shop", 403);
+    if (!shop?.deviceLockEnabled) {
+      return apiError("Device Lock is not enabled for this shop", 403);
     }
 
     const body = await req.json().catch(() => ({}));

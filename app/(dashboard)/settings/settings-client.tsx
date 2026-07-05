@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock, Monitor, Trash2, ShieldCheck, KeyRound, GitBranch } from "lucide-react";
+import { Store, Bell, CreditCard, Loader2, MessageSquare, CheckCircle, Clock, AlertTriangle, Lock, Monitor, Trash2, ShieldCheck, KeyRound } from "lucide-react";
 import { CATEGORY_LABELS } from "@/lib/shop-categories";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -194,7 +194,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
   const [devicesLoading, setDevicesLoading] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [settingPrimaryId, setSettingPrimaryId] = useState<string | null>(null);
-  const [branchModeEnabled, setBranchModeEnabled] = useState(false);
+  const [deviceLockEnabled, setDeviceLockEnabled] = useState(false);
   const [isNonPrimary, setIsNonPrimary] = useState(false);
 
   useEffect(() => {
@@ -204,10 +204,10 @@ export function SettingsClient({ shop }: { shop: Shop }) {
       .catch(() => {})
       .finally(() => setDevicesLoading(false));
     fetch("/api/shop/device-access")
-      .then((r) => r.ok ? r.json() : { branchModeEnabled: false, isPrimary: true })
+      .then((r) => r.ok ? r.json() : { deviceLockEnabled: false, isPrimary: true })
       .then((d) => {
-        setBranchModeEnabled(d.branchModeEnabled ?? false);
-        setIsNonPrimary((d.branchModeEnabled ?? false) && !(d.isPrimary ?? true));
+        setDeviceLockEnabled(d.deviceLockEnabled ?? false);
+        setIsNonPrimary((d.deviceLockEnabled ?? false) && !(d.isPrimary ?? true));
       })
       .catch(() => {});
   }, []);
@@ -338,11 +338,11 @@ export function SettingsClient({ shop }: { shop: Shop }) {
           // No primary assigned (e.g. admin reset) — allow self-promotion
           <>
             <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 flex items-start gap-3">
-              <GitBranch className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">No Primary Device Set</p>
                 <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                  Branch mode is active but no primary device is assigned. You can set this device as primary below.
+                  Device Lock is active but no primary device is assigned. You can set this device as primary below.
                 </p>
               </div>
             </div>
@@ -389,7 +389,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                         >
                           {settingPrimaryId === device.id
                             ? <Loader2 className="h-3 w-3 animate-spin" />
-                            : <><GitBranch className="h-3 w-3 mr-1" />Set as Primary</>}
+                            : <><Lock className="h-3 w-3 mr-1" />Set as Primary</>}
                         </Button>
                       )}
                     </div>
@@ -402,13 +402,13 @@ export function SettingsClient({ shop }: { shop: Shop }) {
           // Primary is already set — cannot self-promote
           <div className="rounded-lg border border-border bg-muted/30 px-6 py-10 flex flex-col items-center text-center gap-3 max-w-lg">
             <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
-              <GitBranch className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+              <Lock className="h-6 w-6 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground">Branch Mode Active</p>
+              <p className="text-sm font-semibold text-foreground">Device Lock Active</p>
               <p className="text-xs text-muted-foreground mt-1 max-w-xs">
                 This device does not have primary access. Settings can only be managed from the primary device.
-                To transfer primary access, ask the current primary device owner to go to Settings and set a new primary device.
+                To transfer access, ask the primary device owner to go to Settings and set a new primary device.
               </p>
             </div>
             <p className="text-xs text-muted-foreground/60 mt-1">
@@ -894,9 +894,9 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                           <ShieldCheck className="h-3 w-3" /> This device
                         </Badge>
                       )}
-                      {branchModeEnabled && device.isPrimary && (
+                      {deviceLockEnabled && device.isPrimary && (
                         <Badge className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 flex items-center gap-1">
-                          <GitBranch className="h-3 w-3" /> Primary
+                          <Lock className="h-3 w-3" /> Primary
                         </Badge>
                       )}
                     </div>
@@ -915,7 +915,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {branchModeEnabled && !device.isPrimary && (
+                    {deviceLockEnabled && !device.isPrimary && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -925,7 +925,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
                       >
                         {settingPrimaryId === device.id
                           ? <Loader2 className="h-3 w-3 animate-spin" />
-                          : <><GitBranch className="h-3 w-3 mr-1" />Set Primary</>}
+                          : <><Lock className="h-3 w-3 mr-1" />Set Primary</>}
                       </Button>
                     )}
                     {device.isCurrent ? (

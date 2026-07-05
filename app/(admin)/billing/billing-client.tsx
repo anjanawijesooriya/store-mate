@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
-  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench, GitBranch, Infinity, Search,
+  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench, Infinity, Search,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ interface Shop {
   maintenanceBanner: boolean;
   maintenanceBannerMessage: string | null;
   branchModeEnabled: boolean;
+  deviceLockEnabled: boolean;
   isLifetime: boolean;
 }
 
@@ -107,7 +108,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [smsBalanceAmount, setSmsBalanceAmount] = useState("");
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
-  const [togglingBranch, setTogglingBranch] = useState<string | null>(null);
+  const [togglingDeviceLock, setTogglingDeviceLock] = useState<string | null>(null);
   const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -233,34 +234,34 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
     }
   }
 
-  async function toggleBranchMode(shop: Shop, enabled: boolean) {
-    setTogglingBranch(shop.id);
+  async function toggleDeviceLock(shop: Shop, enabled: boolean) {
+    setTogglingDeviceLock(shop.id);
     try {
-      const res = await fetch(`/api/admin/shops/${shop.id}/branch-mode`, {
+      const res = await fetch(`/api/admin/shops/${shop.id}/device-lock`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled }),
       });
       if (!res.ok) throw new Error();
       await refresh();
-      toast.success(enabled ? "Branch Mode enabled" : "Branch Mode disabled");
+      toast.success(enabled ? "Device Lock enabled" : "Device Lock disabled");
     } catch {
-      toast.error("Failed to update Branch Mode");
+      toast.error("Failed to update Device Lock");
     } finally {
-      setTogglingBranch(null);
+      setTogglingDeviceLock(null);
     }
   }
 
   async function resetPrimaryDevice(shop: Shop) {
-    setTogglingBranch(shop.id);
+    setTogglingDeviceLock(shop.id);
     try {
-      const res = await fetch(`/api/admin/shops/${shop.id}/branch-mode`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/shops/${shop.id}/device-lock`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       toast.success("Primary device reset — owner must set a new primary from Settings");
     } catch {
       toast.error("Failed to reset primary device");
     } finally {
-      setTogglingBranch(null);
+      setTogglingDeviceLock(null);
     }
   }
 
@@ -614,10 +615,10 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                             Email off
                           </span>
                         )}
-                        {shop.branchModeEnabled && (
+                        {shop.deviceLockEnabled && (
                           <span className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
-                            <GitBranch className="h-3 w-3" />
-                            Branch Mode
+                            <Lock className="h-3 w-3" />
+                            Device Lock
                           </span>
                         )}
                       </div>
@@ -784,38 +785,38 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
 
                             <DropdownMenuSeparator />
 
-                            {/* Branch Mode toggle */}
-                            {shop.branchModeEnabled ? (
+                            {/* Device Lock toggle */}
+                            {shop.deviceLockEnabled ? (
                               <DropdownMenuItem
                                 onClick={() => setConfirmAction({
-                                  title: "Disable Branch Mode",
-                                  description: `Disable Branch Mode for ${shop.name}? This will clear the primary device assignment and all devices will have full access again.`,
-                                  confirmLabel: "Disable Branch Mode",
+                                  title: "Disable Device Lock",
+                                  description: `Disable Device Lock for ${shop.name}? All registered devices will regain full access and the primary device assignment will be cleared.`,
+                                  confirmLabel: "Disable Device Lock",
                                   variant: "destructive",
-                                  onConfirm: () => toggleBranchMode(shop, false),
+                                  onConfirm: () => toggleDeviceLock(shop, false),
                                 })}
-                                disabled={togglingBranch === shop.id}
+                                disabled={togglingDeviceLock === shop.id}
                                 className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
                               >
-                                <GitBranch className="h-3.5 w-3.5" />
-                                Disable Branch Mode
+                                <Lock className="h-3.5 w-3.5" />
+                                Disable Device Lock
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
                                 onClick={() => setConfirmAction({
-                                  title: "Enable Branch Mode",
-                                  description: `Enable Branch Mode for ${shop.name}? The owner will need to set a primary device from their Settings page to unlock full dashboard access on that device.`,
-                                  confirmLabel: "Enable Branch Mode",
-                                  onConfirm: () => toggleBranchMode(shop, true),
+                                  title: "Enable Device Lock",
+                                  description: `Enable Device Lock for ${shop.name}? The owner must set a primary device from Settings. Only the primary device will have full dashboard access — others are restricted to POS only.`,
+                                  confirmLabel: "Enable Device Lock",
+                                  onConfirm: () => toggleDeviceLock(shop, true),
                                 })}
-                                disabled={togglingBranch === shop.id}
+                                disabled={togglingDeviceLock === shop.id}
                                 className="gap-2"
                               >
-                                <GitBranch className="h-3.5 w-3.5" />
-                                Enable Branch Mode
+                                <Lock className="h-3.5 w-3.5" />
+                                Enable Device Lock
                               </DropdownMenuItem>
                             )}
-                            {shop.branchModeEnabled && (
+                            {shop.deviceLockEnabled && (
                               <DropdownMenuItem
                                 onClick={() => setConfirmAction({
                                   title: "Reset Primary Device",
@@ -824,10 +825,10 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                                   variant: "destructive",
                                   onConfirm: () => resetPrimaryDevice(shop),
                                 })}
-                                disabled={togglingBranch === shop.id}
+                                disabled={togglingDeviceLock === shop.id}
                                 className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10"
                               >
-                                <GitBranch className="h-3.5 w-3.5" />
+                                <Lock className="h-3.5 w-3.5" />
                                 Reset Primary Device
                               </DropdownMenuItem>
                             )}

@@ -22,9 +22,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
     const checkAccess = () => {
       fetch("/api/shop/device-access")
-        .then((r) => r.ok ? r.json() : { branchModeEnabled: false, isPrimary: true })
-        .then(({ branchModeEnabled, isPrimary }) => {
-          setIsNonPrimary(branchModeEnabled && !isPrimary);
+        .then((r) => r.ok ? r.json() : { deviceLockEnabled: false, isPrimary: true })
+        .then(({ deviceLockEnabled, isPrimary }) => {
+          setIsNonPrimary(deviceLockEnabled && !isPrimary);
         })
         .catch(() => {});
     };
