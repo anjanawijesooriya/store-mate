@@ -195,34 +195,38 @@ export function SettingsClient({ shop }: { shop: Shop }) {
 
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(true);
+  const [accessChecked, setAccessChecked] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [settingPrimaryId, setSettingPrimaryId] = useState<string | null>(null);
   const [deviceLockEnabled, setDeviceLockEnabled] = useState(false);
   const [isNonPrimary, setIsNonPrimary] = useState(false);
 
-  const refreshDevices = useCallback(() => {
+  const refreshDevices = useCallback((initial = false) => {
     fetch("/api/devices")
       .then((r) => r.ok ? r.json() : { devices: [] })
-      .then((d) => setDevices(d.devices ?? []))
-      .catch(() => {});
+      .then((d) => {
+        setDevices(d.devices ?? []);
+        if (initial) setDevicesLoading(false);
+      })
+      .catch(() => { if (initial) setDevicesLoading(false); });
     fetch("/api/shop/device-access")
       .then((r) => r.ok ? r.json() : { deviceLockEnabled: false, isPrimary: true })
       .then((d) => {
         setDeviceLockEnabled(d.deviceLockEnabled ?? false);
         setIsNonPrimary((d.deviceLockEnabled ?? false) && !(d.isPrimary ?? true));
+        if (initial) setAccessChecked(true);
       })
-      .catch(() => {});
+      .catch(() => { if (initial) setAccessChecked(true); });
   }, []);
 
   useEffect(() => {
-    refreshDevices();
-    setDevicesLoading(false);
+    refreshDevices(true);
   }, [refreshDevices]);
 
   // Refresh server-rendered shop data (billing, plan) + device list on tab focus / 30 s
   useAutoRefresh(useCallback(() => {
     router.refresh();
-    refreshDevices();
+    refreshDevices(false);
   }, [router, refreshDevices]));
 
   async function removeDevice(id: string) {
@@ -341,7 +345,16 @@ export function SettingsClient({ shop }: { shop: Shop }) {
     },
   ];
 
-  // Non-primary devices in branch mode: restricted view
+  // Block render until the access check resolves — prevents flash of full settings on non-primary devices
+  if (!accessChecked) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <div className="w-7 h-7 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Device Lock: non-primary restricted view
   if (isNonPrimary) {
     const hasPrimarySet = devices.some((d) => d.isPrimary);
     return (
