@@ -234,9 +234,12 @@ export function SettingsClient({ shop }: { shop: Shop }) {
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Failed to set primary device"); return; }
       setDevices((prev) => prev.map((d) => ({ ...d, isPrimary: d.id === deviceSessionId })));
-      // If this device just became primary, exit the restricted view immediately
       const thisDevice = devices.find((d) => d.id === deviceSessionId);
-      if (thisDevice?.isCurrent) setIsNonPrimary(false);
+      if (thisDevice?.isCurrent) {
+        setIsNonPrimary(false);
+        // Notify layout to re-check access so sidebar updates immediately
+        window.dispatchEvent(new CustomEvent("branch-access-changed"));
+      }
       toast.success("Primary device updated successfully");
     } catch {
       toast.error("Failed to set primary device");

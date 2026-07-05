@@ -14,6 +14,16 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const tooltipStyle: React.CSSProperties = {
+  backgroundColor: "var(--card)",
+  border: "1px solid var(--border)",
+  borderRadius: "8px",
+  color: "var(--card-foreground)",
+  fontSize: 12,
+};
+
+const tooltipTextStyle: React.CSSProperties = { color: "var(--card-foreground)" };
+
 interface ReportData {
   summary: {
     totalRevenue: number;
@@ -193,12 +203,14 @@ export function ReportsClient({ planTier }: { planTier: string }) {
                 <CardContent>
                   <ResponsiveContainer width="100%" height={220}>
                     <LineChart data={data.salesByDay}>
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false}
+                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false}
                         tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                       <Tooltip
                         formatter={(v) => [formatLKR(Number(v ?? 0)), "Revenue"]}
-                        contentStyle={{ fontSize: 12, borderRadius: "8px" }}
+                        contentStyle={tooltipStyle}
+                        labelStyle={{ color: "var(--card-foreground)" }}
+                        itemStyle={{ color: "var(--card-foreground)" }}
                       />
                       <Line type="monotone" dataKey="revenue" stroke="var(--color-primary)"
                         strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
@@ -237,7 +249,12 @@ export function ReportsClient({ planTier }: { planTier: string }) {
                             />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(v) => formatLKR(Number(v ?? 0))} />
+                        <Tooltip
+                          formatter={(v) => formatLKR(Number(v ?? 0))}
+                          contentStyle={tooltipStyle}
+                          labelStyle={tooltipTextStyle}
+                          itemStyle={tooltipTextStyle}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   )}
@@ -258,15 +275,21 @@ export function ReportsClient({ planTier }: { planTier: string }) {
                       <XAxis
                         dataKey="hour"
                         tickFormatter={(h) => `${h}:00`}
-                        tick={{ fontSize: 10 }}
+                        tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                         axisLine={false}
                         tickLine={false}
                       />
-                      <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
                       <Tooltip
                         labelFormatter={(h) => `${h}:00 - ${h + 1}:00`}
                         formatter={(v) => [Number(v ?? 0), "Sales"]}
-                        contentStyle={{ fontSize: 11, borderRadius: "8px" }}
+                        contentStyle={tooltipStyle}
+                        labelStyle={{ color: "var(--card-foreground)" }}
+                        itemStyle={{ color: "var(--card-foreground)" }}
                       />
                       <Bar dataKey="count" fill="var(--color-chart-2)" radius={[3, 3, 0, 0]} />
                     </BarChart>

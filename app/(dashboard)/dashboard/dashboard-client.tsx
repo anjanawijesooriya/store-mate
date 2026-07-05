@@ -241,20 +241,21 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
                   <XAxis
                     dataKey="label"
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
                     formatter={(v) => [formatLKR(Number(v ?? 0)), "Revenue"]}
-                    labelStyle={{ fontSize: 12 }}
-                    contentStyle={{ fontSize: 12, borderRadius: "8px" }}
+                    contentStyle={{ fontSize: 12, borderRadius: "8px", backgroundColor: "var(--card)", border: "1px solid var(--border)", color: "var(--card-foreground)" }}
+                    labelStyle={{ fontSize: 12, color: "var(--card-foreground)" }}
+                    itemStyle={{ color: "var(--card-foreground)" }}
                   />
                   <Bar
                     dataKey="total"

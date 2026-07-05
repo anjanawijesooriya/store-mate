@@ -19,12 +19,27 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (status !== "authenticated") return;
-    fetch("/api/shop/device-access")
-      .then((r) => r.ok ? r.json() : { branchModeEnabled: false, isPrimary: true })
-      .then(({ branchModeEnabled, isPrimary }) => {
-        setIsNonPrimary(branchModeEnabled && !isPrimary);
-      })
-      .catch(() => {});
+
+    const checkAccess = () => {
+      fetch("/api/shop/device-access")
+        .then((r) => r.ok ? r.json() : { branchModeEnabled: false, isPrimary: true })
+        .then(({ branchModeEnabled, isPrimary }) => {
+          setIsNonPrimary(branchModeEnabled && !isPrimary);
+        })
+        .catch(() => {});
+    };
+
+    checkAccess();
+
+    // Re-check when this device just set itself as primary
+    window.addEventListener("branch-access-changed", checkAccess);
+    // Poll every 60s to catch remote changes (admin or another device changing primary)
+    const interval = setInterval(checkAccess, 60_000);
+
+    return () => {
+      window.removeEventListener("branch-access-changed", checkAccess);
+      clearInterval(interval);
+    };
   }, [status]);
 
   // Global interceptor: sign out immediately if any API returns device_revoked
