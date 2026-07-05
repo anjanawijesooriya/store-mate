@@ -16,6 +16,28 @@ function toSriLankaE164(phone: string): string {
   return "94" + digits;
 }
 
+async function attemptSend(formattedTo: string, message: string, userId: string, apiKey: string, senderId: string): Promise<SmsResult> {
+  const res = await fetch("https://smslenz.lk/api/send-sms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: userId,
+      api_key: apiKey,
+      sender_id: senderId,
+      contact: formattedTo,
+      message,
+    }),
+    signal: AbortSignal.timeout(12_000),
+  });
+  const data = await res.json();
+  console.log("smslenz.lk response:", JSON.stringify(data));
+  if (data.status === "success" || data.success === true) {
+    return { success: true, messageId: String(data.message_id ?? data.id ?? "") };
+  }
+  const errMsg = data.message || data.error || data.description || `smslenz error (status: ${data.status ?? res.status})`;
+  return { success: false, error: errMsg };
+}
+
 export async function sendSms(to: string, message: string): Promise<SmsResult> {
   const userId = process.env.SMSLENZ_USER_ID;
   const apiKey = process.env.SMSLENZ_API_KEY;
@@ -29,26 +51,22 @@ export async function sendSms(to: string, message: string): Promise<SmsResult> {
   const formattedTo = toSriLankaE164(to);
 
   try {
-    const res = await fetch("https://smslenz.lk/api/send-sms", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: userId,
-        api_key: apiKey,
-        sender_id: senderId,
-        contact: formattedTo,
-        message,
-      }),
-    });
-    const data = await res.json();
-    console.log("smslenz.lk response:", JSON.stringify(data));
-    if (data.status === "success" || data.success === true) {
-      return { success: true, messageId: String(data.message_id ?? data.id ?? "") };
+    return await attemptSend(formattedTo, message, userId, apiKey, senderId);
+  } catch (firstErr) {
+    const isNetworkError = firstErr instanceof TypeError || (firstErr instanceof DOMException && firstErr.name === "TimeoutError");
+    if (isNetworkError) {
+      // One automatic retry after a short delay for transient network failures
+      console.warn("SMS attempt 1 failed (network), retrying in 2s…", firstErr instanceof Error ? firstErr.message : firstErr);
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        return await attemptSend(formattedTo, message, userId, apiKey, senderId);
+      } catch (retryErr) {
+        const detail = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        console.error("SMS send error (after retry):", detail);
+        return { success: false, error: `Network error: ${detail}` };
+      }
     }
-    const errMsg = data.message || data.error || data.description || `smslenz error (status: ${data.status ?? res.status})`;
-    return { success: false, error: errMsg };
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
+    const detail = firstErr instanceof Error ? firstErr.message : String(firstErr);
     console.error("SMS send error:", detail);
     return { success: false, error: `Network error: ${detail}` };
   }
