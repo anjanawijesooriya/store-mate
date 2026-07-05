@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
-  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench, GitBranch, Infinity,
+  MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench, GitBranch, Infinity, Search,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,6 +109,19 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
   const [togglingBranch, setTogglingBranch] = useState<string | null>(null);
   const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filteredShops = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return shops;
+    return shops.filter((s) =>
+      s.name.toLowerCase().includes(q) ||
+      s.ownerName.toLowerCase().includes(q) ||
+      s.phone.toLowerCase().includes(q) ||
+      (s.email ?? "").toLowerCase().includes(q) ||
+      (CATEGORY_LABELS[s.category] ?? s.category).toLowerCase().includes(q)
+    );
+  }, [shops, search]);
 
   // Generic confirm dialog
   type ConfirmAction = {
@@ -511,7 +524,25 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       {/* Shops table */}
       <Card className="shadow-sm overflow-hidden">
         <CardHeader className="pb-0 px-6 pt-5 border-b border-border">
-          <CardTitle className="text-base font-semibold">All Shops</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4">
+            <CardTitle className="text-base font-semibold">
+              All Shops
+              {search && (
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  — {filteredShops.length} of {shops.length} shown
+                </span>
+              )}
+            </CardTitle>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, owner, phone…"
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
+          </div>
         </CardHeader>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -525,7 +556,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
               </tr>
             </thead>
             <tbody>
-              {shops.map((shop) => {
+              {filteredShops.map((shop) => {
                 const dl = shop.billingStatus === "TRIAL"
                   ? daysLeft(shop.trialEndsAt)
                   : shop.billingStatus === "GRACE"
@@ -874,10 +905,10 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                 );
               })}
 
-              {shops.length === 0 && (
+              {filteredShops.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-16 text-center text-sm text-muted-foreground">
-                    No shops registered yet.
+                    {search ? `No shops match "${search}"` : "No shops registered yet."}
                   </td>
                 </tr>
               )}
