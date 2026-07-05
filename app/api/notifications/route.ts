@@ -53,6 +53,14 @@ export async function GET() {
 
     const notifications: NotificationItem[] = [];
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    function calDaysLeft(date: Date | null): number {
+      if (!date) return 0;
+      const end = new Date(date);
+      end.setHours(0, 0, 0, 0);
+      return Math.max(0, Math.round((end.getTime() - now.getTime()) / 86_400_000));
+    }
 
     // ── Billing alerts (skipped for lifetime shops) ─────────────
     if (shop.isLifetime) {
@@ -68,9 +76,7 @@ export async function GET() {
       });
     } else if (shop.billingStatus === "GRACE") {
       const endsAt = shop.gracePeriodEndsAt;
-      const daysLeft = endsAt
-        ? Math.max(0, Math.ceil((endsAt.getTime() - now.getTime()) / 86_400_000))
-        : 0;
+      const daysLeft = calDaysLeft(endsAt);
       notifications.push({
         id: "billing-grace",
         type: "billing",
@@ -82,7 +88,7 @@ export async function GET() {
         href: "/settings",
       });
     } else if (shop.billingStatus === "TRIAL" && shop.trialEndsAt) {
-      const daysLeft = Math.ceil((shop.trialEndsAt.getTime() - now.getTime()) / 86_400_000);
+      const daysLeft = calDaysLeft(shop.trialEndsAt);
       if (daysLeft <= 7) {
         notifications.push({
           id: "billing-trial",
