@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin-auth";
 import { AdminLogoutButton } from "@/components/admin/admin-logout-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Toaster } from "@/components/ui/sonner";
 import { ShieldCheck, Database } from "lucide-react";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -39,6 +40,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
       {/* Content */}
       <main className="p-6 max-w-7xl mx-auto">{children}</main>
+      <Toaster richColors position="top-right" />
     </div>
   );
 }

@@ -110,6 +110,28 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [togglingBranch, setTogglingBranch] = useState<string | null>(null);
   const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
 
+  // Generic confirm dialog
+  type ConfirmAction = {
+    title: string;
+    description: string;
+    confirmLabel: string;
+    variant?: "default" | "destructive";
+    onConfirm: () => Promise<void>;
+  };
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
+  async function runConfirm() {
+    if (!confirmAction) return;
+    setConfirmLoading(true);
+    try {
+      await confirmAction.onConfirm();
+    } finally {
+      setConfirmLoading(false);
+      setConfirmAction(null);
+    }
+  }
+
   // Maintenance — per-shop dialog
   const [maintenanceShop, setMaintenanceShop] = useState<Shop | null>(null);
   const [maintenanceMsg, setMaintenanceMsg]   = useState("");
@@ -700,7 +722,13 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                             {/* Email notifications toggle */}
                             {(shop.emailLowStock || shop.emailDailySummary || shop.emailReceiptEnabled) ? (
                               <DropdownMenuItem
-                                onClick={() => toggleEmailNotifs(shop, false)}
+                                onClick={() => setConfirmAction({
+                                  title: "Disable Email Notifications",
+                                  description: `Disable all email notifications for ${shop.name}? Low stock alerts, daily summaries, and customer email receipts will stop sending.`,
+                                  confirmLabel: "Disable Emails",
+                                  variant: "destructive",
+                                  onConfirm: () => toggleEmailNotifs(shop, false),
+                                })}
                                 disabled={togglingEmail === shop.id}
                                 className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
                               >
@@ -709,7 +737,12 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
-                                onClick={() => toggleEmailNotifs(shop, true)}
+                                onClick={() => setConfirmAction({
+                                  title: "Enable Email Notifications",
+                                  description: `Enable email notifications for ${shop.name}? Low stock alerts, daily summaries, and customer receipts will be sent to their registered email address.`,
+                                  confirmLabel: "Enable Emails",
+                                  onConfirm: () => toggleEmailNotifs(shop, true),
+                                })}
                                 disabled={togglingEmail === shop.id}
                                 className="gap-2"
                               >
@@ -723,7 +756,13 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                             {/* Branch Mode toggle */}
                             {shop.branchModeEnabled ? (
                               <DropdownMenuItem
-                                onClick={() => toggleBranchMode(shop, false)}
+                                onClick={() => setConfirmAction({
+                                  title: "Disable Branch Mode",
+                                  description: `Disable Branch Mode for ${shop.name}? This will clear the primary device assignment and all devices will have full access again.`,
+                                  confirmLabel: "Disable Branch Mode",
+                                  variant: "destructive",
+                                  onConfirm: () => toggleBranchMode(shop, false),
+                                })}
                                 disabled={togglingBranch === shop.id}
                                 className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
                               >
@@ -732,7 +771,12 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
-                                onClick={() => toggleBranchMode(shop, true)}
+                                onClick={() => setConfirmAction({
+                                  title: "Enable Branch Mode",
+                                  description: `Enable Branch Mode for ${shop.name}? The owner will need to set a primary device from their Settings page to unlock full dashboard access on that device.`,
+                                  confirmLabel: "Enable Branch Mode",
+                                  onConfirm: () => toggleBranchMode(shop, true),
+                                })}
                                 disabled={togglingBranch === shop.id}
                                 className="gap-2"
                               >
@@ -742,7 +786,13 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                             )}
                             {shop.branchModeEnabled && (
                               <DropdownMenuItem
-                                onClick={() => resetPrimaryDevice(shop)}
+                                onClick={() => setConfirmAction({
+                                  title: "Reset Primary Device",
+                                  description: `Reset the primary device for ${shop.name}? No device will have primary access until the owner sets a new one from Settings. Use this only if the primary device is lost or unavailable.`,
+                                  confirmLabel: "Reset Primary Device",
+                                  variant: "destructive",
+                                  onConfirm: () => resetPrimaryDevice(shop),
+                                })}
                                 disabled={togglingBranch === shop.id}
                                 className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10"
                               >
@@ -756,7 +806,13 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                             {/* Lifetime license */}
                             {shop.isLifetime ? (
                               <DropdownMenuItem
-                                onClick={() => toggleLifetime(shop, false)}
+                                onClick={() => setConfirmAction({
+                                  title: "Remove Lifetime License",
+                                  description: `Remove the lifetime license for ${shop.name}? The shop will revert to a 7-day trial period and will need to subscribe to a monthly plan.`,
+                                  confirmLabel: "Remove Lifetime License",
+                                  variant: "destructive",
+                                  onConfirm: () => toggleLifetime(shop, false),
+                                })}
                                 disabled={togglingLifetime === shop.id}
                                 className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
                               >
@@ -765,7 +821,12 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
-                                onClick={() => toggleLifetime(shop, true)}
+                                onClick={() => setConfirmAction({
+                                  title: "Mark as Lifetime License",
+                                  description: `Grant a lifetime license to ${shop.name}? This shop will never be billed again and will always have full access. Make sure payment has been recorded first.`,
+                                  confirmLabel: "Grant Lifetime License",
+                                  onConfirm: () => toggleLifetime(shop, true),
+                                })}
                                 disabled={togglingLifetime === shop.id}
                                 className="gap-2"
                               >
@@ -1126,6 +1187,37 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                 ? <Loader2 className="h-4 w-4 animate-spin" />
                 : <Trash2 className="h-4 w-4" />}
               Delete Permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Generic confirm dialog ── */}
+      <Dialog open={!!confirmAction} onOpenChange={(o) => { if (!o && !confirmLoading) setConfirmAction(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {confirmAction?.variant === "destructive"
+                ? <ShieldAlert className="h-5 w-5 text-destructive" />
+                : <CheckCircle className="h-5 w-5 text-primary" />}
+              {confirmAction?.title}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">{confirmAction?.description}</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmAction(null)} disabled={confirmLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant={confirmAction?.variant === "destructive" ? "outline" : "default"}
+              className={confirmAction?.variant === "destructive"
+                ? "gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                : "gap-2"}
+              onClick={runConfirm}
+              disabled={confirmLoading}
+            >
+              {confirmLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {confirmAction?.confirmLabel}
             </Button>
           </DialogFooter>
         </DialogContent>
