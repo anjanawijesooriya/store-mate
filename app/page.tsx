@@ -16,6 +16,11 @@ import {
   TrendingUp,
   AlertTriangle,
   Smartphone,
+  Lock,
+  Infinity,
+  Star,
+  Wrench,
+  PhoneCall,
 } from "lucide-react";
 
 export default async function HomePage() {
@@ -101,7 +106,7 @@ export default async function HomePage() {
             </div>
 
             <p className="text-sm text-white/30">
-              No credit card · Cancel anytime · LKR 5,000–13,000/mo
+              No credit card · LKR 5,000–13,000/mo · Or pay once, own forever
             </p>
           </div>
 
@@ -265,6 +270,14 @@ export default async function HomePage() {
                 desc: "Track regular customers, their purchase history, and running credit balances. Know who your best customers are.",
                 highlight: false,
               },
+              {
+                icon: Lock,
+                color: "#F472B6",
+                bg: "rgba(244,114,182,0.1)",
+                title: "Device Lock & Access Control",
+                desc: "Restrict dashboard access to a single trusted device. Cashiers can only use POS — reports, settings, and expenses stay protected.",
+                highlight: false,
+              },
             ].map((f) => {
               const Icon = f.icon;
               return (
@@ -397,7 +410,7 @@ export default async function HomePage() {
 
       {/* ── Pricing ── */}
       <section id="pricing" className="py-24 px-4 sm:px-6 bg-white/[0.02] border-y border-white/5">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-6xl">
           <div className="text-center mb-16">
             <p className="text-sm font-semibold text-[#2DA86B] uppercase tracking-widest mb-3">Pricing</p>
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
@@ -408,27 +421,28 @@ export default async function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {/* Monthly plans */}
+          <p className="text-xs font-bold text-white/30 uppercase tracking-widest mb-4">Monthly subscription</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
             {[
               {
                 name: "Basic",
                 price: "5,000",
-                period: "/month",
                 desc: "For small single-counter shops",
                 color: "#60A5FA",
                 features: [
                   "1 device / cashier",
                   "Up to 500 products",
                   "POS + inventory",
-                  "Sales reports",
+                  "Sales reports & P&L",
                   "Low-stock alerts",
+                  "Email notifications",
                 ],
                 popular: false,
               },
               {
                 name: "Standard",
                 price: "8,000",
-                period: "/month",
                 desc: "For growing shops — most popular",
                 color: "#2DA86B",
                 features: [
@@ -437,19 +451,22 @@ export default async function HomePage() {
                   "Customer management",
                   "Expense tracking + P&L",
                   "Offline POS mode",
+                  "Device Lock & access control",
+                  "SMS add-on available",
                 ],
                 popular: true,
               },
               {
                 name: "Premium",
                 price: "13,000",
-                period: "/month",
                 desc: "For busy shops needing everything",
                 color: "#A78BFA",
                 features: [
                   "Unlimited devices",
                   "Advanced analytics",
+                  "Device Lock & access control",
                   "Priority WhatsApp support",
+                  "SMS add-on available",
                   "Everything in Standard",
                 ],
                 popular: false,
@@ -468,16 +485,14 @@ export default async function HomePage() {
                     Most Popular
                   </div>
                 )}
-
                 <div className="mb-5">
                   <p className="text-sm font-semibold mb-1" style={{ color: plan.color }}>{plan.name}</p>
                   <div className="flex items-end gap-1 mt-1">
                     <span className="text-4xl font-bold text-white">LKR {plan.price}</span>
-                    <span className="text-sm text-white/30 pb-1">{plan.period}</span>
+                    <span className="text-sm text-white/30 pb-1">/month</span>
                   </div>
                   <p className="text-sm text-white/30 mt-1">{plan.desc}</p>
                 </div>
-
                 <ul className="space-y-2.5 flex-1 mb-7">
                   {plan.features.map((feat) => (
                     <li key={feat} className="flex items-start gap-2.5 text-sm text-white/60">
@@ -486,7 +501,6 @@ export default async function HomePage() {
                     </li>
                   ))}
                 </ul>
-
                 <Link
                   href="/register"
                   className="block text-center text-sm font-bold rounded-xl px-4 py-3 transition-all hover:opacity-90"
@@ -502,12 +516,155 @@ export default async function HomePage() {
             ))}
           </div>
 
-          <p className="text-center text-sm text-white/25 mt-8">
-            All plans include a 14-day free trial. Pricing in LKR. Billed monthly. Cancel anytime.
+          <p className="text-sm text-white/25 mb-14">
+            All plans include a 14-day free trial. Billed monthly in LKR. Cancel anytime.
+            SMS notifications available as a credit add-on.
           </p>
-          <p className="text-center text-sm text-white/20 mt-2">
-            SMS notifications (low-stock alerts, receipts) available as a credit add-on — buy only what you need.
+
+          {/* Lifetime / One-time plans */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#EAB308]/30 bg-[#EAB308]/10 px-3 py-1 text-xs font-bold text-[#EAB308]">
+              <Infinity className="h-3.5 w-3.5" />
+              One-time payment — Lifetime access
+            </div>
+            <div className="flex-1 h-px bg-[#EAB308]/10" />
+          </div>
+
+          <p className="text-sm text-white/35 mb-6">
+            Same plan tiers, paid once. No monthly bills — ever. Choose the tier that fits your shop and pay a single one-time fee for permanent access.
           </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+            {[
+              {
+                name: "Basic",
+                monthlyRef: "LKR 5,000/mo equivalent",
+                desc: "Small single-counter shops",
+                color: "#60A5FA",
+                features: [
+                  "1 device / cashier",
+                  "Up to 500 products",
+                  "POS + inventory",
+                  "Sales reports & P&L",
+                  "Low-stock alerts",
+                  "Email notifications",
+                  "1 year free support",
+                ],
+              },
+              {
+                name: "Standard",
+                monthlyRef: "LKR 8,000/mo equivalent",
+                desc: "Growing shops — most popular",
+                color: "#2DA86B",
+                features: [
+                  "Up to 3 devices",
+                  "Unlimited products",
+                  "Customer management",
+                  "Expense tracking + P&L",
+                  "Offline POS mode",
+                  "Device Lock & access control",
+                  "SMS add-on available",
+                  "1 year free support",
+                ],
+                popular: true,
+              },
+              {
+                name: "Premium",
+                monthlyRef: "LKR 13,000/mo equivalent",
+                desc: "Busy shops needing everything",
+                color: "#A78BFA",
+                features: [
+                  "Unlimited devices",
+                  "Advanced analytics",
+                  "Device Lock & access control",
+                  "Priority WhatsApp support",
+                  "SMS add-on available",
+                  "Everything in Standard",
+                  "1 year free support",
+                ],
+              },
+            ].map((plan) => (
+              <div
+                key={plan.name}
+                className={`relative rounded-2xl flex flex-col overflow-hidden ${
+                  plan.popular
+                    ? "border-2 border-[#EAB308]/50 bg-gradient-to-b from-[#EAB308]/8 to-[#EAB308]/3"
+                    : "border border-[#EAB308]/15 bg-[#EAB308]/[0.03]"
+                }`}
+              >
+                {/* Top accent line */}
+                <div className="h-px w-full" style={{ background: `linear-gradient(90deg, transparent, ${plan.color}50, transparent)` }} />
+
+                {plan.popular && (
+                  <div className="absolute -top-0 left-1/2 -translate-x-1/2 bg-[#EAB308] text-[#0a0f0c] text-xs font-bold px-4 py-1 rounded-b-lg">
+                    Most Popular
+                  </div>
+                )}
+
+                <div className="p-7 flex flex-col flex-1">
+                  <div className="mb-5 mt-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-bold" style={{ color: plan.color }}>{plan.name}</p>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#EAB308] bg-[#EAB308]/10 rounded-full px-2 py-0.5">
+                        <Infinity className="h-3 w-3" /> Lifetime
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-1.5 mt-2">
+                      <span className="text-2xl font-bold text-white">One-time payment</span>
+                    </div>
+                    <p className="text-xs text-white/25 mt-0.5">{plan.monthlyRef}</p>
+                    <p className="text-sm text-white/30 mt-1">{plan.desc}</p>
+                  </div>
+
+                  <ul className="space-y-2.5 flex-1 mb-7">
+                    {plan.features.map((feat) => (
+                      <li key={feat} className="flex items-start gap-2.5 text-sm text-white/60">
+                        <Check className="h-4 w-4 flex-shrink-0 mt-0.5 text-[#EAB308]" />
+                        {feat}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <a
+                    href="https://wa.me/94775202362"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-center text-sm font-bold rounded-xl px-4 py-3 transition-all hover:opacity-90"
+                    style={
+                      plan.popular
+                        ? { background: "linear-gradient(135deg, #EAB308, #ca9a06)", color: "#0a0f0c" }
+                        : { border: "1px solid rgba(234,179,8,0.25)", color: "rgba(234,179,8,0.8)" }
+                    }
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <PhoneCall className="h-3.5 w-3.5" />
+                      Get pricing
+                    </span>
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Maintenance policy note */}
+          <div className="rounded-2xl border border-[#EAB308]/15 bg-[#EAB308]/[0.03] px-6 py-5 flex flex-col sm:flex-row gap-5 items-start">
+            <div className="w-10 h-10 rounded-xl bg-[#EAB308]/10 border border-[#EAB308]/20 flex items-center justify-center flex-shrink-0">
+              <Wrench className="h-5 w-5 text-[#EAB308]" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-[#EAB308] mb-2">Maintenance & Support Policy — All Lifetime Plans</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-white/40">
+                <div className="flex items-start gap-2">
+                  <Check className="h-4 w-4 text-[#2DA86B] flex-shrink-0 mt-0.5" />
+                  <span><span className="text-white/60 font-medium">Year 1 — Completely free:</span> Software updates, bug fixes, new features, and direct support — all included.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Star className="h-4 w-4 text-[#EAB308] flex-shrink-0 mt-0.5" />
+                  <span><span className="text-white/60 font-medium">From Year 2 onwards:</span> Optional annual maintenance of <span className="text-[#EAB308] font-semibold">LKR 5,000 – 10,000</span> keeps your system updated with new features and continued support.</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
