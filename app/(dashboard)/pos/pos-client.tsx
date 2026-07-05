@@ -200,6 +200,7 @@ export function POSClient() {
   const [productsLoading, setProductsLoading] = useState(true);
   const [allCached, setAllCached] = useState<CachedProduct[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [qtyInputs, setQtyInputs] = useState<Record<string, string>>({});
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
 
@@ -1022,8 +1023,13 @@ export function POSClient() {
                           type="number"
                           min={isFractional(item.unit) ? 0.001 : 1}
                           step={qtyStep(item.unit)}
-                          value={item.quantity}
-                          onChange={(e) => setExactQty(item.productId, parseFloat(e.target.value))}
+                          value={qtyInputs[item.productId] ?? String(item.quantity)}
+                          onChange={(e) => setQtyInputs((prev) => ({ ...prev, [item.productId]: e.target.value }))}
+                          onBlur={(e) => {
+                            const qty = parseFloat(e.target.value);
+                            if (!isNaN(qty) && qty > 0) setExactQty(item.productId, qty);
+                            setQtyInputs((prev) => { const n = { ...prev }; delete n[item.productId]; return n; });
+                          }}
                           className="w-16 text-sm font-mono text-center border border-border rounded px-1 py-0.5 bg-background text-foreground"
                         />
                         <span className="text-xs text-muted-foreground">{item.unit}</span>
