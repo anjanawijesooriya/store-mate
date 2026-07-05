@@ -27,6 +27,8 @@ export async function GET() {
       branchModeEnabled: true,
       deviceLockEnabled: true,
       isLifetime: true,
+      maintenanceDueDate: true,
+      maintenancePaidUntil: true,
       trialEndsAt: true,
       gracePeriodEndsAt: true,
       nextBillingDate: true,
@@ -34,6 +36,10 @@ export async function GET() {
       payments: {
         orderBy: { paidAt: "desc" },
         select: { paidAt: true, amount: true, billingMonth: true, planTier: true, reference: true, note: true },
+      },
+      maintenancePayments: {
+        orderBy: { paidAt: "desc" },
+        select: { id: true, amount: true, method: true, reference: true, note: true, periodStart: true, periodEnd: true, paidAt: true },
       },
       _count: { select: { sales: true, products: true } },
       users: {
@@ -48,7 +54,16 @@ export async function GET() {
     ...s,
     email: users[0]?.email ?? null,
     smsBalance: Number(s.smsBalance),
+    maintenanceDueDate:   s.maintenanceDueDate?.toISOString() ?? null,
+    maintenancePaidUntil: s.maintenancePaidUntil?.toISOString() ?? null,
     payments: s.payments.map((p) => ({ ...p, amount: Number(p.amount) })),
+    maintenancePayments: s.maintenancePayments.map((p) => ({
+      ...p,
+      amount:      Number(p.amount),
+      periodStart: p.periodStart.toISOString(),
+      periodEnd:   p.periodEnd.toISOString(),
+      paidAt:      p.paidAt.toISOString(),
+    })),
   }));
 
   return Response.json({ shops: result });

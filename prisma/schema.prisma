@@ -106,6 +106,8 @@ model Shop {
   branchModeEnabled      Boolean       @default(false) // reserved for future multi-branch
   deviceLockEnabled      Boolean       @default(false) // restricts non-primary devices
   isLifetime             Boolean       @default(false)
+  maintenanceDueDate     DateTime?     // when next maintenance payment is due (lifetime shops only)
+  maintenancePaidUntil   DateTime?     // maintenance paid and active until this date
   // Branch Mode — null means standalone shop, set when owner links branches
   shopGroupId       String?
   shopGroup         ShopGroup?   @relation(fields: [shopGroupId], references: [id])
@@ -116,8 +118,9 @@ model Shop {
   customers         Customer[]
   expenses          Expense[]
   smsLogs           SmsLog[]
-  payments          Payment[]
-  devices           DeviceSession[]
+  payments             Payment[]
+  maintenancePayments  MaintenancePayment[]
+  devices              DeviceSession[]
 
   @@index([shopGroupId])
 }
@@ -289,6 +292,23 @@ model Payment {
   note         String?
   paidAt       DateTime @default(now())
   createdAt    DateTime @default(now())
+
+  @@index([shopId])
+}
+
+model MaintenancePayment {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  amount      Decimal  @db.Decimal(10, 2)
+  currency    String   @default("LKR")
+  method      String   @default("MANUAL")
+  reference   String?
+  note        String?
+  periodStart DateTime
+  periodEnd   DateTime
+  paidAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([shopId])
 }

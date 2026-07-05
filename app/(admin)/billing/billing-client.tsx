@@ -6,6 +6,7 @@ import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
   MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench, Infinity, Search,
+  CalendarClock, AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,18 @@ interface Shop {
   branchModeEnabled: boolean;
   deviceLockEnabled: boolean;
   isLifetime: boolean;
+  maintenanceDueDate: string | null;
+  maintenancePaidUntil: string | null;
+  maintenancePayments: Array<{
+    id: string;
+    amount: number;
+    method: string;
+    reference: string | null;
+    note: string | null;
+    periodStart: string;
+    periodEnd: string;
+    paidAt: string;
+  }>;
 }
 
 const STATUS_CONFIG: Record<BillingStatus, { label: string; className: string }> = {
@@ -83,6 +96,54 @@ function daysLeft(d: Date | null) {
   return Math.max(0, Math.round((end.getTime() - today.getTime()) / 86_400_000));
 }
 
+const MAINTENANCE_PRESETS = [5000, 7500, 10000];
+const MAINTENANCE_GRACE_DAYS = 30;
+
+type MaintenanceUrgency = "free" | "paid" | "upcoming" | "due" | "overdue";
+
+function getMaintenanceStatus(shop: Shop): {
+  urgency: MaintenanceUrgency;
+  label: string;
+  className: string;
+} | null {
+  if (!shop.isLifetime) return null;
+
+  const now = new Date();
+
+  // Currently paid
+  if (shop.maintenancePaidUntil) {
+    const paidUntil = new Date(shop.maintenancePaidUntil);
+    if (paidUntil > now) {
+      const days = Math.round((paidUntil.getTime() - now.getTime()) / 86_400_000);
+      if (days > 60) return { urgency: "paid", label: `Maint. paid · ${fmt(paidUntil)}`, className: "bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20" };
+      return { urgency: "upcoming", label: `Maint. expires in ${days}d`, className: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20" };
+    }
+  }
+
+  // No due date set → still in free period (admin hasn't configured yet)
+  if (!shop.maintenanceDueDate) {
+    return { urgency: "free", label: "Maint. free period", className: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20" };
+  }
+
+  const dueDate = new Date(shop.maintenanceDueDate);
+
+  // Due date in future → free period / upcoming
+  if (dueDate > now) {
+    const days = Math.round((dueDate.getTime() - now.getTime()) / 86_400_000);
+    if (days > 60) return { urgency: "free", label: `Maint. free · ${fmt(dueDate)}`, className: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20" };
+    return { urgency: "upcoming", label: `Maint. due in ${days}d`, className: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20" };
+  }
+
+  // Past due date — check grace period
+  const graceEnd = new Date(dueDate.getTime() + MAINTENANCE_GRACE_DAYS * 86_400_000);
+  if (graceEnd > now) {
+    const days = Math.round((graceEnd.getTime() - now.getTime()) / 86_400_000);
+    return { urgency: "due", label: `Maint. due · ${days}d grace`, className: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/20" };
+  }
+
+  return { urgency: "overdue", label: "Maint. OVERDUE", className: "bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20" };
+}
+
 const SMS_PRESETS = [500, 1000, 2000, 5000];
 
 export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
@@ -111,6 +172,12 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [togglingDeviceLock, setTogglingDeviceLock] = useState<string | null>(null);
   const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
+  // Maintenance payment dialogs
+  const [maintPayShop, setMaintPayShop] = useState<Shop | null>(null);
+  const [maintHistoryShop, setMaintHistoryShop] = useState<Shop | null>(null);
+  const [maintPayForm, setMaintPayForm] = useState({ amount: "", method: "MANUAL", reference: "", note: "" });
+  const [savingMaintPay, setSavingMaintPay] = useState(false);
 
   const filteredShops = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -213,6 +280,34 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       toast.error("Failed to update global maintenance");
     } finally {
       setSavingGlobal(false);
+    }
+  }
+
+  async function handleRecordMaintenance() {
+    if (!maintPayShop) return;
+    const amount = parseFloat(maintPayForm.amount);
+    if (!amount || amount <= 0) return;
+    setSavingMaintPay(true);
+    try {
+      const res = await fetch(`/api/admin/shops/${maintPayShop.id}/maintenance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount,
+          method: maintPayForm.method,
+          reference: maintPayForm.reference || undefined,
+          note: maintPayForm.note || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`Maintenance payment of LKR ${amount.toLocaleString()} recorded for ${maintPayShop.name}`);
+      setMaintPayShop(null);
+      setMaintPayForm({ amount: "", method: "MANUAL", reference: "", note: "" });
+      await refresh();
+    } catch {
+      toast.error("Failed to record maintenance payment");
+    } finally {
+      setSavingMaintPay(false);
     }
   }
 
@@ -421,6 +516,10 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
     active:   shops.filter((s) => s.billingStatus === "ACTIVE" && !s.isLifetime).length,
     trial:    shops.filter((s) => s.billingStatus === "TRIAL").length,
     atRisk:   shops.filter((s) => s.billingStatus === "GRACE" || s.billingStatus === "LOCKED").length,
+    maintDue: shops.filter((s) => {
+      const ms = getMaintenanceStatus(s);
+      return ms && (ms.urgency === "due" || ms.urgency === "overdue" || ms.urgency === "upcoming");
+    }).length,
   };
 
   return (
@@ -497,13 +596,14 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
-          { label: "Total Shops",    count: summary.total,    icon: Users,      color: "text-primary",                                  bg: "bg-primary/10" },
-          { label: "Lifetime",       count: summary.lifetime, icon: Infinity,   color: "text-yellow-600 dark:text-yellow-400",          bg: "bg-yellow-500/10" },
-          { label: "Active",         count: summary.active,   icon: TrendingUp, color: "text-green-600 dark:text-green-400",            bg: "bg-green-500/10" },
-          { label: "Trial",          count: summary.trial,    icon: Clock,      color: "text-blue-600 dark:text-blue-400",              bg: "bg-blue-500/10" },
-          { label: "Grace / Locked", count: summary.atRisk,   icon: ShieldAlert,color: "text-red-600 dark:text-red-400",               bg: "bg-red-500/10" },
+          { label: "Total Shops",    count: summary.total,    icon: Users,         color: "text-primary",                                  bg: "bg-primary/10" },
+          { label: "Lifetime",       count: summary.lifetime, icon: Infinity,      color: "text-yellow-600 dark:text-yellow-400",          bg: "bg-yellow-500/10" },
+          { label: "Active",         count: summary.active,   icon: TrendingUp,    color: "text-green-600 dark:text-green-400",            bg: "bg-green-500/10" },
+          { label: "Trial",          count: summary.trial,    icon: Clock,         color: "text-blue-600 dark:text-blue-400",              bg: "bg-blue-500/10" },
+          { label: "Grace / Locked", count: summary.atRisk,   icon: ShieldAlert,   color: "text-red-600 dark:text-red-400",               bg: "bg-red-500/10" },
+          { label: "Maint. Due",     count: summary.maintDue, icon: CalendarClock, color: "text-orange-600 dark:text-orange-400",          bg: "bg-orange-500/10" },
         ].map((s) => (
           <Card key={s.label} className="shadow-sm overflow-hidden relative">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-primary/40 via-primary/10 to-transparent" />
@@ -640,6 +740,16 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                           {dl > 0 ? `${dl}d left` : "Expired"}
                         </p>
                       )}
+                      {shop.isLifetime && (() => {
+                        const ms = getMaintenanceStatus(shop);
+                        if (!ms) return null;
+                        return (
+                          <span className={`inline-flex items-center gap-1 mt-1 rounded-full px-2 py-0.5 text-xs font-semibold ${ms.className}`}>
+                            {ms.urgency === "overdue" ? <AlertTriangle className="h-3 w-3" /> : <CalendarClock className="h-3 w-3" />}
+                            {ms.label}
+                          </span>
+                        );
+                      })()}
                       {shop.maintenanceBanner && (
                         <span className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">
                           <Wrench className="h-3 w-3" />
@@ -650,7 +760,11 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
 
                     {/* Key date */}
                     <td className="px-4 py-3.5 text-xs text-muted-foreground whitespace-nowrap">
-                      {shop.isLifetime ? "—" : keyDate}
+                      {shop.isLifetime ? (
+                        shop.maintenanceDueDate ? (
+                          <span>Maint. due {fmt(shop.maintenanceDueDate)}</span>
+                        ) : "—"
+                      ) : keyDate}
                     </td>
 
                     {/* Activity */}
@@ -831,6 +945,31 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                                 <Lock className="h-3.5 w-3.5" />
                                 Reset Primary Device
                               </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* Maintenance payment — only for lifetime shops */}
+                            {shop.isLifetime && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setMaintPayForm({ amount: "7500", method: "MANUAL", reference: "", note: "" });
+                                    setMaintPayShop(shop);
+                                  }}
+                                  className="gap-2"
+                                >
+                                  <CalendarClock className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                                  Record Maintenance Payment
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => setMaintHistoryShop(shop)}
+                                  className="gap-2"
+                                >
+                                  <Receipt className="h-3.5 w-3.5" />
+                                  Maintenance History
+                                </DropdownMenuItem>
+                              </>
                             )}
 
                             <DropdownMenuSeparator />
@@ -1288,6 +1427,175 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Record Maintenance Payment dialog ── */}
+      <Dialog open={!!maintPayShop} onOpenChange={(o) => !o && setMaintPayShop(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-green-600 dark:text-green-400" />
+              Record Maintenance Payment
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground -mt-1">
+            Annual maintenance for <span className="font-semibold text-foreground">{maintPayShop?.name}</span>.
+            Access will be renewed for 1 year from today.
+          </p>
+          {maintPayShop && (() => {
+            const ms = getMaintenanceStatus(maintPayShop);
+            if (ms && (ms.urgency === "due" || ms.urgency === "overdue")) {
+              return (
+                <div className="flex items-start gap-2 rounded-md border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30 px-3 py-2.5 text-xs text-orange-700 dark:text-orange-400">
+                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  <span>{ms.urgency === "overdue" ? "Maintenance is overdue." : "Maintenance payment is due."} Record payment to extend access by 1 year.</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Amount (LKR)</Label>
+              <div className="flex gap-2 flex-wrap">
+                {MAINTENANCE_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setMaintPayForm((f) => ({ ...f, amount: String(preset) }))}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors ${
+                      maintPayForm.amount === String(preset)
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border bg-card hover:bg-muted text-foreground"
+                    }`}
+                  >
+                    LKR {preset.toLocaleString()}
+                  </button>
+                ))}
+              </div>
+              <Input
+                type="number"
+                min="1"
+                value={maintPayForm.amount}
+                onChange={(e) => setMaintPayForm((f) => ({ ...f, amount: e.target.value }))}
+                placeholder="Or enter custom amount"
+                className="h-10 mt-2"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Payment Method</Label>
+              <Select value={maintPayForm.method} onValueChange={(v) => setMaintPayForm((f) => ({ ...f, method: v ?? "MANUAL" }))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent className="w-max min-w-(--anchor-width)">
+                  <SelectItem value="MANUAL">Manual / Cash</SelectItem>
+                  <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                  <SelectItem value="ONLINE">Online Payment</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Reference <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Input
+                value={maintPayForm.reference}
+                onChange={(e) => setMaintPayForm((f) => ({ ...f, reference: e.target.value }))}
+                placeholder="Bank ref, receipt number…"
+                className="h-10"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Note <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Input
+                value={maintPayForm.note}
+                onChange={(e) => setMaintPayForm((f) => ({ ...f, note: e.target.value }))}
+                placeholder="Any additional notes…"
+                className="h-10"
+              />
+            </div>
+            {maintPayForm.amount && parseFloat(maintPayForm.amount) > 0 && (
+              <div className="rounded-md bg-green-500/5 border border-green-500/20 px-3 py-2 text-xs text-green-700 dark:text-green-400">
+                Maintenance will be active until <span className="font-bold">{fmt(new Date(Date.now() + 365 * 86_400_000))}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMaintPayShop(null)}>Cancel</Button>
+            <Button
+              disabled={!maintPayForm.amount || parseFloat(maintPayForm.amount) <= 0 || savingMaintPay}
+              onClick={handleRecordMaintenance}
+              className="gap-2"
+            >
+              {savingMaintPay ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+              Record Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Maintenance History dialog ── */}
+      <Dialog open={!!maintHistoryShop} onOpenChange={(o) => !o && setMaintHistoryShop(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              Maintenance History — {maintHistoryShop?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {maintHistoryShop && (() => {
+            const ms = getMaintenanceStatus(maintHistoryShop);
+            return ms ? (
+              <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold w-fit ${ms.className}`}>
+                <CalendarClock className="h-3.5 w-3.5" />
+                Current status: {ms.label}
+              </div>
+            ) : null;
+          })()}
+          {(maintHistoryShop?.maintenancePayments.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">No maintenance payments recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border">
+                    {["Period", "Amount", "Method", "Paid On", "Reference / Note"].map((h) => (
+                      <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-2 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {maintHistoryShop?.maintenancePayments.map((p) => (
+                    <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                        {fmt(p.periodStart)} → {fmt(p.periodEnd)}
+                      </td>
+                      <td className="px-3 py-2.5 font-semibold text-foreground whitespace-nowrap">LKR {p.amount.toLocaleString()}</td>
+                      <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap capitalize">{p.method.replace("_", " ").toLowerCase()}</td>
+                      <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{fmt(p.paidAt)}</td>
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                        {p.reference || p.note
+                          ? <span title={[p.reference, p.note].filter(Boolean).join(" — ")}>{p.reference ?? p.note}</span>
+                          : <span className="text-muted-foreground/50">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="flex justify-between items-center pt-1 text-xs text-muted-foreground">
+            <span>{maintHistoryShop?.maintenancePayments.length ?? 0} payment{(maintHistoryShop?.maintenancePayments.length ?? 0) !== 1 ? "s" : ""} total</span>
+            <span>Total collected: LKR {(maintHistoryShop?.maintenancePayments.reduce((s, p) => s + p.amount, 0) ?? 0).toLocaleString()}</span>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMaintHistoryShop(null)}>Close</Button>
+            <Button
+              className="gap-2"
+              onClick={() => { setMaintHistoryShop(null); setMaintPayForm({ amount: "7500", method: "MANUAL", reference: "", note: "" }); setMaintPayShop(maintHistoryShop); }}
+            >
+              <CalendarClock className="h-4 w-4" />
+              Record New Payment
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

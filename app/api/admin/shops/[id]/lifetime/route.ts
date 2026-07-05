@@ -14,24 +14,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + 7);
 
+  // Lifetime shops get 1 year free maintenance, then annual fee kicks in
+  const maintenanceDueDate = new Date();
+  maintenanceDueDate.setFullYear(maintenanceDueDate.getFullYear() + 1);
+
   const shop = await db.shop.update({
     where: { id: shopId },
     data: {
       isLifetime: enable,
       ...(enable
         ? {
-            // Enabling: force ACTIVE, clear billing dates so cron never touches it
             billingStatus: BillingStatus.ACTIVE,
             nextBillingDate: null,
             gracePeriodEndsAt: null,
             trialEndsAt: null,
+            maintenanceDueDate,       // first maintenance due 1 year from now
+            maintenancePaidUntil: null,
           }
         : {
-            // Disabling: revert to TRIAL with 7-day grace to arrange monthly billing
             billingStatus: BillingStatus.TRIAL,
             trialEndsAt,
             nextBillingDate: null,
             gracePeriodEndsAt: null,
+            maintenanceDueDate: null,
+            maintenancePaidUntil: null,
           }),
     },
     select: { id: true, isLifetime: true, billingStatus: true },
