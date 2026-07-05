@@ -72,6 +72,15 @@ enum BillingStatus {
   LOCKED
 }
 
+// Reserved for future Branch Mode — links multiple shops under one owner.
+// Nullable so all existing shops are unaffected until they opt in.
+model ShopGroup {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  shops     Shop[]
+}
+
 model Shop {
   id                String       @id @default(cuid())
   name              String
@@ -96,6 +105,9 @@ model Shop {
   maintenanceBannerMessage String?
   branchModeEnabled      Boolean       @default(false)
   isLifetime             Boolean       @default(false)
+  // Branch Mode — null means standalone shop, set when owner links branches
+  shopGroupId       String?
+  shopGroup         ShopGroup?   @relation(fields: [shopGroupId], references: [id])
   createdAt         DateTime     @default(now())
   users             User[]
   products          Product[]
@@ -105,6 +117,8 @@ model Shop {
   smsLogs           SmsLog[]
   payments          Payment[]
   devices           DeviceSession[]
+
+  @@index([shopGroupId])
 }
 
 model DeviceSession {
