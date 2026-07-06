@@ -84,7 +84,9 @@ export async function GET() {
         severity: "warning",
         title: "Payment overdue",
         body: endsAt
-          ? `Grace period ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}. Please settle your subscription to avoid account lock.`
+          ? daysLeft <= 0
+            ? "Grace period has expired. Please settle your subscription immediately to restore access."
+            : `Grace period ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}. Please settle your subscription to avoid account lock.`
           : "Please settle your subscription payment to avoid account lock.",
         href: "/settings",
       });
