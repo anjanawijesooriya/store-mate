@@ -41,7 +41,7 @@ export async function GET() {
         orderBy: { paidAt: "desc" },
         select: { id: true, amount: true, method: true, reference: true, note: true, periodStart: true, periodEnd: true, paidAt: true },
       },
-      _count: { select: { sales: true, products: true } },
+      _count: { select: { sales: true } },
       users: {
         where:  { role: "OWNER" },
         select: { email: true },
@@ -50,9 +50,24 @@ export async function GET() {
     },
   });
 
+  const inventoryRows = await db.$queryRaw<{ shopId: string; products: bigint; services: bigint }[]>`
+    SELECT
+      "shopId",
+      COUNT(*) FILTER (WHERE "isService" = false AND "isActive" = true) AS products,
+      COUNT(*) FILTER (WHERE "isService" = true  AND "isActive" = true) AS services
+    FROM "Product"
+    GROUP BY "shopId"
+  `;
+  const inventoryMap = new Map(inventoryRows.map((r) => [r.shopId, {
+    products: Number(r.products),
+    services: Number(r.services),
+  }]));
+
   const result = shops.map(({ users, ...s }) => ({
     ...s,
     email: users[0]?.email ?? null,
+    productsCount: inventoryMap.get(s.id)?.products ?? 0,
+    servicesCount: inventoryMap.get(s.id)?.services ?? 0,
     smsBalance: Number(s.smsBalance),
     maintenanceDueDate:   s.maintenanceDueDate?.toISOString() ?? null,
     maintenancePaidUntil: s.maintenancePaidUntil?.toISOString() ?? null,

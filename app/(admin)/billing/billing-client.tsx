@@ -43,7 +43,9 @@ interface Shop {
   nextBillingDate: Date | null;
   createdAt: Date;
   payments: Array<{ paidAt: Date; amount: number; billingMonth: string; planTier: string; reference: string | null; note: string | null }>;
-  _count: { sales: number; products: number };
+  _count: { sales: number };
+  productsCount: number;
+  servicesCount: number;
   smsAddonEnabled: boolean;
   smsBalance: number;
   emailLowStock: boolean;
@@ -770,7 +772,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                     {/* Activity */}
                     <td className="px-4 py-3.5">
                       <p className="text-xs font-medium text-foreground">{shop._count.sales} sales</p>
-                      <p className="text-xs text-muted-foreground">{shop._count.products} products</p>
+                      <p className="text-xs text-muted-foreground">{shop.productsCount} products · {shop.servicesCount} services</p>
                     </td>
 
                     {/* Last payment */}
@@ -1331,7 +1333,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
               <p className="font-semibold text-sm">This action cannot be undone.</p>
               <p>All data for <span className="font-semibold">{deleteShop?.name}</span> will be permanently deleted:</p>
               <p>• {deleteShop?._count.sales ?? 0} sales records</p>
-              <p>• {deleteShop?._count.products ?? 0} products</p>
+              <p>• {deleteShop?.productsCount ?? 0} products · {deleteShop?.servicesCount ?? 0} services</p>
               <p>• All customers, expenses, payments, devices &amp; users</p>
             </div>
             <div className="space-y-1.5">
