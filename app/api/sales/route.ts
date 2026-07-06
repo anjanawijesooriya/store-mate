@@ -90,19 +90,26 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // Check stock — services have no stock requirement
-    for (const item of saleItems) {
-      if (!item.isService && item.stockQty < item.quantity) {
-        return apiError(`Insufficient stock for ${item.productName} (have ${item.stockQty}, need ${item.quantity})`);
-      }
-    }
-
     const subtotal = saleItems.reduce((sum, i) => sum + i.lineTotal, 0);
     const discountAmt = parseFloat(String(discount ?? 0));
     const total = Math.max(0, subtotal - discountAmt);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sale = await db.$transaction(async (tx: any) => {
+      // Re-read stock inside the transaction to prevent race conditions when
+      // multiple cashiers sell the same product simultaneously
+      for (const item of saleItems) {
+        if (item.isService) continue;
+        const fresh = await tx.product.findUnique({
+          where: { id: item.productId },
+          select: { stockQty: true },
+        });
+        const currentQty = Number(fresh?.stockQty ?? 0);
+        if (currentQty < item.quantity) {
+          throw new Error(`Insufficient stock for ${item.productName} (have ${currentQty}, need ${item.quantity})`);
+        }
+      }
+
       const s = await tx.sale.create({
         data: {
           shopId,
