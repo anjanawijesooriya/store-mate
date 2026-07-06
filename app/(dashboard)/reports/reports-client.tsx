@@ -305,7 +305,7 @@ export function ReportsClient({ planTier }: { planTier: string }) {
               {/* Top products */}
               <Card className="shadow-sm">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Top Products</CardTitle>
+                  <CardTitle className="text-base">Top Products &amp; Services</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {data.topProducts.length === 0 ? (

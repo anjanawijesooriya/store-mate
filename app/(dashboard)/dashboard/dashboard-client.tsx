@@ -277,7 +277,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         {/* Top products */}
         <Card className="shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Top Products This Week</CardTitle>
+            <CardTitle className="text-base font-semibold">Top Products &amp; Services This Week</CardTitle>
           </CardHeader>
           <CardContent>
             {data.topProducts.length === 0 ? (
