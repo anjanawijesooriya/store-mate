@@ -62,25 +62,25 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
   return (
     <aside className="flex flex-col h-full bg-sidebar text-sidebar-foreground overflow-hidden">
       {/* Logo / shop name */}
-      <div className="flex items-start justify-between px-3 pt-5 pb-4 border-b border-sidebar-border">
+      <div className="flex items-start justify-between pb-2 border-b border-sidebar-border">
         <Link
           href={isNonPrimary ? "/pos" : "/dashboard"}
           onClick={onClose}
-          className="flex flex-col min-w-0 flex-1 pl-3 hover:opacity-80 transition-opacity"
+          className="flex flex-col min-w-0 flex-1 px-2 hover:opacity-80 transition-opacity"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/storemate-logo.png"
+            src="/StoreMate-logo-1.png"
             alt="StoreMate"
             style={{
-              height: 45,
-              width: "auto",
-              maxWidth: "80%",
+              width: "100%",
+              maxWidth: 175,
+              height: "auto",
               display: "block",
               filter: "drop-shadow(0 0 8px rgba(255,255,255,0.5))",
             }}
           />
-          <p className="mt-2 text-sm font-semibold text-sidebar-foreground truncate leading-tight">{shopName}</p>
+          <p className="-mt-6 ml-4 text-sm font-semibold text-sidebar-foreground truncate leading-tight">{shopName}</p>
         </Link>
         {onClose && (
           <Button

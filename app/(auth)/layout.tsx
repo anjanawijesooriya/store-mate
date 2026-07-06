@@ -1,9 +1,9 @@
-import { Check } from "lucide-react";
+﻿import { Check } from "lucide-react";
 import Link from "next/link";
-import logoSrc from "@/public/storemate-logo.png";
+import logoSrc from "@/public/StoreMate-logo-1.png";
 
 const FEATURES = [
-  "Full offline POS — works even without internet",
+  "Full offline POS â€” works even without internet",
   "Inventory tracking with low-stock alerts",
   "Sales reports, P&L, and expense tracking",
   "Customer credit management built-in",
@@ -12,7 +12,7 @@ const FEATURES = [
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
-      {/* ── Brand panel (desktop only) ── */}
+      {/* â”€â”€ Brand panel (desktop only) â”€â”€ */}
       <div className="hidden lg:flex lg:w-[46%] xl:w-[42%] flex-col bg-[#0a0f0c] p-12 relative overflow-hidden">
         {/* Ambient glows */}
         <div className="absolute top-1/3 -left-16 w-96 h-96 bg-[#2DA86B]/8 rounded-full blur-3xl pointer-events-none" />
@@ -24,7 +24,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <img
             src={logoSrc.src}
             alt="StoreMate"
-            style={{ height: 48, width: "auto", display: "block", filter: "drop-shadow(0 0 8px rgba(255,255,255,0.5))" }}
+            style={{ height: 158, width: "auto", display: "block",}}
           />
         </Link>
 
@@ -37,7 +37,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             Your shop, <br />smarter.
           </h2>
           <p className="mt-4 text-gray-400 text-base leading-relaxed max-w-xs">
-            Everything a local shop owner needs — POS, stock, sales, and reports — in one app.
+            Everything a local shop owner needs â€” POS, stock, sales, and reports â€” in one app.
           </p>
 
           <div className="mt-10 space-y-4">
@@ -72,14 +72,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
       </div>
 
-      {/* ── Form panel ── */}
+      {/* â”€â”€ Form panel â”€â”€ */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background min-h-screen">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-10">
             <Link href="/" className="inline-flex items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logoSrc.src} alt="StoreMate" style={{ height: 40, width: "auto" }} />
+              <img src={logoSrc.src} alt="StoreMate" style={{ height: 80, width: "auto" }} />
             </Link>
           </div>
 
@@ -89,3 +89,4 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     </div>
   );
 }
+

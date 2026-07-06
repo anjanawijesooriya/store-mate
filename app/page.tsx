@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import logoSrc from "@/public/storemate-logo.png";
+import logoSrc from "@/public/StoreMate-logo-1.png";
 import {
   ShoppingCart,
   Package,
@@ -37,7 +37,7 @@ export default async function HomePage() {
           <img
             src={logoSrc.src}
             alt="StoreMate"
-            style={{ height: 44, width: "auto", display: "block", filter: "drop-shadow(0 0 8px rgba(255,255,255,0.5))" }}
+            style={{ height: 120, width: "auto", display: "block" }}
           />
           <nav className="hidden md:flex items-center gap-6 text-sm text-white/60">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -711,7 +711,7 @@ export default async function HomePage() {
             <img
               src={logoSrc.src}
               alt="StoreMate"
-              style={{ height: 32, width: "auto", display: "block", filter: "drop-shadow(0 0 4px rgba(255,255,255,0.3))", opacity: 0.85 }}
+              style={{ height: 98, width: "auto", display: "block", opacity: 0.75, }}
             />
             <span className="text-white/20 text-sm">— Smart shop management</span>
           </div>
