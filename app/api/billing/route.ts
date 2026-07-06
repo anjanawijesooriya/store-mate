@@ -36,7 +36,22 @@ export async function GET() {
     });
 
     if (!shop) return apiError("Shop not found", 404);
-    return Response.json({ billing: shop });
+
+    // Compute effective status in real-time so clients see LOCKED immediately
+    // when the grace/trial period expires, even if the cron hasn't run yet.
+    let effectiveStatus = shop.billingStatus;
+    const now = new Date();
+    if (shop.billingStatus === "GRACE" && shop.gracePeriodEndsAt && now > shop.gracePeriodEndsAt) {
+      effectiveStatus = "LOCKED";
+      await db.shop.update({ where: { id: shopId }, data: { billingStatus: "LOCKED" } });
+    } else if (shop.billingStatus === "TRIAL" && shop.trialEndsAt && now > shop.trialEndsAt) {
+      effectiveStatus = "GRACE";
+      const gracePeriodEndsAt = new Date(shop.trialEndsAt);
+      gracePeriodEndsAt.setDate(gracePeriodEndsAt.getDate() + 3);
+      await db.shop.update({ where: { id: shopId }, data: { billingStatus: "GRACE", gracePeriodEndsAt } });
+    }
+
+    return Response.json({ billing: { ...shop, billingStatus: effectiveStatus } });
   } catch (err) {
     if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     return apiError("Failed to fetch billing info", 500);

@@ -27,10 +27,21 @@ export function BillingBanner() {
   const pathname = usePathname();
 
   useEffect(() => {
-    fetch("/api/billing")
-      .then((r) => r.json())
-      .then((d) => setBilling(d.billing))
-      .catch(() => {});
+    const fetchBilling = () =>
+      fetch("/api/billing")
+        .then((r) => r.json())
+        .then((d) => setBilling(d.billing))
+        .catch(() => {});
+
+    fetchBilling();
+    // Poll every 5 minutes to catch grace/trial expiry while user is logged in
+    const interval = setInterval(fetchBilling, 5 * 60 * 1000);
+    // Also re-check when the tab regains focus (user returns after time away)
+    window.addEventListener("focus", fetchBilling);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", fetchBilling);
+    };
   }, []);
 
   if (!billing || billing.isLifetime || pathname === "/settings") return null;
