@@ -10,8 +10,18 @@ function getDateRange(period: string, tz: string): { from: Date; to: Date } {
   switch (period) {
     case "today":
       return { from: localMidnightUTC(tz, 0), to };
-    case "week":
-      return { from: localMidnightUTC(tz, -6), to }; // 6 days ago → 7-day window
+    case "week": {
+      // Find Monday of the current calendar week in local timezone
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+      }).formatToParts(new Date());
+      const y  = parseInt(parts.find((p) => p.type === "year")!.value, 10);
+      const mo = parseInt(parts.find((p) => p.type === "month")!.value, 10) - 1;
+      const d  = parseInt(parts.find((p) => p.type === "day")!.value, 10);
+      const dow = new Date(Date.UTC(y, mo, d)).getDay(); // 0=Sun, 1=Mon…6=Sat
+      const daysSinceMonday = (dow + 6) % 7;            // Mon=0, Tue=1…Sun=6
+      return { from: localMidnightUTC(tz, -daysSinceMonday), to };
+    }
     case "month":
       return { from: localMonthStartUTC(tz, 0), to };
     case "last_month":
@@ -37,7 +47,7 @@ export async function GET(req: NextRequest) {
 
     const [salesRaw, expensesRaw] = await Promise.all([
       db.sale.findMany({
-        where: { shopId, createdAt: { gte: from, lte: to }, status: "COMPLETED" },
+        where: { shopId, createdAt: { gte: from, lte: to }, status: { in: ["COMPLETED", "PENDING_PAYMENT"] } },
         include: {
           items: {
             include: {
