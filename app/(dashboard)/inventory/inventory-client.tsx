@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Search, Package, Wrench, Edit, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Plus, Upload, Search, Package, Wrench, Edit, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { ProductDialog } from "@/components/inventory/product-dialog";
 import { StockAdjustDialog } from "@/components/inventory/stock-adjust-dialog";
+import { ImportDialog } from "@/components/inventory/import-dialog";
 import { cn } from "@/lib/utils";
 
 interface Product {
@@ -86,6 +87,7 @@ export function InventoryClient() {
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const fetchProducts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -142,10 +144,23 @@ export function InventoryClient() {
         title="Inventory"
         description={`${total} ${total !== 1 ? itemLabelPlural : itemLabel}`}
         action={
-          <Button onClick={() => setAddOpen(true)} className="font-semibold">
-            <Plus className="h-4 w-4 mr-2" />
-            {isServiceTab ? "Add Service" : "Add Product"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {!isServiceTab && (
+              <Button
+                variant="outline"
+                onClick={() => setImportOpen(true)}
+                className="font-semibold gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline">Import Excel</span>
+                <span className="sm:hidden">Import</span>
+              </Button>
+            )}
+            <Button onClick={() => setAddOpen(true)} className="font-semibold">
+              <Plus className="h-4 w-4 mr-2" />
+              {isServiceTab ? "Add Service" : "Add Product"}
+            </Button>
+          </div>
         }
       />
 
@@ -352,6 +367,12 @@ export function InventoryClient() {
           }}
         />
       )}
+
+      <ImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => fetchProducts()}
+      />
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteProduct} onOpenChange={(o) => { if (!o && !deleting) setDeleteProduct(null); }}>
