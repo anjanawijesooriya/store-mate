@@ -24,6 +24,7 @@ import {
   MessageSquare,
   Mail,
   Download,
+  ScanBarcode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,7 @@ import {
   markSaleFailed,
   type CachedProduct,
 } from "@/lib/offline-db";
+import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 
 interface Customer {
   id: string;
@@ -254,6 +256,39 @@ export function POSClient() {
   const [walkInPhone, setWalkInPhone] = useState("");
   const [walkInEmail, setWalkInEmail] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // Barcode scanner — look up product by SKU from the in-memory cache and add to cart
+  const handleBarcodeScan = useCallback((barcode: string) => {
+    const barcodeLower = barcode.toLowerCase();
+    const match = allCached.find(
+      (p) => p.sku && p.sku.toLowerCase() === barcodeLower
+    );
+    if (!match) {
+      toast.error(`No product found for barcode: ${barcode}`, { duration: 3000 });
+      // Clear whatever the scanner typed into the search box
+      setSearchQuery("");
+      setSearchResults([]);
+      return;
+    }
+    // Clear the search box first, then add — addToCart already handles stock checks
+    setSearchQuery("");
+    setSearchResults([]);
+    addToCart({
+      id: match.id,
+      name: match.name,
+      sku: match.sku,
+      unit: match.unit,
+      sellPrice: match.sellPrice,
+      stockQty: match.stockQty,
+      category: match.category,
+      warrantyPeriod: match.warrantyPeriod ?? null,
+      isService: match.isService ?? false,
+    });
+  // addToCart is defined below — stable because it only uses setCart + toast
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allCached]);
+
+  useBarcodeScan(handleBarcodeScan);
 
   const subtotal = cart.reduce((s, i) => s + i.lineTotal, 0);
   const discountAmt =
@@ -896,19 +931,26 @@ export function POSClient() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
               ref={searchRef}
-              placeholder="Search product name or service name..."
+              placeholder="Search or scan barcode..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 h-12 text-base"
               autoFocus
             />
-            {searchQuery && (
+            {searchQuery ? (
               <button
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 onClick={() => setSearchQuery("")}
               >
                 <X className="h-4 w-4" />
               </button>
+            ) : (
+              <div
+                className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-muted-foreground/50 pointer-events-none"
+                title="Barcode scanner ready"
+              >
+                <ScanBarcode className="h-4 w-4" />
+              </div>
             )}
           </div>
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ScanBarcode } from "lucide-react";
+import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import {
   Dialog,
   DialogContent,
@@ -96,6 +97,23 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
   const isEdit = !!product;
   const serviceMode = forceService ?? product?.isService ?? false;
   const [loading, setLoading] = useState(false);
+  const [skuFlash, setSkuFlash] = useState(false);
+  const skuRef = useRef<HTMLInputElement>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleBarcodeScan = useCallback((barcode: string) => {
+    update("sku", barcode);
+    skuRef.current?.focus();
+    setSkuFlash(true);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setSkuFlash(false), 1500);
+  // update is defined below but is stable (uses setForm only)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Only active when the dialog is open and we're adding/editing a product (not a service)
+  useBarcodeScan(handleBarcodeScan, { enabled: open && !serviceMode });
+
   const [form, setForm] = useState({
     name: "",
     sku: "",
@@ -224,12 +242,28 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
             {!serviceMode && (
               <div className="space-y-2">
                 <Label htmlFor="sku">SKU / Barcode</Label>
-                <Input
-                  id="sku"
-                  placeholder="e.g. 4890123456789"
-                  value={form.sku}
-                  onChange={(e) => update("sku", e.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    ref={skuRef}
+                    id="sku"
+                    placeholder="Type or scan barcode"
+                    value={form.sku}
+                    onChange={(e) => update("sku", e.target.value)}
+                    className={skuFlash ? "pr-20 ring-2 ring-[color:var(--brand-success)] border-[color:var(--brand-success)] transition-all" : "pr-8"}
+                  />
+                  {skuFlash ? (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[color:var(--brand-success)] pointer-events-none">
+                      Scanned!
+                    </span>
+                  ) : (
+                    <span
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                      title="Scan a barcode to fill automatically"
+                    >
+                      <ScanBarcode className="h-4 w-4 text-muted-foreground/40" />
+                    </span>
+                  )}
+                </div>
               </div>
             )}
             <div className={`space-y-2 ${serviceMode ? "col-span-2" : ""}`}>
