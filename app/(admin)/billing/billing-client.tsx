@@ -172,6 +172,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
   const [togglingDeviceLock, setTogglingDeviceLock] = useState<string | null>(null);
+  const [testingAlert, setTestingAlert] = useState<string | null>(null);
   const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -346,6 +347,38 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       toast.error("Failed to update Device Lock");
     } finally {
       setTogglingDeviceLock(null);
+    }
+  }
+
+  async function sendTestAlert(shop: Shop, type: "low-stock" | "daily-summary") {
+    setTestingAlert(shop.id + type);
+    try {
+      const res = await fetch("/api/admin/test-alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, shopId: shop.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Failed to send test alert"); return; }
+
+      const { smsSent, emailSent, log, errors } = data as {
+        smsSent: boolean; emailSent: boolean; log: string[]; errors: string[];
+      };
+
+      if (errors.length > 0) {
+        toast.error(errors[0], { description: log.at(-1) });
+      } else if (smsSent || emailSent) {
+        toast.success(
+          `Test alert sent — ${[smsSent && "SMS", emailSent && "Email"].filter(Boolean).join(" + ")}`,
+          { description: log.join(" · ") }
+        );
+      } else {
+        toast.warning("Nothing sent", { description: log.join(" · ") });
+      }
+    } catch {
+      toast.error("Failed to send test alert");
+    } finally {
+      setTestingAlert(null);
     }
   }
 
@@ -898,6 +931,30 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                                 Enable email notifications
                               </DropdownMenuItem>
                             )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* Test alert triggers */}
+                            <DropdownMenuItem
+                              onClick={() => sendTestAlert(shop, "low-stock")}
+                              disabled={!!testingAlert}
+                              className="gap-2"
+                            >
+                              {testingAlert === shop.id + "low-stock"
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <Play className="h-3.5 w-3.5" />}
+                              Test low stock alert
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => sendTestAlert(shop, "daily-summary")}
+                              disabled={!!testingAlert}
+                              className="gap-2"
+                            >
+                              {testingAlert === shop.id + "daily-summary"
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <Play className="h-3.5 w-3.5" />}
+                              Test daily summary
+                            </DropdownMenuItem>
 
                             <DropdownMenuSeparator />
 
