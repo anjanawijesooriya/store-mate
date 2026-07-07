@@ -76,18 +76,23 @@ export async function PATCH(
       const pay = Number(amount);
       if (!pay || pay <= 0) return apiError("Invalid payment amount");
 
-      // Fetch all outstanding credit sales, oldest first (FIFO)
-      const pendingSales = await db.sale.findMany({
-        where: { customerId: id, shopId, status: SaleStatus.PENDING_PAYMENT },
-        orderBy: { createdAt: "asc" },
-      });
-
-      let remaining = pay;
       let totalApplied = 0;
       const settledSaleIds: string[] = [];
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await db.$transaction(async (tx: any) => {
+        // Re-read fresh data inside the transaction so concurrent payments
+        // for the same customer don't double-apply or drive balance negative.
+        const freshCustomer = await tx.customer.findUnique({ where: { id, shopId } });
+        if (!freshCustomer) return;
+
+        const pendingSales = await tx.sale.findMany({
+          where: { customerId: id, shopId, status: SaleStatus.PENDING_PAYMENT },
+          orderBy: { createdAt: "asc" },
+        });
+
+        let remaining = pay;
+
         // FIFO: allocate payment across PENDING_PAYMENT sales oldest-first
         for (const sale of pendingSales) {
           if (remaining <= 0) break;
@@ -113,10 +118,9 @@ export async function PATCH(
           totalApplied += applyToSale;
         }
 
-        // If no PENDING_PAYMENT sales were found (e.g. sale was created before
-        // PENDING_PAYMENT status was introduced), still decrement the balance.
-        // This handles legacy COMPLETED credit sales that still have creditBalance > 0.
-        const creditBalance = Number(customer.creditBalance);
+        // If no PENDING_PAYMENT sales were found (legacy COMPLETED credit sales),
+        // still decrement the balance for the amount paid.
+        const creditBalance = Number(freshCustomer.creditBalance);
         const apply = Math.min(
           pendingSales.length > 0 ? totalApplied : pay,
           creditBalance

@@ -51,32 +51,38 @@ export async function POST(req: NextRequest) {
       return apiError("Invalid quantity");
     }
 
-    let newStock: number;
-    if (type === "ADJUSTMENT") {
-      // Correction: set stock TO this exact value (physical count result)
-      newStock = qty;
-    } else {
-      const delta = type === "RESTOCK" || type === "RETURN" ? qty : -qty;
-      newStock = Number(product.stockQty) + delta;
-      if (newStock < 0) {
-        return apiError("Stock cannot go below zero");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { movement, newStock } = await db.$transaction(async (tx: any) => {
+      if (type === "ADJUSTMENT") {
+        // Physical count correction — set to exact value (last writer wins by design)
+        const mv = await tx.stockMovement.create({
+          data: { productId, type: type as MovementType, quantity: qty, note: note || null },
+        });
+        const updated = await tx.product.update({
+          where: { id: productId },
+          data: { stockQty: qty },
+        });
+        return { movement: mv, newStock: Number(updated.stockQty) };
       }
-    }
 
-    const [movement] = await db.$transaction([
-      db.stockMovement.create({
-        data: {
-          productId,
-          type: type as MovementType,
-          quantity: qty,
-          note: note || null,
-        },
-      }),
-      db.product.update({
+      // Re-read inside transaction to avoid lost-update race conditions
+      const fresh = await tx.product.findUnique({ where: { id: productId }, select: { stockQty: true } });
+      const currentQty = Number(fresh?.stockQty ?? 0);
+      const isAdditive = type === "RESTOCK" || type === "RETURN";
+      const delta = isAdditive ? qty : -qty;
+      const computed = currentQty + delta;
+
+      if (computed < 0) throw new Error("Stock cannot go below zero");
+
+      const mv = await tx.stockMovement.create({
+        data: { productId, type: type as MovementType, quantity: qty, note: note || null },
+      });
+      const updated = await tx.product.update({
         where: { id: productId },
-        data: { stockQty: newStock },
-      }),
-    ]);
+        data: { stockQty: { increment: delta } },
+      });
+      return { movement: mv, newStock: Number(updated.stockQty) };
+    });
 
     return Response.json({ movement, newStock });
   } catch (err) {
