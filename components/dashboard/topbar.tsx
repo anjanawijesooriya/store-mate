@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { NotificationItem } from "@/app/api/notifications/route";
 
@@ -236,7 +235,7 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
                 <p className="text-xs text-muted-foreground/60">No alerts right now.</p>
               </div>
             ) : (
-              <ScrollArea className="max-h-[420px]">
+              <div className="overflow-y-auto max-h-[400px]">
                 <div className="p-2 space-y-1.5">
                   {notifications.map((n) => {
                     const TypeIcon = TYPE_ICON[n.type];
@@ -248,14 +247,14 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
                       >
                         <button
                           onClick={() => { setNotifOpen(false); router.push(n.href); }}
-                          className="flex-1 text-left px-3 py-2.5 flex items-start gap-3 hover:brightness-95 active:scale-[0.99] transition-all"
+                          className="flex-1 text-left px-3 py-2.5 flex items-start gap-3 hover:brightness-95 active:scale-[0.99] transition-all min-w-0"
                         >
                           <div className="mt-0.5 flex-shrink-0">
                             <TypeIcon className={`h-4 w-4 ${style.iconClass}`} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-foreground leading-snug">{n.title}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.body}</p>
+                            <p className="text-xs font-semibold text-foreground leading-snug break-words">{n.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed break-words whitespace-normal">{n.body}</p>
                           </div>
                         </button>
                         <button
@@ -269,7 +268,7 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
                     );
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
