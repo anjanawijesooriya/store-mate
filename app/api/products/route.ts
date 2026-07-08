@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       }>>`
         SELECT * FROM "Product"
         WHERE "shopId" = ${shopId} AND "isActive" = true AND "isService" = false AND "stockQty" <= "lowStockAt"
-        ORDER BY "stockQty" ASC
+        ORDER BY LOWER(name) ASC
         LIMIT ${limit} OFFSET ${(page - 1) * limit}
       `;
       return Response.json({ products, total: products.length });

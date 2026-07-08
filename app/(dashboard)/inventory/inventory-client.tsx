@@ -99,7 +99,7 @@ export function InventoryClient() {
       if (filter && tab === "product") params.set("filter", filter);
       const res = await fetch(`/api/products?${params}`);
       const data = await res.json();
-      setProducts(data.products ?? []);
+      setProducts((data.products ?? []).sort((a: Product, b: Product) => a.name.localeCompare(b.name)));
       setTotal(data.total ?? 0);
     } catch {
       toast.error("Failed to load");
