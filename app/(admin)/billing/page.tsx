@@ -24,6 +24,7 @@ export default async function AdminBillingPage() {
       maintenanceBannerMessage: true,
       branchModeEnabled: true,
       deviceLockEnabled: true,
+      cardSurchargeEnabled: true,
       isLifetime: true,
       maintenanceDueDate: true,
       maintenancePaidUntil: true,

@@ -13,7 +13,7 @@ export default async function POSPage() {
 
   const shop = await db.shop.findUnique({
     where: { id: session.user.shopId },
-    select: { billingStatus: true, name: true },
+    select: { billingStatus: true, name: true, cardSurchargeEnabled: true, cardSurchargeRate: true },
   });
 
   if (shop?.billingStatus === "LOCKED") {
@@ -37,5 +37,10 @@ export default async function POSPage() {
     );
   }
 
-  return <POSClient />;
+  return (
+    <POSClient
+      cardSurchargeEnabled={shop?.cardSurchargeEnabled ?? false}
+      cardSurchargeRate={Number(shop?.cardSurchargeRate ?? 0)}
+    />
+  );
 }

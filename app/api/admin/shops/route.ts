@@ -26,6 +26,7 @@ export async function GET() {
       maintenanceBannerMessage: true,
       branchModeEnabled: true,
       deviceLockEnabled: true,
+      cardSurchargeEnabled: true,
       isLifetime: true,
       maintenanceDueDate: true,
       maintenancePaidUntil: true,

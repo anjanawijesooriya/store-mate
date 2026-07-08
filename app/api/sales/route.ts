@@ -53,6 +53,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { items, customerId, discount, paymentMethod, amountPaid } = body;
 
+    const shopSettings = await db.shop.findUnique({
+      where: { id: shopId },
+      select: { cardSurchargeEnabled: true, cardSurchargeRate: true },
+    });
+
     if (!items || items.length === 0) {
       return apiError("Cart is empty");
     }
@@ -94,6 +99,13 @@ export async function POST(req: NextRequest) {
     const discountAmt = parseFloat(String(discount ?? 0));
     const total = Math.max(0, subtotal - discountAmt);
 
+    // Card surcharge — business absorbs, recorded internally for P&L
+    const cardFeeRate =
+      paymentMethod === "CARD" && shopSettings?.cardSurchargeEnabled
+        ? Number(shopSettings.cardSurchargeRate ?? 0)
+        : 0;
+    const cardFee = cardFeeRate > 0 ? parseFloat((total * cardFeeRate).toFixed(2)) : 0;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sale = await db.$transaction(async (tx: any) => {
       // Re-read stock inside the transaction to prevent race conditions when
@@ -120,6 +132,8 @@ export async function POST(req: NextRequest) {
           total,
           paymentMethod: paymentMethod as PaymentMethod,
           amountPaid: parseFloat(String(amountPaid ?? total)),
+          cardFee,
+          cardFeeRate,
           status: paymentMethod === "CREDIT" ? SaleStatus.PENDING_PAYMENT : SaleStatus.COMPLETED,
           items: {
             create: saleItems.map((i) => ({

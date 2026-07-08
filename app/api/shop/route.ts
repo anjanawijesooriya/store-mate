@@ -14,6 +14,7 @@ export async function GET() {
         billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true,
         smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsBalance: true,
         emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true,
+        cardSurchargeEnabled: true, cardSurchargeRate: true,
       },
     });
     if (!shop) return apiError("Shop not found", 404);
@@ -30,7 +31,7 @@ export async function PATCH(req: NextRequest) {
     const shopId  = session.user.shopId;
     const userId  = session.user.id;
     const body    = await req.json();
-    const { name, ownerName, email, address } = body;
+    const { name, ownerName, email, address, cardSurchargeRate } = body;
 
     const emailClean = email ? String(email).trim().toLowerCase() : undefined;
     if (emailClean && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
@@ -44,6 +45,9 @@ export async function PATCH(req: NextRequest) {
           ...(name     && { name: name.trim() }),
           ...(ownerName && { ownerName: ownerName.trim() }),
           ...(address !== undefined && { address: address?.trim() || null }),
+          ...(cardSurchargeRate !== undefined && {
+            cardSurchargeRate: Math.min(1, Math.max(0, parseFloat(String(cardSurchargeRate)) || 0)),
+          }),
         },
       }),
       db.user.update({

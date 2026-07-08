@@ -17,7 +17,8 @@ export default async function SettingsPage() {
         id: true, name: true, ownerName: true, phone: true,
         category: true, address: true, planTier: true, trialEndsAt: true,
         smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsBalance: true,
-      emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true,
+        emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true,
+        cardSurchargeEnabled: true, cardSurchargeRate: true,
         billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true, isLifetime: true,
         payments: {
           orderBy: { paidAt: "desc" },
@@ -41,6 +42,7 @@ export default async function SettingsPage() {
     ...shop,
     email: owner?.email ?? null,
     smsBalance: Number(shop.smsBalance),
+    cardSurchargeRate: Number(shop.cardSurchargeRate ?? 0),
     payments: shop.payments.map((p) => ({
       ...p,
       amount: Number(p.amount),

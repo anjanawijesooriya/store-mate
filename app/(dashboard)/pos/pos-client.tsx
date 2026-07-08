@@ -193,7 +193,13 @@ function toProduct(p: CachedProduct): Product {
   };
 }
 
-export function POSClient() {
+export function POSClient({
+  cardSurchargeEnabled = false,
+  cardSurchargeRate = 0,
+}: {
+  cardSurchargeEnabled?: boolean;
+  cardSurchargeRate?: number;
+}) {
   const { data: session } = useSession();
   const shopId = session?.user?.shopId ?? "";
   const planTier = (session?.user?.planTier ?? "BASIC") as string;
@@ -1307,6 +1313,23 @@ export function POSClient() {
                 ))}
               </div>
             </div>
+
+            {paymentMethod === "CARD" && cardSurchargeEnabled && cardSurchargeRate > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-3 space-y-1">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">Card Processing Fee (Business Absorbs)</p>
+                <div className="flex justify-between text-sm text-amber-800 dark:text-amber-300">
+                  <span>Rate</span>
+                  <span className="font-mono">{(cardSurchargeRate * 100).toFixed(2)}%</span>
+                </div>
+                <div className="flex justify-between text-sm text-amber-800 dark:text-amber-300">
+                  <span>Fee on this sale</span>
+                  <span className="font-mono font-semibold">{formatLKR(total * cardSurchargeRate)}</span>
+                </div>
+                <p className="text-xs text-amber-600 dark:text-amber-500 pt-0.5">
+                  Charge customer <span className="font-semibold">{formatLKR(total)}</span> on the card machine. Fee is recorded internally.
+                </p>
+              </div>
+            )}
 
             {paymentMethod === "CASH" && (
               <div className="space-y-2">

@@ -67,6 +67,8 @@ export async function GET(req: NextRequest) {
     const sales = salesRaw;
     // Summary
     const totalRevenue = sales.reduce((s: number, sale: typeof sales[0]) => s + Number(sale.total), 0);
+    const totalCardFees = sales.reduce((s: number, sale: typeof sales[0]) => s + Number(sale.cardFee ?? 0), 0);
+    const totalNetRevenue = totalRevenue - totalCardFees;
     const totalSales = sales.length;
     const avgOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
 
@@ -90,7 +92,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const totalGrossProfit = totalRevenue - totalCOGS;
+    // Gross profit uses net revenue (after card fees) because that's what the shop actually received
+    const totalGrossProfit = totalNetRevenue - totalCOGS;
     const totalExpenses = Number(expensesRaw._sum.amount ?? 0);
     const totalProfit = totalGrossProfit - totalExpenses;
 
@@ -110,16 +113,21 @@ export async function GET(req: NextRequest) {
     const salesByDay = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
     // Sales by payment method
-    const paymentMap = new Map<string, { method: string; total: number; count: number }>();
+    const paymentMap = new Map<string, { method: string; total: number; fees: number; netTotal: number; count: number }>();
     for (const sale of salesRaw) {
+      const fee = Number(sale.cardFee ?? 0);
       const existing = paymentMap.get(sale.paymentMethod);
       if (existing) {
         existing.total += Number(sale.total);
+        existing.fees += fee;
+        existing.netTotal += Number(sale.total) - fee;
         existing.count += 1;
       } else {
         paymentMap.set(sale.paymentMethod, {
           method: sale.paymentMethod,
           total: Number(sale.total),
+          fees: fee,
+          netTotal: Number(sale.total) - fee,
           count: 1,
         });
       }
@@ -149,6 +157,8 @@ export async function GET(req: NextRequest) {
     return Response.json({
       summary: {
         totalRevenue,
+        totalCardFees,
+        totalNetRevenue,
         totalSales,
         totalCOGS,
         totalGrossProfit,

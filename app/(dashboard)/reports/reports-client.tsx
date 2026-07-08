@@ -28,6 +28,8 @@ const tooltipTextStyle: React.CSSProperties = { color: "var(--card-foreground)" 
 interface ReportData {
   summary: {
     totalRevenue: number;
+    totalCardFees: number;
+    totalNetRevenue: number;
     totalSales: number;
     totalCOGS: number;
     totalGrossProfit: number;
@@ -36,7 +38,7 @@ interface ReportData {
     avgOrderValue: number;
   };
   salesByDay: Array<{ date: string; revenue: number; count: number }>;
-  salesByPayment: Array<{ method: string; total: number; count: number }>;
+  salesByPayment: Array<{ method: string; total: number; fees: number; netTotal: number; count: number }>;
   salesByHour: Array<{ hour: number; revenue: number; count: number }>;
   topProducts: Array<{ name: string; qty: number; revenue: number }>;
 }
@@ -174,9 +176,21 @@ export function ReportsClient({ planTier }: { planTier: string }) {
             <h3 className="text-sm font-semibold text-foreground mb-4">Profit & Loss Breakdown</h3>
             <div className="space-y-2 text-sm max-w-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Revenue</span>
+                <span className="text-muted-foreground">Gross Revenue</span>
                 <span className="font-mono font-semibold">{formatLKR(data.summary.totalRevenue)}</span>
               </div>
+              {data.summary.totalCardFees > 0 && (
+                <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                  <span>Card Processing Fees</span>
+                  <span className="font-mono">- {formatLKR(data.summary.totalCardFees)}</span>
+                </div>
+              )}
+              {data.summary.totalCardFees > 0 && (
+                <div className="flex justify-between border-t pt-2">
+                  <span className="font-medium">Net Revenue</span>
+                  <span className="font-mono font-semibold">{formatLKR(data.summary.totalNetRevenue)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-muted-foreground">
                 <span>Cost of Goods Sold</span>
                 <span className="font-mono">- {formatLKR(data.summary.totalCOGS)}</span>
@@ -235,33 +249,62 @@ export function ReportsClient({ planTier }: { planTier: string }) {
                       No sales data
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={220}>
-                      <PieChart>
-                        <Pie
-                          data={data.salesByPayment}
-                          dataKey="total"
-                          nameKey="method"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          label={false}
-                          labelLine={false}
-                        >
-                          {data.salesByPayment.map((entry, i) => (
-                            <Cell
-                              key={i}
-                              fill={PAYMENT_COLORS[entry.method as keyof typeof PAYMENT_COLORS] ?? `var(--color-chart-${i + 1})`}
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(v) => formatLKR(Number(v ?? 0))}
-                          contentStyle={tooltipStyle}
-                          labelStyle={tooltipTextStyle}
-                          itemStyle={tooltipTextStyle}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <PieChart>
+                          <Pie
+                            data={data.salesByPayment}
+                            dataKey="total"
+                            nameKey="method"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={70}
+                            label={false}
+                            labelLine={false}
+                          >
+                            {data.salesByPayment.map((entry, i) => (
+                              <Cell
+                                key={i}
+                                fill={PAYMENT_COLORS[entry.method as keyof typeof PAYMENT_COLORS] ?? `var(--color-chart-${i + 1})`}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(v) => formatLKR(Number(v ?? 0))}
+                            contentStyle={tooltipStyle}
+                            labelStyle={tooltipTextStyle}
+                            itemStyle={tooltipTextStyle}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="mt-3 space-y-2">
+                        {data.salesByPayment.map((entry, i) => (
+                          <div key={i} className="text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 font-medium text-foreground">
+                                <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  style={{ background: PAYMENT_COLORS[entry.method as keyof typeof PAYMENT_COLORS] ?? `var(--color-chart-${i + 1})` }} />
+                                {{ CASH: "Cash", CARD: "Card", ONLINE: "Online", CREDIT: "Credit" }[entry.method] ?? entry.method}
+                                <span className="text-muted-foreground font-normal">· {entry.count} sale{entry.count !== 1 ? "s" : ""}</span>
+                              </span>
+                              <span className="font-mono font-semibold">{formatLKR(entry.total)}</span>
+                            </div>
+                            {entry.method === "CARD" && entry.fees > 0 && (
+                              <div className="ml-4 mt-0.5 space-y-0.5">
+                                <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                                  <span>Bank processing fee</span>
+                                  <span className="font-mono">- {formatLKR(entry.fees)}</span>
+                                </div>
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Net received</span>
+                                  <span className="font-mono font-medium text-foreground">{formatLKR(entry.netTotal)}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>

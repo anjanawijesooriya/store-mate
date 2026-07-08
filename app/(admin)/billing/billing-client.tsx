@@ -6,7 +6,7 @@ import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
   MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench, Infinity, Search,
-  CalendarClock, AlertTriangle,
+  CalendarClock, AlertTriangle, CreditCard,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ interface Shop {
   emailLowStock: boolean;
   emailDailySummary: boolean;
   emailReceiptEnabled: boolean;
+  cardSurchargeEnabled: boolean;
   maintenanceBanner: boolean;
   maintenanceBannerMessage: string | null;
   branchModeEnabled: boolean;
@@ -172,6 +173,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
   const [togglingDeviceLock, setTogglingDeviceLock] = useState<string | null>(null);
+  const [togglingCardSurcharge, setTogglingCardSurcharge] = useState<string | null>(null);
   const [testingAlert, setTestingAlert] = useState<string | null>(null);
   const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -347,6 +349,24 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       toast.error("Failed to update Device Lock");
     } finally {
       setTogglingDeviceLock(null);
+    }
+  }
+
+  async function toggleCardSurcharge(shop: Shop, enabled: boolean) {
+    setTogglingCardSurcharge(shop.id);
+    try {
+      const res = await fetch(`/api/admin/shops/${shop.id}/card-surcharge`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error();
+      await refresh();
+      toast.success(enabled ? "Card surcharge add-on enabled" : "Card surcharge add-on disabled");
+    } catch {
+      toast.error("Failed to update card surcharge setting");
+    } finally {
+      setTogglingCardSurcharge(null);
     }
   }
 
@@ -756,6 +776,17 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                             Device Lock
                           </span>
                         )}
+                        {shop.cardSurchargeEnabled ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 font-medium">
+                            <CreditCard className="h-3 w-3" />
+                            Card Surcharge
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <CreditCard className="h-3 w-3" />
+                            Card surcharge off
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -1003,6 +1034,40 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               >
                                 <Lock className="h-3.5 w-3.5" />
                                 Reset Primary Device
+                              </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* Card surcharge toggle */}
+                            {shop.cardSurchargeEnabled ? (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmAction({
+                                  title: "Disable Card Surcharge Add-on",
+                                  description: `Disable card surcharge for ${shop.name}? The surcharge rate setting will be hidden from the shop owner and fees will no longer be recorded on card sales.`,
+                                  confirmLabel: "Disable",
+                                  variant: "destructive",
+                                  onConfirm: () => toggleCardSurcharge(shop, false),
+                                })}
+                                disabled={togglingCardSurcharge === shop.id}
+                                className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
+                              >
+                                <CreditCard className="h-3.5 w-3.5" />
+                                Disable card surcharge
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmAction({
+                                  title: "Enable Card Surcharge Add-on",
+                                  description: `Enable card surcharge for ${shop.name}? The shop owner can then configure their bank's processing fee rate in Settings. The fee is absorbed by the business and recorded for P&L reporting.`,
+                                  confirmLabel: "Enable",
+                                  onConfirm: () => toggleCardSurcharge(shop, true),
+                                })}
+                                disabled={togglingCardSurcharge === shop.id}
+                                className="gap-2"
+                              >
+                                <CreditCard className="h-3.5 w-3.5" />
+                                Enable card surcharge
                               </DropdownMenuItem>
                             )}
 

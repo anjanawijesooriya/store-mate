@@ -47,6 +47,8 @@ interface Shop {
   emailLowStock: boolean;
   emailDailySummary: boolean;
   emailReceiptEnabled: boolean;
+  cardSurchargeEnabled: boolean;
+  cardSurchargeRate: number;
   billingStatus: BillingStatus;
   gracePeriodEndsAt: Date | null;
   nextBillingDate: Date | null;
@@ -143,6 +145,33 @@ export function SettingsClient({ shop }: { shop: Shop }) {
     emailReceiptEnabled: shop.emailReceiptEnabled,
   });
   const [emailSaving, setEmailSaving] = useState(false);
+
+  const [cardRate, setCardRate] = useState(
+    shop.cardSurchargeRate > 0 ? (shop.cardSurchargeRate * 100).toFixed(2) : ""
+  );
+  const [cardRateSaving, setCardRateSaving] = useState(false);
+
+  async function saveCardRate() {
+    const rate = parseFloat(cardRate || "0");
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      toast.error("Enter a valid rate between 0 and 100");
+      return;
+    }
+    setCardRateSaving(true);
+    try {
+      const res = await fetch("/api/shop", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardSurchargeRate: rate / 100 }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Card surcharge rate saved");
+    } catch {
+      toast.error("Failed to save card surcharge rate");
+    } finally {
+      setCardRateSaving(false);
+    }
+  }
 
   async function handleEmailToggle(key: keyof typeof emailPrefs, value: boolean) {
     const prev = emailPrefs[key];
@@ -666,6 +695,61 @@ export function SettingsClient({ shop }: { shop: Shop }) {
           ))}
         </CardContent>
       </Card>
+
+      {/* Card Payment Surcharge */}
+      {shop.cardSurchargeEnabled && (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Card Payment Surcharge
+            </CardTitle>
+            <CardDescription>
+              Set the bank&apos;s processing fee rate for card payments. The fee is absorbed by your business and recorded internally for reporting.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+              <p className="font-medium mb-0.5">Business absorbs the fee</p>
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Customers are charged the normal sale total. The card processing fee is deducted from your settlement by the bank and tracked in your reports.
+              </p>
+            </div>
+            <div className="flex items-end gap-3">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="card-rate">Surcharge Rate (%)</Label>
+                <div className="relative">
+                  <Input
+                    id="card-rate"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="e.g. 3.00"
+                    value={cardRate}
+                    onChange={(e) => setCardRate(e.target.value)}
+                    className="pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                </div>
+                {cardRate && !isNaN(parseFloat(cardRate)) && (
+                  <p className="text-xs text-muted-foreground">
+                    Example: on a LKR 5,000 sale → fee is <span className="font-medium text-foreground">LKR {(5000 * parseFloat(cardRate) / 100).toFixed(2)}</span>
+                  </p>
+                )}
+              </div>
+              <Button onClick={saveCardRate} disabled={cardRateSaving} className="shrink-0">
+                {cardRateSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Rate"}
+              </Button>
+            </div>
+            {shop.cardSurchargeRate > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Current saved rate: <span className="font-medium text-foreground">{(shop.cardSurchargeRate * 100).toFixed(2)}%</span>
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Change Password */}
       <Card className="shadow-sm">
