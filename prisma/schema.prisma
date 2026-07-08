@@ -187,6 +187,7 @@ model Product {
   shopId     String
   shop       Shop            @relation(fields: [shopId], references: [id])
   name       String
+  itemCode   String?
   sku        String?
   category   String?
   unit       String          @default("pcs")
@@ -205,6 +206,7 @@ model Product {
 
   @@index([shopId])
   @@unique([shopId, sku])
+  @@unique([shopId, itemCode])
 }
 
 model StockMovement {

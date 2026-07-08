@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
         OR: [
           { name: { contains: search, mode: "insensitive" as const } },
           { sku: { contains: search, mode: "insensitive" as const } },
+          { itemCode: { contains: search, mode: "insensitive" as const } },
         ],
       }),
       ...(category && { category }),
@@ -74,13 +75,18 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, sku, category, unit, costPrice, sellPrice, stockQty, lowStockAt, imageUrl, warrantyPeriod, isService } = body;
+    const { name, itemCode, sku, category, unit, costPrice, sellPrice, stockQty, lowStockAt, imageUrl, warrantyPeriod, isService } = body;
 
     if (!name || sellPrice === undefined) {
       return apiError("Name and sell price are required");
     }
     if (!isService && costPrice === undefined) {
       return apiError("Cost price is required for products");
+    }
+
+    if (itemCode) {
+      const existing = await db.product.findUnique({ where: { shopId_itemCode: { shopId, itemCode: itemCode.trim() } } });
+      if (existing) return apiError("A product with this item code already exists", 409);
     }
 
     if (sku) {
@@ -96,6 +102,7 @@ export async function POST(req: NextRequest) {
         data: {
           shopId,
           name: name.trim(),
+          itemCode: itemCode?.trim() || null,
           sku: sku?.trim() || null,
           category: category?.trim() || null,
           unit: unit || (serviceMode ? "job" : "pcs"),

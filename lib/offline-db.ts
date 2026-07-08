@@ -36,6 +36,7 @@ function storeOp<T>(
 export interface CachedProduct {
   id: string;
   name: string;
+  itemCode: string | null;
   sku: string | null;
   unit: string;
   sellPrice: number;

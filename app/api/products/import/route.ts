@@ -4,6 +4,7 @@ import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/a
 import { MovementType } from "@/lib/generated/prisma/enums";
 export interface ImportRow {
   name: string;
+  itemCode?: string | null;
   sku?: string | null;
   category?: string | null;
   unit?: string | null;
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
           data: {
             shopId,
             name: row.name.trim(),
+            itemCode: row.itemCode?.trim() || null,
             sku: row.sku?.trim() || null,
             category: row.category?.trim() || null,
             unit: row.unit?.trim() || "pcs",

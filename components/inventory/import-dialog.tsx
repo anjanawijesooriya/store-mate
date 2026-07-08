@@ -27,9 +27,11 @@ const COLUMN_ALIASES: Record<string, keyof ImportRow | "_ignore"> = {
   // name
   "name": "name", "product name": "name", "item name": "name",
   "product": "name", "item": "name",
-  // sku
-  "sku": "sku", "code": "sku", "item code": "sku",
-  "product code": "sku", "barcode": "sku", "sku code": "sku",
+  // item code
+  "item code": "itemCode", "itemcode": "itemCode", "product code": "itemCode",
+  "code": "itemCode", "item no": "itemCode", "item number": "itemCode",
+  // sku / barcode
+  "sku": "sku", "barcode": "sku", "sku code": "sku", "ean": "sku", "upc": "sku",
   // category
   "category": "category", "cat": "category", "group": "category",
   // unit
@@ -91,7 +93,7 @@ function parseSheet(data: unknown[][]): PreviewRow[] {
     Object.entries(colMap).forEach(([idxStr, field]) => {
       const val = cells[Number(idxStr)];
       if (field === "_ignore") return;
-      if (field === "name" || field === "sku" || field === "category" || field === "unit" || field === "warrantyPeriod") {
+      if (field === "name" || field === "itemCode" || field === "sku" || field === "category" || field === "unit" || field === "warrantyPeriod") {
         (raw as Record<string, unknown>)[field] = val !== undefined && val !== "" ? String(val) : null;
       } else {
         (raw as Record<string, unknown>)[field] = toNum(val);
@@ -128,19 +130,19 @@ async function downloadTemplate() {
   const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   const headers = [
-    "Name", "SKU", "Category", "Unit",
+    "Name", "Item Code", "SKU", "Category", "Unit",
     "Cost Price", "Sell Price", "Stock Qty", "Low Stock Alert", "Warranty Period",
   ];
   const examples = [
-    ["Widget A", "WGT-001", "Electronics", "pcs", 500, 750, 100, 10, "1 year"],
-    ["Widget B", "WGT-002", "Electronics", "pcs", 1200, 1800, 50, 5, ""],
-    ["Shampoo 200ml", "SHP-200", "Hair Care", "bottle", 250, 380, 200, 20, ""],
+    ["Widget A",     "IC-001", "WGT-001", "Electronics", "pcs",    500,  750,  100, 10, "1 year"],
+    ["Widget B",     "IC-002", "WGT-002", "Electronics", "pcs",   1200, 1800,   50,  5, ""],
+    ["Shampoo 200ml","IC-003", "SHP-200", "Hair Care",   "bottle", 250,  380,  200, 20, ""],
   ];
   const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
 
   // Column widths
   ws["!cols"] = [
-    { wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 8 },
+    { wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 8 },
     { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 17 }, { wch: 16 },
   ];
 
@@ -378,6 +380,7 @@ export function ImportDialog({ open, onClose, onImported }: ImportDialogProps) {
                   <tr>
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground w-12">#</th>
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Name</th>
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Item Code</th>
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground">SKU</th>
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Category</th>
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Unit</th>
@@ -402,6 +405,7 @@ export function ImportDialog({ open, onClose, onImported }: ImportDialogProps) {
                         <td className="px-3 py-1.5 font-medium max-w-[180px] truncate">
                           {row.raw.name || <span className="text-destructive italic">missing</span>}
                         </td>
+                        <td className="px-3 py-1.5 text-muted-foreground font-mono">{row.raw.itemCode || "—"}</td>
                         <td className="px-3 py-1.5 text-muted-foreground font-mono">{row.raw.sku || "—"}</td>
                         <td className="px-3 py-1.5 text-muted-foreground">{row.raw.category || "—"}</td>
                         <td className="px-3 py-1.5 text-muted-foreground">{row.raw.unit || "pcs"}</td>

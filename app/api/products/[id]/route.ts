@@ -34,12 +34,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const existing = await db.product.findFirst({ where: { id, shopId } });
     if (!existing) return apiError("Product not found", 404);
 
-    const { name, sku, category, unit, costPrice, sellPrice, lowStockAt, imageUrl, warrantyPeriod, isService } = body;
+    const { name, itemCode, sku, category, unit, costPrice, sellPrice, lowStockAt, imageUrl, warrantyPeriod, isService } = body;
 
     const product = await db.product.update({
       where: { id },
       data: {
         ...(name && { name: name.trim() }),
+        ...(itemCode !== undefined && { itemCode: itemCode?.trim() || null }),
         ...(sku !== undefined && { sku: sku?.trim() || null }),
         ...(category !== undefined && { category: category?.trim() || null }),
         ...(unit && { unit }),
@@ -77,7 +78,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       ]);
     } else {
       // Has sales history — soft delete but clear SKU so it can be reused immediately
-      await db.product.update({ where: { id }, data: { isActive: false, sku: null } });
+      await db.product.update({ where: { id }, data: { isActive: false, itemCode: null, sku: null } });
     }
 
     return Response.json({ success: true });

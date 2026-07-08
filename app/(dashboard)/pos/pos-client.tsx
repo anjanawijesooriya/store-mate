@@ -64,6 +64,7 @@ interface Customer {
 interface Product {
   id: string;
   name: string;
+  itemCode: string | null;
   sku: string | null;
   unit: string;
   sellPrice: number;
@@ -76,6 +77,7 @@ interface Product {
 interface CartItem {
   productId: string;
   name: string;
+  itemCode: string | null;
   unit: string;
   unitPrice: number;
   originalPrice: number;
@@ -108,6 +110,7 @@ interface CompletedSale {
   paymentMethod: string;
   items: Array<{
     name: string;
+    itemCode?: string | null;
     unit: string;
     quantity: number;
     unitPrice: number;
@@ -183,6 +186,7 @@ function toProduct(p: CachedProduct): Product {
   return {
     id: p.id,
     name: p.name,
+    itemCode: p.itemCode ?? null,
     sku: p.sku,
     unit: p.unit,
     sellPrice: p.sellPrice,
@@ -282,6 +286,7 @@ export function POSClient({
     addToCart({
       id: match.id,
       name: match.name,
+      itemCode: match.itemCode ?? null,
       sku: match.sku,
       unit: match.unit,
       sellPrice: match.sellPrice,
@@ -543,6 +548,7 @@ export function POSClient({
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:6px;">${it.name}</span>
         <span style="flex-shrink:0;font-weight:600;">${formatLKR(it.lineTotal)}</span>
       </div>
+      ${it.itemCode ? `<div style="font-size:11px;color:#555;">Code: ${it.itemCode}</div>` : ""}
       <div style="font-size:11px;color:#555;">${it.quantity} ${it.unit} × ${formatLKR(it.unitPrice)}</div>
       ${it.warrantyPeriod ? `<div style="font-size:11px;color:#555;">Warranty: ${it.warrantyPeriod}</div>` : ""}
     `).join("");
@@ -663,6 +669,7 @@ export function POSClient({
         {
           productId: product.id,
           name: product.name,
+          itemCode: product.itemCode ?? null,
           unit: product.unit,
           unitPrice: Number(product.sellPrice),
           originalPrice: Number(product.sellPrice),
@@ -766,6 +773,7 @@ export function POSClient({
     }));
     const receiptItems = cart.map((i) => ({
       name: i.name,
+      itemCode: i.itemCode ?? null,
       unit: i.unit,
       quantity: i.quantity,
       unitPrice: i.unitPrice,
@@ -1456,6 +1464,9 @@ export function POSClient({
                       <span className="text-foreground truncate pr-2">{item.name}</span>
                       <span className="font-semibold shrink-0">{formatLKR(item.lineTotal)}</span>
                     </div>
+                    {item.itemCode && (
+                      <p className="text-xs text-muted-foreground font-mono">Code: {item.itemCode}</p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {item.quantity} {item.unit} × {formatLKR(item.unitPrice)}
                     </p>

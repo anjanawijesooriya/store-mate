@@ -28,7 +28,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ saleId
     where: { id: saleId },
     include: {
       shop: { select: { name: true, phone: true, address: true } },
-      items: { include: { product: { select: { name: true, unit: true } } } },
+      items: { include: { product: { select: { name: true, itemCode: true, unit: true } } } },
       customer: { select: { name: true } },
     },
   });
@@ -75,6 +75,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ saleId
               <div key={i} className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{item.product.name}</p>
+                  {item.product.itemCode && (
+                    <p className="text-xs text-gray-400 font-mono">Code: {item.product.itemCode}</p>
+                  )}
                   <p className="text-xs text-gray-400">
                     {Number(item.quantity)} {item.product.unit} × {fmtLKR(Number(item.unitPrice))}
                   </p>

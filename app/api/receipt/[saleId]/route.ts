@@ -10,7 +10,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ sal
       include: {
         shop: { select: { name: true, phone: true, address: true } },
         items: {
-          include: { product: { select: { name: true, unit: true } } },
+          include: { product: { select: { name: true, itemCode: true, unit: true } } },
         },
         customer: { select: { name: true } },
       },
@@ -35,6 +35,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ sal
       createdAt: sale.createdAt,
       items: sale.items.map((i) => ({
         name: i.product.name,
+        itemCode: i.product.itemCode ?? null,
         unit: i.product.unit,
         quantity: Number(i.quantity),
         unitPrice: Number(i.unitPrice),

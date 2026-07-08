@@ -73,6 +73,7 @@ const CATEGORY_GROUPS: { label: string; items: string[] }[] = [
 interface Product {
   id: string;
   name: string;
+  itemCode: string | null;
   sku: string | null;
   category: string | null;
   unit: string;
@@ -116,6 +117,7 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
 
   const [form, setForm] = useState({
     name: "",
+    itemCode: "",
     sku: "",
     category: "",
     unit: serviceMode ? "job" : "pcs",
@@ -130,6 +132,7 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
     if (product) {
       setForm({
         name: product.name,
+        itemCode: product.itemCode ?? "",
         sku: product.sku ?? "",
         category: product.category ?? "",
         unit: product.unit,
@@ -142,6 +145,7 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
     } else {
       setForm({
         name: "",
+        itemCode: "",
         sku: "",
         category: "",
         unit: serviceMode ? "job" : "pcs",
@@ -176,6 +180,7 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
 
       const body: Record<string, unknown> = {
         name: form.name,
+        itemCode: form.itemCode || null,
         sku: form.sku || null,
         category: form.category || null,
         unit: form.unit,
@@ -235,6 +240,16 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
               value={form.name}
               onChange={(e) => update("name", e.target.value)}
               required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="itemCode">Item Code</Label>
+            <Input
+              id="itemCode"
+              placeholder="e.g. PROD-001, ITM-2024"
+              value={form.itemCode}
+              onChange={(e) => update("itemCode", e.target.value)}
             />
           </div>
 

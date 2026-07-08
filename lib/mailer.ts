@@ -99,7 +99,7 @@ export async function sendDailySummaryEmail(
   });
 }
 
-interface ReceiptItem { name: string; quantity: number; unit: string; unitPrice: number; lineTotal: number; warrantyPeriod?: string | null; }
+interface ReceiptItem { name: string; itemCode?: string | null; quantity: number; unit: string; unitPrice: number; lineTotal: number; warrantyPeriod?: string | null; }
 interface ReceiptData {
   saleId: string;
   shopName: string;
@@ -124,7 +124,7 @@ export async function sendReceiptEmail(to: string, data: ReceiptData, appUrl?: s
 
   const itemRows = data.items.map((i) => `
     <tr>
-      <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">${i.name}<br><span style="font-size:11px;color:#9ca3af">${i.quantity} ${i.unit} × ${fmt(i.unitPrice)}</span>${i.warrantyPeriod ? `<br><span style="font-size:11px;color:#9ca3af">Warranty: ${i.warrantyPeriod}</span>` : ""}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">${i.name}${i.itemCode ? `<br><span style="font-size:11px;color:#9ca3af;font-family:monospace">Code: ${i.itemCode}</span>` : ""}<br><span style="font-size:11px;color:#9ca3af">${i.quantity} ${i.unit} × ${fmt(i.unitPrice)}</span>${i.warrantyPeriod ? `<br><span style="font-size:11px;color:#9ca3af">Warranty: ${i.warrantyPeriod}</span>` : ""}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6;text-align:right;font-family:monospace">${fmt(i.lineTotal)}</td>
     </tr>`).join("");
 

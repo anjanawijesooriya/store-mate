@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 interface Product {
   id: string;
   name: string;
+  itemCode: string | null;
   sku: string | null;
   category: string | null;
   unit: string;
@@ -248,7 +249,8 @@ export function InventoryClient() {
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="font-semibold">{isServiceTab ? "Service" : "Product"}</TableHead>
-                {!isServiceTab && <TableHead className="font-semibold hidden md:table-cell">SKU</TableHead>}
+                {!isServiceTab && <TableHead className="font-semibold hidden md:table-cell">Item Code</TableHead>}
+                {!isServiceTab && <TableHead className="font-semibold hidden lg:table-cell">SKU / Barcode</TableHead>}
                 <TableHead className="font-semibold hidden md:table-cell">Category</TableHead>
                 {!isServiceTab && <TableHead className="font-semibold hidden lg:table-cell">Warranty</TableHead>}
                 <TableHead className="font-semibold text-right hidden sm:table-cell">Cost</TableHead>
@@ -269,6 +271,11 @@ export function InventoryClient() {
                   </TableCell>
                   {!isServiceTab && (
                     <TableCell className="text-sm text-muted-foreground font-mono hidden md:table-cell">
+                      {product.itemCode ?? "—"}
+                    </TableCell>
+                  )}
+                  {!isServiceTab && (
+                    <TableCell className="text-sm text-muted-foreground font-mono hidden lg:table-cell">
                       {product.sku ?? "—"}
                     </TableCell>
                   )}

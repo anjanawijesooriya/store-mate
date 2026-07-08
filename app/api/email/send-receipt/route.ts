@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
         where: { id: saleId, shopId },
         include: {
           items: {
-            include: { product: { select: { name: true, unit: true, warrantyPeriod: true } } },
+            include: { product: { select: { name: true, itemCode: true, unit: true, warrantyPeriod: true } } },
           },
           customer: { select: { name: true, email: true } },
         },
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
       customerName:  sale.customer?.name ?? null,
       items:         sale.items.map((i) => ({
         name:          i.product.name,
+        itemCode:      i.product.itemCode ?? null,
         quantity:      Number(i.quantity),
         unit:          i.product.unit,
         unitPrice:     Number(i.unitPrice),
