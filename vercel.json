@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/billing-check",
-      "schedule": "0 1 * * *"
+      "schedule": "30 18 * * *"
     }
   ]
 }
