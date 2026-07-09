@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(rows) || rows.length === 0) {
       return apiError("No rows provided");
     }
-    if (rows.length > 1000) {
-      return apiError("Maximum 1,000 rows per import");
+    if (rows.length > 5000) {
+      return apiError("Maximum 5,000 rows per import");
     }
 
     const [shop, currentCount] = await Promise.all([
@@ -41,6 +41,15 @@ export async function POST(req: NextRequest) {
     if (!shop) return apiError("Shop not found", 404);
 
     const BASIC_LIMIT = 500;
+
+    // Hard block for Basic plan — no partial imports
+    if (shop.planTier === "BASIC" && currentCount >= BASIC_LIMIT) {
+      return apiError(
+        `Your Basic plan allows a maximum of ${BASIC_LIMIT} products and you have already reached that limit. Upgrade to Standard for unlimited products.`,
+        403,
+      );
+    }
+
     let created = 0;
     const errors: ImportError[] = [];
 
@@ -49,7 +58,7 @@ export async function POST(req: NextRequest) {
       const rowNum = i + 2; // row 1 = header, data starts at row 2
 
       if (shop.planTier === "BASIC" && currentCount + created >= BASIC_LIMIT) {
-        errors.push({ row: rowNum, name: row.name, reason: `BASIC plan limit of ${BASIC_LIMIT} products reached` });
+        errors.push({ row: rowNum, name: row.name, reason: `Basic plan limit of ${BASIC_LIMIT} products reached — upgrade to import more` });
         continue;
       }
 
