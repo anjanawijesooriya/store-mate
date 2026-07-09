@@ -52,6 +52,7 @@ interface Shop {
   emailDailySummary: boolean;
   emailReceiptEnabled: boolean;
   cardSurchargeEnabled: boolean;
+  payrollEnabled: boolean;
   maintenanceBanner: boolean;
   maintenanceBannerMessage: string | null;
   branchModeEnabled: boolean;
@@ -174,6 +175,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
   const [togglingDeviceLock, setTogglingDeviceLock] = useState<string | null>(null);
   const [togglingCardSurcharge, setTogglingCardSurcharge] = useState<string | null>(null);
+  const [togglingPayroll, setTogglingPayroll] = useState<string | null>(null);
   const [testingAlert, setTestingAlert] = useState<string | null>(null);
   const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -349,6 +351,24 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       toast.error("Failed to update Device Lock");
     } finally {
       setTogglingDeviceLock(null);
+    }
+  }
+
+  async function togglePayroll(shop: Shop, enabled: boolean) {
+    setTogglingPayroll(shop.id);
+    try {
+      const res = await fetch(`/api/admin/shops/${shop.id}/payroll`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error();
+      await refresh();
+      toast.success(enabled ? "Payroll module enabled" : "Payroll module disabled");
+    } catch {
+      toast.error("Failed to update payroll setting");
+    } finally {
+      setTogglingPayroll(null);
     }
   }
 
@@ -787,6 +807,12 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                             Card surcharge off
                           </span>
                         )}
+                        {shop.payrollEnabled && (
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            <Receipt className="h-3 w-3" />
+                            Payroll
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -1068,6 +1094,40 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               >
                                 <CreditCard className="h-3.5 w-3.5" />
                                 Enable card surcharge
+                              </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* Payroll toggle */}
+                            {shop.payrollEnabled ? (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmAction({
+                                  title: "Disable Payroll Module",
+                                  description: `Disable payroll for ${shop.name}? The Payroll section will be hidden from the shop owner. Employee and pay period data is preserved.`,
+                                  confirmLabel: "Disable",
+                                  variant: "destructive",
+                                  onConfirm: () => togglePayroll(shop, false),
+                                })}
+                                disabled={togglingPayroll === shop.id}
+                                className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
+                              >
+                                <Receipt className="h-3.5 w-3.5" />
+                                Disable payroll
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmAction({
+                                  title: "Enable Payroll Module",
+                                  description: `Enable payroll for ${shop.name}? The shop owner will be able to add employees and process pay periods with deductions and payslips.`,
+                                  confirmLabel: "Enable",
+                                  onConfirm: () => togglePayroll(shop, true),
+                                })}
+                                disabled={togglingPayroll === shop.id}
+                                className="gap-2"
+                              >
+                                <Receipt className="h-3.5 w-3.5" />
+                                Enable payroll
                               </DropdownMenuItem>
                             )}
 

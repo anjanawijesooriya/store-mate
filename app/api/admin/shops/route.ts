@@ -27,6 +27,7 @@ export async function GET() {
       branchModeEnabled: true,
       deviceLockEnabled: true,
       cardSurchargeEnabled: true,
+      payrollEnabled: true,
       isLifetime: true,
       maintenanceDueDate: true,
       maintenancePaidUntil: true,

@@ -1,39 +1,36 @@
-﻿import { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
-import { localMidnightUTC, localMonthStartUTC } from "@/lib/timezone";
 
-function getDateRange(period: string, tz: string): { from: Date; to: Date } {
-  // End of local today = 1 ms before tomorrow's local midnight
-  const to = new Date(localMidnightUTC(tz, 1).getTime() - 1);
+function getDateRange(period: string): { from: Date; to: Date } {
+  const now = new Date();
+  let to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+  let from: Date;
 
   switch (period) {
     case "today":
-      return { from: localMidnightUTC(tz, 0), to };
-    case "week": {
-      // Find Monday of the current calendar week in local timezone
-      const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
-      }).formatToParts(new Date());
-      const y  = parseInt(parts.find((p) => p.type === "year")!.value, 10);
-      const mo = parseInt(parts.find((p) => p.type === "month")!.value, 10) - 1;
-      const d  = parseInt(parts.find((p) => p.type === "day")!.value, 10);
-      const dow = new Date(Date.UTC(y, mo, d)).getDay(); // 0=Sun, 1=Mon…6=Sat
-      const daysSinceMonday = (dow + 6) % 7;            // Mon=0, Tue=1…Sun=6
-      return { from: localMidnightUTC(tz, -daysSinceMonday), to };
-    }
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      break;
+    case "week":
+      from = new Date(to);
+      from.setDate(from.getDate() - 6);
+      from.setHours(0, 0, 0, 0);
+      break;
     case "month":
-      return { from: localMonthStartUTC(tz, 0), to };
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+      break;
     case "last_month":
-      return {
-        from: localMonthStartUTC(tz, -1),
-        to:   new Date(localMonthStartUTC(tz, 0).getTime() - 1),
-      };
+      from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      to = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+      break;
     case "3months":
-      return { from: localMonthStartUTC(tz, -2), to };
+      from = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      break;
     default:
-      return { from: localMidnightUTC(tz, 0), to };
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   }
+
+  return { from, to };
 }
 
 export async function GET(req: NextRequest) {
@@ -41,13 +38,11 @@ export async function GET(req: NextRequest) {
     const shopId = await getShopId();
     const { searchParams } = new URL(req.url);
     const period = searchParams.get("period") ?? "week";
-    // Browser timezone passed by the client so hour/day extraction is in local time
-    const tz = searchParams.get("tz") ?? "UTC";
-    const { from, to } = getDateRange(period, tz);
+    const { from, to } = getDateRange(period);
 
-    const [salesRaw, expensesRaw] = await Promise.all([
+    const [salesRaw, hourlyData, payrollAgg, expensesAgg] = await Promise.all([
       db.sale.findMany({
-        where: { shopId, createdAt: { gte: from, lte: to }, status: { in: ["COMPLETED", "PENDING_PAYMENT"] } },
+        where: { shopId, createdAt: { gte: from, lte: to }, status: "COMPLETED" },
         include: {
           items: {
             include: {
@@ -57,25 +52,40 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { createdAt: "asc" },
       }),
+      db.$queryRaw<Array<{ hour: number; revenue: number; count: number }>>`
+        SELECT
+          EXTRACT(HOUR FROM "createdAt")::int as hour,
+          COALESCE(SUM(total), 0)::float as revenue,
+          COUNT(id)::int as count
+        FROM "Sale"
+        WHERE "shopId" = ${shopId}
+          AND "createdAt" >= ${from}
+          AND "createdAt" <= ${to}
+          AND status = 'COMPLETED'
+        GROUP BY EXTRACT(HOUR FROM "createdAt")
+        ORDER BY hour ASC
+      `,
+      db.payrollRecord.aggregate({
+        where: { shopId, periodStart: { gte: from, lte: to } },
+        _sum: { netAmount: true },
+      }),
       db.expense.aggregate({
         where: { shopId, expenseDate: { gte: from, lte: to } },
         _sum: { amount: true },
-        _count: { id: true },
       }),
     ]);
 
-    const sales = salesRaw;
-    // Summary
-    const totalRevenue = sales.reduce((s: number, sale: typeof sales[0]) => s + Number(sale.total), 0);
-    const totalCardFees = sales.reduce((s: number, sale: typeof sales[0]) => s + Number(sale.cardFee ?? 0), 0);
-    const totalNetRevenue = totalRevenue - totalCardFees;
-    const totalSales = sales.length;
+    // Revenue and card fees
+    const totalRevenue = salesRaw.reduce((s, sale) => s + Number(sale.total), 0);
+    const totalCardFees = salesRaw.reduce((s, sale) => s + Number(sale.cardFee), 0);
+    const totalSales = salesRaw.length;
     const avgOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
 
+    // COGS and top products
     let totalCOGS = 0;
     const productRevMap = new Map<string, { name: string; qty: number; revenue: number }>();
 
-    for (const sale of sales) {
+    for (const sale of salesRaw) {
       for (const item of sale.items) {
         totalCOGS += Number(item.product.costPrice) * Number(item.quantity);
         const existing = productRevMap.get(item.productId);
@@ -92,16 +102,20 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Gross profit uses net revenue (after card fees) because that's what the shop actually received
-    const totalGrossProfit = totalNetRevenue - totalCOGS;
-    const totalExpenses = Number(expensesRaw._sum.amount ?? 0);
-    const totalProfit = totalGrossProfit - totalExpenses;
+    // Expenses
+    const totalExpenses = Number(expensesAgg._sum.amount ?? 0);
 
-    // Sales by day â€” use local timezone so dates match what the user sees
-    const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+    // Payroll
+    const totalPayroll = Number(payrollAgg._sum.netAmount ?? 0);
+
+    // P&L
+    const totalGrossProfit = totalRevenue - totalCOGS;
+    const totalProfit = totalGrossProfit - totalCardFees - totalExpenses - totalPayroll;
+
+    // Sales by day
     const dayMap = new Map<string, { date: string; revenue: number; count: number }>();
     for (const sale of salesRaw) {
-      const dateStr = dayFmt.format(sale.createdAt); // YYYY-MM-DD in local tz
+      const dateStr = sale.createdAt.toISOString().split("T")[0];
       const existing = dayMap.get(dateStr);
       if (existing) {
         existing.revenue += Number(sale.total);
@@ -113,21 +127,16 @@ export async function GET(req: NextRequest) {
     const salesByDay = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
     // Sales by payment method
-    const paymentMap = new Map<string, { method: string; total: number; fees: number; netTotal: number; count: number }>();
+    const paymentMap = new Map<string, { method: string; total: number; count: number }>();
     for (const sale of salesRaw) {
-      const fee = Number(sale.cardFee ?? 0);
       const existing = paymentMap.get(sale.paymentMethod);
       if (existing) {
         existing.total += Number(sale.total);
-        existing.fees += fee;
-        existing.netTotal += Number(sale.total) - fee;
         existing.count += 1;
       } else {
         paymentMap.set(sale.paymentMethod, {
           method: sale.paymentMethod,
           total: Number(sale.total),
-          fees: fee,
-          netTotal: Number(sale.total) - fee,
           count: 1,
         });
       }
@@ -139,42 +148,30 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
-    // Sales by hour â€” extract local hour from each sale's createdAt using the browser's timezone
-    const hourFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false });
-    const hourMap = new Map<number, { hour: number; revenue: number; count: number }>();
-    for (const sale of salesRaw) {
-      const localHour = parseInt(hourFmt.format(sale.createdAt), 10);
-      const existing = hourMap.get(localHour);
-      if (existing) {
-        existing.revenue += Number(sale.total);
-        existing.count += 1;
-      } else {
-        hourMap.set(localHour, { hour: localHour, revenue: Number(sale.total), count: 1 });
-      }
-    }
-    const salesByHour = Array.from(hourMap.values()).sort((a, b) => a.hour - b.hour);
-
     return Response.json({
       summary: {
         totalRevenue,
-        totalCardFees,
-        totalNetRevenue,
-        totalSales,
         totalCOGS,
         totalGrossProfit,
+        totalCardFees,
         totalExpenses,
+        totalPayroll,
         totalProfit,
+        totalSales,
         avgOrderValue,
       },
       salesByDay,
       salesByPayment,
-      salesByHour,
+      salesByHour: (hourlyData as Array<{ hour: number; revenue: number; count: number }>).map((r) => ({
+        hour: Number(r.hour),
+        revenue: Number(r.revenue),
+        count: Number(r.count),
+      })),
       topProducts,
     });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
+    if (err instanceof UnauthorizedError) return apiUnauthorized();
     console.error(err);
     return apiError("Failed to generate report", 500);
   }
 }
-

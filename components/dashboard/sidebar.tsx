@@ -15,11 +15,12 @@ import {
   ClipboardList,
   Zap,
   Lock,
+  Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-const PRIMARY_ONLY = ["/dashboard", "/reports", "/expenses"];
+const PRIMARY_ONLY = ["/dashboard", "/reports", "/expenses", "/payroll"];
 
 const ALWAYS_VISIBLE = [
   { href: "/pos",       label: "Point of Sale",  icon: ShoppingCart },
@@ -45,6 +46,7 @@ interface SidebarProps {
 export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [isOnline, setIsOnline] = useState(true);
+  const [payrollEnabled, setPayrollEnabled] = useState(false);
   const isBasic = !planTier || planTier === "BASIC";
 
   useEffect(() => {
@@ -56,6 +58,28 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
     return () => {
       window.removeEventListener("online",  up);
       window.removeEventListener("offline", down);
+    };
+  }, []);
+
+  useEffect(() => {
+    function checkFeatures() {
+      fetch("/api/shop/features")
+        .then((r) => r.ok ? r.json() : { payrollEnabled: false })
+        .then((d) => setPayrollEnabled(d.payrollEnabled ?? false))
+        .catch(() => {});
+    }
+
+    checkFeatures();
+
+    const onVisible = () => { if (document.visibilityState === "visible") checkFeatures(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", checkFeatures);
+    const interval = setInterval(checkFeatures, 30_000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", checkFeatures);
+      clearInterval(interval);
     };
   }, []);
 
@@ -136,7 +160,6 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
 
         {/* Plan-gated items */}
         {PLAN_GATED.map((item) => {
-          // Device Lock restriction takes priority over plan gate
           if (isNonPrimary && PRIMARY_ONLY.includes(item.href)) {
             return (
               <div
@@ -186,6 +209,37 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
             </Link>
           );
         })}
+
+        {/* Payroll — admin-enabled add-on */}
+        {payrollEnabled && (
+          isNonPrimary ? (
+            <div
+              title="Primary device only"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/25 cursor-not-allowed select-none"
+            >
+              <Briefcase className="h-[18px] w-[18px] flex-shrink-0" />
+              Payroll
+              <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
+                <Lock className="h-3 w-3" /> Primary
+              </span>
+            </div>
+          ) : (
+            <Link
+              href="/payroll"
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                pathname === "/payroll" || pathname.startsWith("/payroll/")
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+              )}
+            >
+              <Briefcase className={cn("h-[18px] w-[18px] flex-shrink-0", pathname === "/payroll" || pathname.startsWith("/payroll/") ? "text-primary" : "")} />
+              Payroll
+              {(pathname === "/payroll" || pathname.startsWith("/payroll/")) && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+            </Link>
+          )
+        )}
       </nav>
 
       {/* Admin link */}

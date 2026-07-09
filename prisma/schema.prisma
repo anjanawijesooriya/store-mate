@@ -72,6 +72,30 @@ enum BillingStatus {
   LOCKED
 }
 
+enum PayType {
+  SALARY
+  HOURLY
+  DAILY
+}
+
+enum RecordPeriod {
+  DAY
+  WEEK
+  MONTH
+}
+
+enum RecordStatus {
+  PENDING
+  PAID
+}
+
+enum DeductionType {
+  EPF
+  ETF
+  ADVANCE
+  CUSTOM
+}
+
 // Reserved for future Branch Mode — links multiple shops under one owner.
 // Nullable so all existing shops are unaffected until they opt in.
 model ShopGroup {
@@ -103,13 +127,14 @@ model Shop {
   nextBillingDate        DateTime?
   maintenanceBanner      Boolean       @default(false)
   maintenanceBannerMessage String?
-  cardSurchargeEnabled   Boolean       @default(false) // admin-enabled add-on
-  cardSurchargeRate      Decimal       @default(0) @db.Decimal(5,4) // e.g. 0.03 = 3%
-  branchModeEnabled      Boolean       @default(false) // reserved for future multi-branch
-  deviceLockEnabled      Boolean       @default(false) // restricts non-primary devices
+  cardSurchargeEnabled   Boolean       @default(false)
+  cardSurchargeRate      Decimal       @default(0) @db.Decimal(5,4)
+  branchModeEnabled      Boolean       @default(false)
+  deviceLockEnabled      Boolean       @default(false)
   isLifetime             Boolean       @default(false)
-  maintenanceDueDate     DateTime?     // when next maintenance payment is due (lifetime shops only)
-  maintenancePaidUntil   DateTime?     // maintenance paid and active until this date
+  maintenanceDueDate     DateTime?
+  maintenancePaidUntil   DateTime?
+  payrollEnabled         Boolean       @default(false)
   // Branch Mode — null means standalone shop, set when owner links branches
   shopGroupId       String?
   shopGroup         ShopGroup?   @relation(fields: [shopGroupId], references: [id])
@@ -123,6 +148,8 @@ model Shop {
   payments             Payment[]
   maintenancePayments  MaintenancePayment[]
   devices              DeviceSession[]
+  employees            Employee[]
+  payrollRecords       PayrollRecord[]
 
   @@index([shopGroupId])
 }
@@ -330,4 +357,56 @@ model BackupLog {
   driveUrl  String?
   error     String?
   createdAt DateTime @default(now())
+}
+
+model Employee {
+  id        String         @id @default(cuid())
+  shopId    String
+  shop      Shop           @relation(fields: [shopId], references: [id])
+  name      String
+  phone     String?
+  email     String?
+  nic       String?
+  position  String?
+  payType   PayType
+  payRate   Decimal        @db.Decimal(10, 2)
+  joinDate  DateTime?
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  records   PayrollRecord[]
+
+  @@index([shopId])
+}
+
+model PayrollRecord {
+  id              String             @id @default(cuid())
+  shopId          String
+  shop            Shop               @relation(fields: [shopId], references: [id])
+  employeeId      String
+  employee        Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  periodType      RecordPeriod
+  periodStart     DateTime
+  periodEnd       DateTime
+  hoursWorked     Decimal?           @db.Decimal(6, 2)
+  grossAmount     Decimal            @db.Decimal(10, 2)
+  totalDeductions Decimal            @db.Decimal(10, 2) @default(0)
+  netAmount       Decimal            @db.Decimal(10, 2)
+  status          RecordStatus       @default(PENDING)
+  paidAt          DateTime?
+  note            String?
+  deductions      PayrollDeduction[]
+  createdAt       DateTime           @default(now())
+
+  @@index([shopId, periodStart])
+  @@index([employeeId])
+}
+
+model PayrollDeduction {
+  id              String        @id @default(cuid())
+  payrollRecordId String
+  record          PayrollRecord @relation(fields: [payrollRecordId], references: [id], onDelete: Cascade)
+  type            DeductionType
+  label           String
+  amount          Decimal       @db.Decimal(10, 2)
 }
