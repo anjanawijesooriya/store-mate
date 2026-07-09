@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { toast } from "sonner";
 import {
   Database, Download, CheckCircle, XCircle, Loader2, RefreshCcw,
-  Clock, AlertTriangle, Upload, ShieldAlert, FileJson,
+  Clock, AlertTriangle, Upload, ShieldAlert, FileJson, HardDrive, Mail, ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -65,10 +65,22 @@ interface RestoreResult {
   errors: string[];
 }
 
-export function BackupClient({ logs: initial, configError: initialConfigError }: { logs: BackupLog[]; configError: string | null }) {
+export function BackupClient({
+  logs: initial,
+  configError: initialConfigError,
+  driveConfigured: initialDrive,
+  emailConfigured: initialEmail,
+}: {
+  logs: BackupLog[];
+  configError: string | null;
+  driveConfigured: boolean;
+  emailConfigured: boolean;
+}) {
   const [logs, setLogs] = useState<BackupLog[]>(initial);
   const [running, setRunning] = useState(false);
   const [configError, setConfigError] = useState<string | null>(initialConfigError);
+  const [driveConfigured, setDriveConfigured] = useState(initialDrive);
+  const [emailConfigured, setEmailConfigured] = useState(initialEmail);
 
   // Restore state
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -106,6 +118,8 @@ export function BackupClient({ logs: initial, configError: initialConfigError }:
       const data = await res.json();
       setLogs(data.logs);
       setConfigError(data.configError ?? null);
+      setDriveConfigured(data.driveConfigured ?? false);
+      setEmailConfigured(data.emailConfigured ?? false);
     }
   }
 
@@ -183,16 +197,28 @@ export function BackupClient({ logs: initial, configError: initialConfigError }:
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Database Backups</h1>
-        <p className="text-sm text-muted-foreground mt-1">Full database exported as JSON and emailed as an attachment</p>
+        <p className="text-sm text-muted-foreground mt-1">Full database backed up to Google Drive (gzip) with email notification</p>
+      </div>
+
+      {/* Destination status */}
+      <div className="flex flex-wrap gap-3">
+        <div className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium ${driveConfigured ? "border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400" : "border-border bg-muted/40 text-muted-foreground"}`}>
+          <HardDrive className="h-4 w-4" />
+          Google Drive {driveConfigured ? "✓ Configured" : "Not configured"}
+        </div>
+        <div className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium ${emailConfigured ? "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400" : "border-border bg-muted/40 text-muted-foreground"}`}>
+          <Mail className="h-4 w-4" />
+          Email {emailConfigured ? (driveConfigured ? "✓ Notification only" : "✓ Attachment fallback") : "Not configured"}
+        </div>
       </div>
 
       {configError && (
         <div className="flex gap-3 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
           <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Email not configured</p>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">No backup destination configured</p>
             <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">{configError}</p>
-            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">After fixing .env.local, restart the dev server for changes to take effect.</p>
+            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">After updating .env.local, restart the server for changes to take effect.</p>
           </div>
         </div>
       )}
@@ -230,7 +256,9 @@ export function BackupClient({ logs: initial, configError: initialConfigError }:
             Manual Backup
           </CardTitle>
           <CardDescription>
-            Export the full database now and send it as a JSON attachment to your backup email.
+            {driveConfigured
+              ? "Export the full database now, upload to Google Drive (gzip-compressed), and send an email notification."
+              : "Export the full database now and send it as a JSON attachment to your backup email."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -323,7 +351,7 @@ export function BackupClient({ logs: initial, configError: initialConfigError }:
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/40 border-b border-border">
-                {["Date", "Type", "Status", "File", "Size"].map((h) => (
+                {["Date", "Type", "Status", "File", "Size", "Drive"].map((h) => (
                   <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">{h}</th>
                 ))}
               </tr>
@@ -331,7 +359,7 @@ export function BackupClient({ logs: initial, configError: initialConfigError }:
             <tbody>
               {backupLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     No backups yet. Run your first backup above.
                   </td>
                 </tr>
@@ -355,8 +383,22 @@ export function BackupClient({ logs: initial, configError: initialConfigError }:
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate" title={log.fileName ?? ""}>{log.fileName ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate font-mono" title={log.fileName ?? ""}>{log.fileName ?? "—"}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{fmtSize(log.fileSize)}</td>
+                    <td className="px-4 py-3">
+                      {log.driveUrl ? (
+                        <a
+                          href={log.driveUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                        >
+                          <ExternalLink className="h-3 w-3" /> Open
+                        </a>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/40">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}

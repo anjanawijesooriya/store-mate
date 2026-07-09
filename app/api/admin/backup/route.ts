@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { isAdmin } from "@/lib/admin-auth";
 import { apiError } from "@/lib/auth-helpers";
 import { runBackup, BackupType } from "@/lib/backup";
+import { isDriveConfigured } from "@/lib/google-drive";
 
 // Secret key for external cron callers (GitHub Actions, cron-job.org, etc.)
 function isCronAuthorized(req: NextRequest) {
@@ -11,10 +12,17 @@ function isCronAuthorized(req: NextRequest) {
   return req.headers.get("x-backup-secret") === secret;
 }
 
-function checkConfig() {
-  if (!process.env.SMTP_USER) return "SMTP_USER is not set in .env.local — needed to send backup emails.";
-  if (!process.env.SMTP_PASS) return "SMTP_PASS is not set in .env.local — needed to send backup emails.";
-  return null;
+function checkConfig(): { error: string | null; driveConfigured: boolean; emailConfigured: boolean } {
+  const driveConfigured = isDriveConfigured();
+  const emailConfigured = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+  if (!driveConfigured && !emailConfigured) {
+    return {
+      error: "No backup destination configured. Set up Google Drive credentials (recommended) or SMTP credentials in .env.local.",
+      driveConfigured,
+      emailConfigured,
+    };
+  }
+  return { error: null, driveConfigured, emailConfigured };
 }
 
 export async function GET(req: NextRequest) {
@@ -22,13 +30,13 @@ export async function GET(req: NextRequest) {
     return apiError("Unauthorized", 401);
   }
 
-  const configError = checkConfig();
+  const { error: configError, driveConfigured, emailConfigured } = checkConfig();
   const logs = await db.backupLog.findMany({
     orderBy: { createdAt: "desc" },
     take: 50,
   });
 
-  return Response.json({ logs, configError });
+  return Response.json({ logs, configError, driveConfigured, emailConfigured });
 }
 
 export async function POST(req: NextRequest) {
@@ -36,7 +44,7 @@ export async function POST(req: NextRequest) {
     return apiError("Unauthorized", 401);
   }
 
-  const configError = checkConfig();
+  const { error: configError } = checkConfig();
   if (configError) {
     return Response.json({ success: false, error: configError }, { status: 400 });
   }
