@@ -1,6 +1,6 @@
 ﻿import { Check } from "lucide-react";
 import Link from "next/link";
-import logoSrc from "@/public/StoreMate-logo-1.png";
+import logoSrc from "@/public/eStoreMate.png";
 
 const FEATURES = [
   "Full offline POS works even without internet",

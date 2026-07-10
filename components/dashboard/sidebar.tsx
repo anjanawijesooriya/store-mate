@@ -94,7 +94,7 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/StoreMate-logo-1.png"
+            src="/eStoreMate.png"
             alt="eStoreMate"
             style={{
               width: "100%",

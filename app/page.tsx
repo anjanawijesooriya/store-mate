@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import logoSrc from "@/public/StoreMate-logo-1.png";
+import logoSrc from "@/public/eStoreMate.png";
 import {
   ShoppingCart,
   Package,
