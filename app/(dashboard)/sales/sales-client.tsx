@@ -103,6 +103,23 @@ const PERIODS = [
   { value: "3months", label: "Last 3 Months" },
 ];
 
+const PAYMENT_FILTER_OPTIONS = [
+  { value: "ALL",    label: "All Methods" },
+  { value: "CASH",   label: "Cash" },
+  { value: "CARD",   label: "Card" },
+  { value: "ONLINE", label: "Online" },
+  { value: "CREDIT", label: "Credit" },
+];
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "ALL",             label: "All Statuses" },
+  { value: "COMPLETED",       label: "Completed" },
+  { value: "PENDING_PAYMENT", label: "Awaiting Payment" },
+  { value: "REFUNDED",        label: "Refunded" },
+  { value: "VOIDED",          label: "Voided" },
+  { value: "EXCHANGED",       label: "Exchanged" },
+];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatLKR(n: number) {
@@ -139,6 +156,9 @@ export function SalesClient() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("week");
+  const [methodFilter, setMethodFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null | undefined>(undefined);
 
   // Void / Refund
@@ -159,11 +179,17 @@ export function SalesClient() {
 
   const limit = 20;
 
-  const fetchSales = useCallback(async (p: number, per: string, silent = false) => {
+  const fetchSales = useCallback(async (p: number, per: string, silent = false, mf = methodFilter, sf = statusFilter, cs = customerSearch) => {
     if (!silent) setLoading(true);
     try {
       const { from, to } = getDateRange(per);
-      const res = await fetch(`/api/sales?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&page=${p}&limit=${limit}`);
+      const params = new URLSearchParams({
+        from, to, page: String(p), limit: String(limit),
+      });
+      if (mf !== "ALL") params.set("method", mf);
+      if (sf !== "ALL") params.set("status", sf);
+      if (cs.trim()) params.set("customer", cs.trim());
+      const res = await fetch(`/api/sales?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setSales(data.sales.map((s: Sale & { total: string|number; subtotal: string|number; discount: string|number; amountPaid: string|number }) => ({
@@ -187,9 +213,12 @@ export function SalesClient() {
     }
   }, []);
 
-  useEffect(() => { fetchSales(page, period); }, [page, period, fetchSales]);
+  useEffect(() => {
+    fetchSales(page, period, false, methodFilter, statusFilter, customerSearch);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, period, methodFilter, statusFilter, customerSearch]);
 
-  useAutoRefresh(useCallback(() => fetchSales(page, period, true), [fetchSales, page, period]));
+  useAutoRefresh(useCallback(() => fetchSales(page, period, true, methodFilter, statusFilter, customerSearch), [fetchSales, page, period, methodFilter, statusFilter, customerSearch]));
 
   // Product search for exchange step 2
   useEffect(() => {
@@ -345,6 +374,43 @@ export function SalesClient() {
           </Select>
         }
       />
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by customer name..."
+            value={customerSearch}
+            onChange={(e) => { setCustomerSearch(e.target.value); setPage(1); }}
+            className="pl-9 h-9"
+          />
+        </div>
+        <Select value={methodFilter} onValueChange={(v) => { if (v) { setMethodFilter(v); setPage(1); } }}>
+          <SelectTrigger className="w-36 h-9">
+            <span>{PAYMENT_FILTER_OPTIONS.find((o) => o.value === methodFilter)?.label}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {PAYMENT_FILTER_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={(v) => { if (v) { setStatusFilter(v); setPage(1); } }}>
+          <SelectTrigger className="w-40 h-9">
+            <span>{STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_FILTER_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {(methodFilter !== "ALL" || statusFilter !== "ALL" || customerSearch) && (
+          <button
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+            onClick={() => { setMethodFilter("ALL"); setStatusFilter("ALL"); setCustomerSearch(""); setPage(1); }}
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
 
       {/* Summary strip */}
       {!loading && sales.length > 0 && (

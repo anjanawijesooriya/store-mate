@@ -11,6 +11,9 @@ export async function GET(req: NextRequest) {
     const to = searchParams.get("to");
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "20");
+    const method = searchParams.get("method");
+    const status = searchParams.get("status");
+    const customer = searchParams.get("customer");
 
     const where = {
       shopId,
@@ -19,6 +22,11 @@ export async function GET(req: NextRequest) {
           ...(from && { gte: new Date(from) }),
           ...(to && { lte: new Date(to) }),
         },
+      } : {}),
+      ...(method && method !== "ALL" ? { paymentMethod: method as PaymentMethod } : {}),
+      ...(status && status !== "ALL" ? { status: status as SaleStatus } : {}),
+      ...(customer ? {
+        customer: { name: { contains: customer, mode: "insensitive" as const } },
       } : {}),
     };
 

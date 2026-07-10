@@ -26,6 +26,8 @@ import {
   Download,
   ScanBarcode,
   TriangleAlert,
+  Bookmark,
+  BookmarkCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,6 +102,15 @@ function qtyStep(unit: string) {
   if (u === "g" || u === "ml") return 50;   // grams/ml → step 50
   if (u === "kg" || u === "l") return 0.25;  // kg/L → step 250g
   return 1;
+}
+
+interface HeldCart {
+  id: string;
+  savedAt: string;
+  cart: CartItem[];
+  discount: number;
+  discountType: "amount" | "percent";
+  customer: Customer | null;
 }
 
 interface CompletedSale {
@@ -260,7 +271,7 @@ export function POSClient({
     };
   }, []);
 
-  // Restore cart from localStorage after mount (persists across navigation)
+  // Restore cart + held carts from localStorage after mount (persists across navigation)
   useEffect(() => {
     if (!shopId) return;
     try {
@@ -271,6 +282,11 @@ export function POSClient({
       }
       const disc = localStorage.getItem(`pos-discount-${shopId}`);
       if (disc) setDiscount(parseFloat(disc) || 0);
+      const held = localStorage.getItem(`pos-held-${shopId}`);
+      if (held) {
+        const parsed = JSON.parse(held) as HeldCart[];
+        if (Array.isArray(parsed) && parsed.length > 0) setHeldCarts(parsed);
+      }
     } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shopId]);
@@ -289,6 +305,7 @@ export function POSClient({
       localStorage.setItem(`pos-discount-${shopId}`, String(discount));
     } catch {}
   }, [discount, shopId]);
+
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountTendered, setAmountTendered] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -305,6 +322,17 @@ export function POSClient({
   const [walkInPhone, setWalkInPhone] = useState("");
   const [walkInEmail, setWalkInEmail] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
+  const [heldOpen, setHeldOpen] = useState(false);
+
+  // Persist held carts to localStorage on every change
+  useEffect(() => {
+    if (!shopId) return;
+    try {
+      localStorage.setItem(`pos-held-${shopId}`, JSON.stringify(heldCarts));
+    } catch {}
+  }, [heldCarts, shopId]);
 
   // Barcode scanner — look up product by SKU from the in-memory cache and add to cart
   const handleBarcodeScan = useCallback((barcode: string) => {
@@ -941,6 +969,44 @@ export function POSClient({
     }
   }
 
+  function holdSale() {
+    if (cart.length === 0) return;
+    const held: HeldCart = {
+      id: Date.now().toString(),
+      savedAt: new Date().toISOString(),
+      cart,
+      discount,
+      discountType,
+      customer: selectedCustomer,
+    };
+    setHeldCarts((prev) => [...prev, held]);
+    setCart([]);
+    setDiscount(0);
+    setDiscountType("amount");
+    setSelectedCustomer(null);
+    setCustomerQuery("");
+    setAmountTendered("");
+    toast.success("Sale held — cart cleared for next customer");
+  }
+
+  function restoreHeld(held: HeldCart) {
+    if (cart.length > 0) {
+      toast.error("Clear or hold the current cart first");
+      return;
+    }
+    setCart(held.cart);
+    setDiscount(held.discount);
+    setDiscountType(held.discountType);
+    setSelectedCustomer(held.customer);
+    setHeldCarts((prev) => prev.filter((h) => h.id !== held.id));
+    setHeldOpen(false);
+    toast.success("Cart restored");
+  }
+
+  function discardHeld(id: string) {
+    setHeldCarts((prev) => prev.filter((h) => h.id !== id));
+  }
+
   const displayProducts = searchQuery ? searchResults : recentProducts;
 
   function ProductCard({ product }: { product: Product }) {
@@ -1048,6 +1114,18 @@ export function POSClient({
             </div>
           )}
 
+          {heldCarts.length > 0 && (
+            <button
+              onClick={() => setHeldOpen(true)}
+              title={`${heldCarts.length} held sale${heldCarts.length > 1 ? "s" : ""}`}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors flex-shrink-0"
+            >
+              <BookmarkCheck className="h-4 w-4" />
+              <span className="hidden sm:block">Held ({heldCarts.length})</span>
+              <span className="sm:hidden">{heldCarts.length}</span>
+            </button>
+          )}
+
           {isOnline && pendingCount > 0 && (
             <button
               onClick={syncPendingSales}
@@ -1118,14 +1196,35 @@ export function POSClient({
               </Badge>
             )}
           </div>
-          {cart.length > 0 && (
-            <button
-              onClick={clearCart}
-              className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-            >
-              Clear all
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {heldCarts.length > 0 && (
+              <button
+                onClick={() => setHeldOpen(true)}
+                className="flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400 hover:text-amber-800 transition-colors"
+                title="View held sales"
+              >
+                <BookmarkCheck className="h-3.5 w-3.5" />
+                {heldCarts.length} held
+              </button>
+            )}
+            {cart.length > 0 && (
+              <>
+                <button
+                  onClick={holdSale}
+                  className="text-xs text-muted-foreground hover:text-amber-600 transition-colors"
+                  title="Hold this sale"
+                >
+                  <Bookmark className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={clearCart}
+                  className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  Clear
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {cart.length === 0 ? (
@@ -1461,6 +1560,56 @@ export function POSClient({
                 : "Save Offline"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Held Sales Dialog */}
+      <Dialog open={heldOpen} onOpenChange={setHeldOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookmarkCheck className="h-5 w-5 text-amber-600" />
+              Held Sales
+            </DialogTitle>
+          </DialogHeader>
+          {heldCarts.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No held sales</p>
+          ) : (
+            <div className="space-y-2">
+              {heldCarts.map((held) => {
+                const heldTotal = held.cart.reduce((s, i) => s + i.lineTotal, 0);
+                const discAmt = held.discountType === "percent" ? (heldTotal * held.discount) / 100 : held.discount;
+                const net = Math.max(0, heldTotal - discAmt);
+                return (
+                  <div key={held.id} className="rounded-lg border border-border bg-background p-3 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-sm font-semibold text-foreground font-mono">{formatLKR(net)}</p>
+                        {held.customer && (
+                          <span className="text-xs text-muted-foreground">· {held.customer.name}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {held.cart.length} item{held.cart.length !== 1 ? "s" : ""} ·{" "}
+                        {new Date(held.savedAt).toLocaleTimeString("en-LK", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {held.cart.map((i) => i.name).join(", ")}
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-1.5 flex-shrink-0">
+                      <Button size="sm" className="h-7 text-xs" onClick={() => restoreHeld(held)}>
+                        Restore
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => discardHeld(held.id)}>
+                        Discard
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

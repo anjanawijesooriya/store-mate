@@ -38,7 +38,18 @@ export async function GET(req: NextRequest) {
     const shopId = await getShopId();
     const { searchParams } = new URL(req.url);
     const period = searchParams.get("period") ?? "week";
-    const { from, to } = getDateRange(period);
+    const customFrom = searchParams.get("from");
+    const customTo = searchParams.get("to");
+
+    let from: Date, to: Date;
+    if (period === "custom" && customFrom && customTo) {
+      const [fy, fm, fd] = customFrom.split("-").map(Number);
+      const [ty, tm, td] = customTo.split("-").map(Number);
+      from = new Date(fy, fm - 1, fd, 0, 0, 0);
+      to   = new Date(ty, tm - 1, td, 23, 59, 59);
+    } else {
+      ({ from, to } = getDateRange(period));
+    }
 
     const [salesRaw, hourlyData, payrollAgg, expensesAgg] = await Promise.all([
       db.sale.findMany({

@@ -49,21 +49,33 @@ const PERIODS = [
   { value: "month",      label: "This Month" },
   { value: "last_month", label: "Last Month" },
   { value: "3months",    label: "Last 3 Months" },
+  { value: "custom",     label: "Custom Range" },
 ];
+
+function todayStr() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+}
 
 export function ReportsClient() {
   const [period, setPeriod] = useState("week");
+  const [customFrom, setCustomFrom] = useState(todayStr);
+  const [customTo, setCustomTo] = useState(todayStr);
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (period === "custom" && (!customFrom || !customTo)) return;
     setLoading(true);
-    fetch(`/api/reports?period=${period}`)
+    const url = period === "custom"
+      ? `/api/reports?period=custom&from=${customFrom}&to=${customTo}`
+      : `/api/reports?period=${period}`;
+    fetch(url)
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(() => toast.error("Failed to load reports"))
       .finally(() => setLoading(false));
-  }, [period]);
+  }, [period, customFrom, customTo]);
 
   function exportCSV() {
     if (!data) return;
@@ -89,7 +101,7 @@ export function ReportsClient() {
         title="Sales Reports"
         description="Understand your business performance"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
             <Select value={period} onValueChange={(v) => v && setPeriod(v)}>
               <SelectTrigger className="w-44">
                 <SelectValue>{periodLabel}</SelectValue>
@@ -100,6 +112,26 @@ export function ReportsClient() {
                 ))}
               </SelectContent>
             </Select>
+            {period === "custom" && (
+              <>
+                <input
+                  type="date"
+                  value={customFrom}
+                  max={customTo}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <span className="text-muted-foreground text-sm">to</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  min={customFrom}
+                  max={todayStr()}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </>
+            )}
             <Button variant="outline" onClick={exportCSV} disabled={!data}>
               <Download className="h-4 w-4 mr-2" />
               Export CSV
