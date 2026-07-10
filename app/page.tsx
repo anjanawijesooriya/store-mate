@@ -732,7 +732,7 @@ export default async function HomePage() {
                 </div>
                 <div className="flex items-start gap-2">
                   <Star className="h-4 w-4 text-[#EAB308] flex-shrink-0 mt-0.5" />
-                  <span><span className="text-white/60 font-medium">From Year 2 onwards:</span> Optional annual maintenance of <span className="text-[#EAB308] font-semibold">LKR 5,000 – 10,000</span> keeps your system updated with new features and continued support.</span>
+                  <span><span className="text-white/60 font-medium">From Year 2 onwards:</span> Optional annual maintenance plan available — covers updates, new features, and priority support.</span>
                 </div>
               </div>
             </div>
