@@ -25,6 +25,7 @@ import {
   Mail,
   Download,
   ScanBarcode,
+  TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,6 +211,9 @@ export function POSClient({
   const offlinePOSAllowed = planTier !== "BASIC";
   const isOnline = useOnlineStatus();
 
+  const [maintenanceMsg, setMaintenanceMsg] = useState<string | null>(null);
+  const [maintenanceDismissed, setMaintenanceDismissed] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [recentProducts, setRecentProducts] = useState<Product[]>([]);
@@ -220,6 +224,41 @@ export function POSClient({
   const [qtyInputs, setQtyInputs] = useState<Record<string, string>>({});
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
+
+  // Poll maintenance status — show/hide card in real time
+  useEffect(() => {
+    let prevActive = false;
+
+    function checkMaintenance() {
+      fetch("/api/billing")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          const active = !!d?.billing?.maintenanceBanner;
+          const msg = active
+            ? (d.billing.maintenanceBannerMessage || "System maintenance in progress — transactions may be affected.")
+            : null;
+
+          // If maintenance just switched ON, reset dismissed so card reappears
+          if (active && !prevActive) setMaintenanceDismissed(false);
+          prevActive = active;
+          setMaintenanceMsg(msg);
+        })
+        .catch(() => {});
+    }
+
+    checkMaintenance();
+
+    const onVisible = () => { if (document.visibilityState === "visible") checkMaintenance(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", checkMaintenance);
+    const interval = setInterval(checkMaintenance, 30_000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", checkMaintenance);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Restore cart from localStorage after mount (persists across navigation)
   useEffect(() => {
@@ -937,6 +976,28 @@ export function POSClient({
   }
 
   return (
+    <div className="flex flex-col gap-3">
+    {maintenanceMsg && !maintenanceDismissed && (
+      <div className="flex items-start gap-3 rounded-xl border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+        <TriangleAlert className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+            System Maintenance In Progress
+          </p>
+          <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">{maintenanceMsg}</p>
+          <p className="text-xs text-amber-600/80 dark:text-amber-500 mt-1">
+            Proceed with caution — complete pending transactions and avoid starting new ones until maintenance is done.
+          </p>
+        </div>
+        <button
+          onClick={() => setMaintenanceDismissed(true)}
+          className="p-1 rounded-lg text-amber-600 hover:bg-amber-200/60 dark:hover:bg-amber-800/40 transition-colors flex-shrink-0"
+          title="Dismiss"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    )}
     <div className="flex flex-col md:flex-row gap-4 md:h-[calc(100vh-8rem)]">
       {/* Left — Product search */}
       <div className="h-[42vh] md:h-auto md:flex-1 min-h-0 flex flex-col gap-4 min-w-0">
@@ -1613,6 +1674,7 @@ export function POSClient({
           )}
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }

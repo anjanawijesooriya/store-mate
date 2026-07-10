@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { Wrench } from "lucide-react";
 
 const DEFAULT_MESSAGE =
@@ -9,20 +8,34 @@ const DEFAULT_MESSAGE =
 
 export function MaintenanceBanner() {
   const [message, setMessage] = useState<string | null>(null);
-  const pathname = usePathname();
 
   useEffect(() => {
-    fetch("/api/billing")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.billing?.maintenanceBanner) {
-          setMessage(d.billing.maintenanceBannerMessage || DEFAULT_MESSAGE);
-        } else {
-          setMessage(null);
-        }
-      })
-      .catch(() => {});
-  }, [pathname]);
+    function check() {
+      fetch("/api/billing")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          if (d?.billing?.maintenanceBanner) {
+            setMessage(d.billing.maintenanceBannerMessage || DEFAULT_MESSAGE);
+          } else {
+            setMessage(null);
+          }
+        })
+        .catch(() => {});
+    }
+
+    check();
+
+    const onVisible = () => { if (document.visibilityState === "visible") check(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", check);
+    const interval = setInterval(check, 30_000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", check);
+      clearInterval(interval);
+    };
+  }, []);
 
   if (!message) return null;
 
