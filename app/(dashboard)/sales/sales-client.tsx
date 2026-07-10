@@ -16,6 +16,9 @@ import {
   Trash2,
   Search,
   CornerDownRight,
+  Mail,
+  Link,
+  Share2,
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -55,7 +58,7 @@ interface Sale {
   createdAt: string;
   originalSaleId: string | null;
   items: SaleItem[];
-  customer: { id: string; name: string; phone: string | null } | null;
+  customer: { id: string; name: string; phone: string | null; email: string | null } | null;
 }
 
 interface Product {
@@ -160,6 +163,47 @@ export function SalesClient() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [customerSearch, setCustomerSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null | undefined>(undefined);
+
+  // Shop info (email receipts enabled flag)
+  const [emailReceiptEnabled, setEmailReceiptEnabled] = useState(false);
+  useEffect(() => {
+    fetch("/api/shop")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.shop?.emailReceiptEnabled) setEmailReceiptEnabled(true); })
+      .catch(() => {});
+  }, []);
+
+  // Email receipt from history
+  const [emailingSaleId, setEmailingSaleId] = useState<string | null>(null);
+  const [walkInEmails, setWalkInEmails] = useState<Record<string, string>>({});
+
+  async function sendHistoryEmail(saleId: string, overrideEmail?: string) {
+    setEmailingSaleId(saleId);
+    try {
+      const res = await fetch("/api/email/send-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ saleId, ...(overrideEmail?.trim() ? { email: overrideEmail.trim() } : {}) }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Failed to send email"); return; }
+      toast.success("Receipt sent via email");
+      setWalkInEmails((p) => { const n = { ...p }; delete n[saleId]; return n; });
+    } catch {
+      toast.error("Failed to send email");
+    } finally {
+      setEmailingSaleId(null);
+    }
+  }
+
+  function copyReceiptLink(saleId: string) {
+    const url = `${window.location.origin}/r/${saleId}`;
+    navigator.clipboard.writeText(url)
+      .then(() => toast.success("Receipt link copied to clipboard"))
+      .catch(() => {
+        window.open(`/r/${saleId}`, "_blank");
+      });
+  }
 
   // Void / Refund
   const [confirmSale, setConfirmSale] = useState<{ sale: Sale; action: "void" | "refund" } | null>(null);
@@ -536,30 +580,86 @@ export function SalesClient() {
                             )}
                           </div>
 
-                          {(sale.status === "COMPLETED" || sale.status === "PENDING_PAYMENT") && (
+                          <div className="flex flex-col gap-2 items-end">
+                            {/* Receipt actions — available for all sales */}
                             <div className="flex gap-2 flex-wrap justify-end">
-                              {activeItems.length > 0 && (
-                                <Button size="sm" variant="outline"
-                                  className="text-xs h-8 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950/40"
-                                  onClick={() => openExchange(sale)}
-                                >
-                                  <ArrowLeftRight className="h-3 w-3 mr-1" /> Exchange
-                                </Button>
+                              {emailReceiptEnabled && (
+                                sale.customer?.email ? (
+                                  <Button size="sm" variant="outline"
+                                    className="text-xs h-8"
+                                    onClick={() => sendHistoryEmail(sale.id)}
+                                    disabled={emailingSaleId === sale.id}
+                                  >
+                                    {emailingSaleId === sale.id
+                                      ? <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                      : <Mail className="h-3 w-3 mr-1" />}
+                                    Email Receipt
+                                  </Button>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="email"
+                                      placeholder="Customer email"
+                                      value={walkInEmails[sale.id] ?? ""}
+                                      onChange={(e) => setWalkInEmails((p) => ({ ...p, [sale.id]: e.target.value }))}
+                                      className="h-8 text-xs w-52"
+                                    />
+                                    <Button size="sm" variant="outline"
+                                      className="text-xs h-8 px-2"
+                                      onClick={() => sendHistoryEmail(sale.id, walkInEmails[sale.id])}
+                                      disabled={emailingSaleId === sale.id || !walkInEmails[sale.id]?.trim()}
+                                    >
+                                      {emailingSaleId === sale.id
+                                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                                        : <Mail className="h-3 w-3" />}
+                                    </Button>
+                                  </div>
+                                )
                               )}
                               <Button size="sm" variant="outline"
-                                className="text-xs h-8 text-amber-700 border-amber-200 hover:bg-amber-50"
-                                onClick={() => setConfirmSale({ sale, action: "refund" })}
+                                className="text-xs h-8"
+                                onClick={() => copyReceiptLink(sale.id)}
                               >
-                                <RotateCcw className="h-3 w-3 mr-1" /> Refund
+                                <Link className="h-3 w-3 mr-1" /> Copy Link
                               </Button>
                               <Button size="sm" variant="outline"
-                                className="text-xs h-8 text-red-600 border-red-200 hover:bg-red-50"
-                                onClick={() => setConfirmSale({ sale, action: "void" })}
+                                className="text-xs h-8 text-green-700 border-green-300 hover:bg-green-50 dark:text-green-400 dark:border-green-700 dark:hover:bg-green-900/20"
+                                onClick={() => {
+                                  const link = `${window.location.origin}/r/${sale.id}`;
+                                  const msg = encodeURIComponent(`Here is your receipt: ${link}`);
+                                  window.open(`https://wa.me/?text=${msg}`, "_blank");
+                                }}
                               >
-                                <XCircle className="h-3 w-3 mr-1" /> Void
+                                <Share2 className="h-3 w-3 mr-1" /> WhatsApp
                               </Button>
                             </div>
-                          )}
+
+                            {/* Transaction actions — status-gated */}
+                            {(sale.status === "COMPLETED" || sale.status === "PENDING_PAYMENT") && (
+                              <div className="flex gap-2 flex-wrap justify-end">
+                                {activeItems.length > 0 && (
+                                  <Button size="sm" variant="outline"
+                                    className="text-xs h-8 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+                                    onClick={() => openExchange(sale)}
+                                  >
+                                    <ArrowLeftRight className="h-3 w-3 mr-1" /> Exchange
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="outline"
+                                  className="text-xs h-8 text-amber-700 border-amber-200 hover:bg-amber-50"
+                                  onClick={() => setConfirmSale({ sale, action: "refund" })}
+                                >
+                                  <RotateCcw className="h-3 w-3 mr-1" /> Refund
+                                </Button>
+                                <Button size="sm" variant="outline"
+                                  className="text-xs h-8 text-red-600 border-red-200 hover:bg-red-50"
+                                  onClick={() => setConfirmSale({ sale, action: "void" })}
+                                >
+                                  <XCircle className="h-3 w-3 mr-1" /> Void
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

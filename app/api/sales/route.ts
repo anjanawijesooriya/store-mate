@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         where,
         include: {
           items: { include: { product: { select: { name: true, unit: true } } } },
-          customer: { select: { id: true, name: true, phone: true } },
+          customer: { select: { id: true, name: true, phone: true, email: true } },
         },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,

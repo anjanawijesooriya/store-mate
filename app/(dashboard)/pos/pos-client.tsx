@@ -28,6 +28,7 @@ import {
   TriangleAlert,
   Bookmark,
   BookmarkCheck,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1760,6 +1761,21 @@ export function POSClient({
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Download PDF
+                  </Button>
+                )}
+
+                {!completedSale?.isOffline && (
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-green-700 border-green-300 hover:bg-green-50 dark:text-green-400 dark:border-green-700 dark:hover:bg-green-900/20"
+                    onClick={() => {
+                      const link = `${window.location.origin}/r/${completedSale!.id}`;
+                      const msg = encodeURIComponent(`Here is your receipt: ${link}`);
+                      window.open(`https://wa.me/?text=${msg}`, "_blank");
+                    }}
+                  >
+                    <Share2 className="h-4 w-4 mr-2" />
+                    WhatsApp
                   </Button>
                 )}
 
