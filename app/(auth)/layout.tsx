@@ -3,7 +3,7 @@ import Link from "next/link";
 import logoSrc from "@/public/StoreMate-logo-1.png";
 
 const FEATURES = [
-  "Full offline POS â€” works even without internet",
+  "Full offline POS works even without internet",
   "Inventory tracking with low-stock alerts",
   "Sales reports, P&L, and expense tracking",
   "Customer credit management built-in",
@@ -37,7 +37,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             Your shop, <br />smarter.
           </h2>
           <p className="mt-4 text-gray-400 text-base leading-relaxed max-w-xs">
-            Everything a local shop owner needs â€” POS, stock, sales, and reports â€” in one app.
+            Everything a local shop owner needs  POS, stock, sales, and reports in one app.
           </p>
 
           <div className="mt-10 space-y-4">
