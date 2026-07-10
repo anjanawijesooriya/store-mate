@@ -4,7 +4,7 @@ import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/a
 import { SaleStatus } from "@/lib/generated/prisma/enums";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -13,16 +13,27 @@ export async function GET(
     if (shop?.planTier === "BASIC") return apiError("Customer management requires Standard plan or higher.", 403);
     const { id } = await params;
 
+    const { searchParams } = new URL(req.url);
+    const view = searchParams.get("view");
+
     const customer = await db.customer.findUnique({
       where: { id, shopId },
       include: {
-        sales: {
-          where: { status: SaleStatus.PENDING_PAYMENT },
-          orderBy: { createdAt: "asc" },
-          include: {
-            items: { include: { product: { select: { name: true, unit: true } } } },
-          },
-        },
+        sales: view === "profile"
+          ? {
+              orderBy: { createdAt: "desc" },
+              take: 50,
+              include: {
+                items: { include: { product: { select: { name: true, unit: true } } } },
+              },
+            }
+          : {
+              where: { status: SaleStatus.PENDING_PAYMENT },
+              orderBy: { createdAt: "asc" },
+              include: {
+                items: { include: { product: { select: { name: true, unit: true } } } },
+              },
+            },
       },
     });
 

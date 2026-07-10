@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { toast } from "sonner";
-import { Users, Plus, Search, Phone, Mail, CreditCard, Banknote, CheckCircle2, ShoppingBag, Lock, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Users, Plus, Search, Phone, Mail, CreditCard, Banknote, CheckCircle2, ShoppingBag, Lock, MoreVertical, Pencil, Trash2, MapPin, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,24 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
+
+interface SaleHistoryItem {
+  id: string;
+  createdAt: string;
+  total: number;
+  amountPaid: number;
+  status: string;
+  paymentMethod: string;
+  items: { quantity: number; unitPrice: number; lineTotal: number; product: { name: string; unit: string } }[];
+}
 
 interface PendingSale {
   id: string;
@@ -63,6 +76,29 @@ export function CustomersClient() {
   // Delete dialog
   const [deleteCustomer, setDeleteCustomer] = useState<Customer | null>(null);
   const [deleting, setDeleting]             = useState(false);
+
+  // Profile sheet
+  const [profileCustomer, setProfileCustomer] = useState<Customer | null>(null);
+  const [profileSales, setProfileSales] = useState<SaleHistoryItem[]>([]);
+  const [profileLoading, setProfileLoading] = useState(false);
+
+  useEffect(() => {
+    if (!profileCustomer) { setProfileSales([]); return; }
+    setProfileLoading(true);
+    fetch(`/api/customers/${profileCustomer.id}?view=profile`)
+      .then((r) => r.json())
+      .then((d) => {
+        const sales: SaleHistoryItem[] = (d.customer?.sales ?? []).map((s: SaleHistoryItem) => ({
+          ...s,
+          total: Number(s.total),
+          amountPaid: Number(s.amountPaid),
+          items: s.items.map((i) => ({ ...i, quantity: Number(i.quantity), unitPrice: Number(i.unitPrice), lineTotal: Number(i.lineTotal) })),
+        }));
+        setProfileSales(sales);
+      })
+      .catch(() => {})
+      .finally(() => setProfileLoading(false));
+  }, [profileCustomer]);
 
   // Record payment dialog
   const [payCustomer, setPayCustomer] = useState<Customer | null>(null);
@@ -288,7 +324,7 @@ export function CustomersClient() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {customers.map((c) => (
-            <Card key={c.id} className="shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+            <Card key={c.id} className="shadow-sm hover:shadow-md transition-shadow overflow-hidden cursor-pointer" onClick={() => setProfileCustomer(c)}>
               {/* Red top stripe if they owe money */}
               {c.creditBalance > 0 && (
                 <div className="h-0.5 bg-gradient-to-r from-destructive/60 to-destructive/10" />
@@ -296,7 +332,10 @@ export function CustomersClient() {
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-foreground">{c.name}</p>
+                    <div className="flex items-center gap-1">
+                      <p className="font-semibold text-foreground">{c.name}</p>
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 flex-shrink-0" />
+                    </div>
                     {c.phone && (
                       <p className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
                         <Phone className="h-3 w-3 flex-shrink-0" />
@@ -310,7 +349,7 @@ export function CustomersClient() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {c.creditBalance > 0 && (
                       <Badge className="bg-destructive/10 text-destructive border-destructive/20">
                         Owes
@@ -357,15 +396,17 @@ export function CustomersClient() {
 
                 {/* Record Payment button — only shown when there's outstanding credit */}
                 {c.creditBalance > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full text-xs h-8 border-destructive/30 text-destructive hover:bg-destructive/5 gap-1.5"
-                    onClick={() => { setPayCustomer(c); setPayAmount(""); }}
-                  >
-                    <Banknote className="h-3.5 w-3.5" />
-                    Record Payment
-                  </Button>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-xs h-8 border-destructive/30 text-destructive hover:bg-destructive/5 gap-1.5"
+                      onClick={() => { setPayCustomer(c); setPayAmount(""); }}
+                    >
+                      <Banknote className="h-3.5 w-3.5" />
+                      Record Payment
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -600,6 +641,143 @@ export function CustomersClient() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Customer Profile Sheet ─────────────────────────────────────────── */}
+      <Sheet open={!!profileCustomer} onOpenChange={(o) => !o && setProfileCustomer(null)}>
+        <SheetContent className="w-full sm:max-w-lg flex flex-col p-0">
+          {profileCustomer && (
+            <>
+              <SheetHeader className="px-6 pt-6 pb-4 border-b border-border flex-shrink-0">
+                <SheetTitle className="text-lg">{profileCustomer.name}</SheetTitle>
+                <div className="space-y-1 mt-1">
+                  {profileCustomer.phone && (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Phone className="h-3.5 w-3.5 flex-shrink-0" />
+                      {profileCustomer.phone}
+                    </p>
+                  )}
+                  {profileCustomer.email && (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Mail className="h-3.5 w-3.5 flex-shrink-0" />
+                      {profileCustomer.email}
+                    </p>
+                  )}
+                  {profileCustomer.address && (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                      {profileCustomer.address}
+                    </p>
+                  )}
+                </div>
+              </SheetHeader>
+
+              {/* Stats strip */}
+              <div className="grid grid-cols-3 divide-x divide-border border-b border-border flex-shrink-0">
+                {[
+                  { label: "Total Spent",  value: formatLKR(profileCustomer.totalSpent) },
+                  { label: "Purchases",    value: profileCustomer._count.sales.toString() },
+                  { label: "Credit Owed",  value: formatLKR(profileCustomer.creditBalance) },
+                ].map(({ label, value }) => (
+                  <div key={label} className="py-3 px-4 text-center">
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className={`text-sm font-bold font-mono mt-0.5 ${label === "Credit Owed" && profileCustomer.creditBalance > 0 ? "text-destructive" : "text-foreground"}`}>
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Quick actions */}
+              <div className="flex gap-2 px-6 py-3 border-b border-border flex-shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs gap-1.5"
+                  onClick={() => { setEditCustomer(profileCustomer); setEditForm({ name: profileCustomer.name, phone: profileCustomer.phone ?? "", email: profileCustomer.email ?? "", address: profileCustomer.address ?? "" }); }}
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </Button>
+                {profileCustomer.creditBalance > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/5"
+                    onClick={() => { setPayCustomer(profileCustomer); setPayAmount(""); }}
+                  >
+                    <Banknote className="h-3.5 w-3.5" /> Record Payment
+                  </Button>
+                )}
+              </div>
+
+              {/* Purchase history */}
+              <div className="flex-1 overflow-y-auto">
+                <p className="px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">
+                  Purchase History
+                </p>
+
+                {profileLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : profileSales.length === 0 ? (
+                  <div className="flex flex-col items-center py-12 gap-2 text-muted-foreground">
+                    <ShoppingBag className="h-8 w-8 opacity-30" />
+                    <p className="text-sm">No purchases yet</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {profileSales.map((sale) => {
+                      const STATUS_STYLES: Record<string, string> = {
+                        COMPLETED:       "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+                        PENDING_PAYMENT: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
+                        EXCHANGED:       "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
+                        VOIDED:          "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+                        REFUNDED:        "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+                      };
+                      const STATUS_LABELS: Record<string, string> = {
+                        COMPLETED: "Completed", PENDING_PAYMENT: "Awaiting Payment",
+                        EXCHANGED: "Exchanged", VOIDED: "Voided", REFUNDED: "Refunded",
+                      };
+                      const METHOD_LABELS: Record<string, string> = {
+                        CASH: "Cash", CARD: "Card", ONLINE: "Online", CREDIT: "Credit",
+                      };
+                      return (
+                        <div key={sale.id} className="px-6 py-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-foreground">
+                                {new Date(sale.createdAt).toLocaleDateString("en-LK", { day: "numeric", month: "short", year: "numeric" })}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {METHOD_LABELS[sale.paymentMethod] ?? sale.paymentMethod}
+                                {" · "}#{sale.id.slice(-6).toUpperCase()}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                {sale.items.map((i) => `${i.product.name} ×${Number(i.quantity)}`).join(", ")}
+                              </p>
+                              {sale.status === "PENDING_PAYMENT" && (
+                                <p className="text-xs text-destructive font-medium mt-1">
+                                  Due: {formatLKR(sale.total - sale.amountPaid)}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                              <p className="text-sm font-bold font-mono text-foreground">{formatLKR(sale.total)}</p>
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_STYLES[sale.status] ?? ""}`}>
+                                {STATUS_LABELS[sale.status] ?? sale.status}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
