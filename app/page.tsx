@@ -21,6 +21,9 @@ import {
   Star,
   Wrench,
   PhoneCall,
+  Share2,
+  Banknote,
+  CreditCard,
 } from "lucide-react";
 
 export default async function HomePage() {
@@ -227,7 +230,7 @@ export default async function HomePage() {
                 color: "#2DA86B",
                 bg: "rgba(45,168,107,0.1)",
                 title: "Point of Sale",
-                desc: "Ring up a sale in under 30 seconds. Search by name or scan barcode, add to cart, collect payment, print or SMS the receipt.",
+                desc: "Ring up a sale in under 30 seconds. Search by name or barcode, hold a sale mid-transaction and resume it later, collect payment, and share the receipt instantly.",
                 highlight: true,
               },
               {
@@ -243,7 +246,7 @@ export default async function HomePage() {
                 color: "#A78BFA",
                 bg: "rgba(167,139,250,0.1)",
                 title: "Sales Reports & P&L",
-                desc: "See today's revenue vs yesterday, top-selling products, sales by hour, and a full Profit & Loss breakdown including expenses.",
+                desc: "See today's revenue vs yesterday, top-selling products, and a full P&L breakdown. Filter by any custom date range for deep-dive analysis.",
                 highlight: false,
               },
               {
@@ -255,11 +258,11 @@ export default async function HomePage() {
                 highlight: false,
               },
               {
-                icon: MessageSquare,
+                icon: Share2,
                 color: "#34D399",
                 bg: "rgba(52,211,153,0.1)",
-                title: "SMS Notifications",
-                desc: "Receive low-stock alerts and daily summaries on your phone. Send digital receipts to customers via SMS.",
+                title: "Receipts & Notifications",
+                desc: "Share receipts via WhatsApp, email, or a permanent receipt link — free, no SMS cost. Opt in to SMS for low-stock alerts and daily summaries sent straight to your phone.",
                 highlight: false,
               },
               {
@@ -267,7 +270,7 @@ export default async function HomePage() {
                 color: "#FBBF24",
                 bg: "rgba(251,191,36,0.1)",
                 title: "Customer Management",
-                desc: "Track regular customers, their purchase history, and running credit balances. Know who your best customers are.",
+                desc: "Tap any customer to see their full profile — contact details, lifetime spend, credit balance owed, and every purchase linked to them. Record payments against outstanding credit.",
                 highlight: false,
               },
               {
@@ -276,6 +279,14 @@ export default async function HomePage() {
                 bg: "rgba(244,114,182,0.1)",
                 title: "Device Lock & Access Control",
                 desc: "Restrict dashboard access to a single trusted device. Cashiers can only use POS — reports, settings, and expenses stay protected.",
+                highlight: false,
+              },
+              {
+                icon: Banknote,
+                color: "#FB923C",
+                bg: "rgba(251,146,60,0.1)",
+                title: "Payroll Management",
+                desc: "Manage employee records, track attendance, and calculate monthly salaries including EPF/ETF. Generate payslips you can print or share via WhatsApp.",
                 highlight: false,
               },
             ].map((f) => {
@@ -433,10 +444,12 @@ export default async function HomePage() {
                 features: [
                   "1 device / cashier",
                   "Up to 500 products",
-                  "POS + inventory",
-                  "Sales reports & P&L",
+                  "POS + hold & resume sales",
+                  "Sales reports + custom date range",
+                  "WhatsApp & email receipt sharing",
+                  "Shareable receipt links",
                   "Low-stock alerts",
-                  "Email notifications",
+                  "Email receipts & notifications",
                 ],
                 popular: false,
               },
@@ -448,10 +461,12 @@ export default async function HomePage() {
                 features: [
                   "Up to 3 devices",
                   "Unlimited products",
-                  "Customer management",
+                  "Customer profiles & purchase history",
+                  "Sales history filters (method, status, name)",
                   "Expense tracking + P&L",
                   "Offline POS mode",
                   "Device Lock & access control",
+                  "Payroll module (add-on)",
                   "SMS add-on available",
                 ],
                 popular: true,
@@ -464,7 +479,9 @@ export default async function HomePage() {
                 features: [
                   "Unlimited devices",
                   "Advanced analytics",
+                  "Card surcharge tracking",
                   "Device Lock & access control",
+                  "Payroll module (add-on)",
                   "Priority WhatsApp support",
                   "SMS add-on available",
                   "Everything in Standard",
@@ -544,10 +561,12 @@ export default async function HomePage() {
                 features: [
                   "1 device / cashier",
                   "Up to 500 products",
-                  "POS + inventory",
-                  "Sales reports & P&L",
+                  "POS + hold & resume sales",
+                  "Sales reports + custom date range",
+                  "WhatsApp & email receipt sharing",
+                  "Shareable receipt links",
                   "Low-stock alerts",
-                  "Email notifications",
+                  "Email receipts & notifications",
                   "1 year free support",
                 ],
               },
@@ -559,10 +578,12 @@ export default async function HomePage() {
                 features: [
                   "Up to 3 devices",
                   "Unlimited products",
-                  "Customer management",
+                  "Customer profiles & purchase history",
+                  "Sales history filters (method, status, name)",
                   "Expense tracking + P&L",
                   "Offline POS mode",
                   "Device Lock & access control",
+                  "Payroll module (add-on)",
                   "SMS add-on available",
                   "1 year free support",
                 ],
@@ -576,7 +597,9 @@ export default async function HomePage() {
                 features: [
                   "Unlimited devices",
                   "Advanced analytics",
+                  "Card surcharge tracking",
                   "Device Lock & access control",
+                  "Payroll module (add-on)",
                   "Priority WhatsApp support",
                   "SMS add-on available",
                   "Everything in Standard",
@@ -644,6 +667,55 @@ export default async function HomePage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Add-ons */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <p className="text-xs font-bold text-white/30 uppercase tracking-widest">Available Add-ons</p>
+              <div className="flex-1 h-px bg-white/5" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+              {[
+                {
+                  icon: Banknote,
+                  color: "#FB923C",
+                  title: "Payroll Module",
+                  desc: "Employee records, attendance tracking, EPF/ETF salary calculations, and printable / WhatsApp-shareable payslips. Available on Standard & Premium plans.",
+                },
+                {
+                  icon: Lock,
+                  color: "#F472B6",
+                  title: "Device Lock",
+                  desc: "Pin your shop to a single trusted device. Cashiers get POS-only access — reports, settings, and expenses stay out of reach. Available on Standard & Premium plans.",
+                },
+                {
+                  icon: CreditCard,
+                  color: "#60A5FA",
+                  title: "Card Surcharge",
+                  desc: "Automatically apply a configurable surcharge rate on card payments and track it separately in your P&L. Available on all plans.",
+                },
+                {
+                  icon: MessageSquare,
+                  color: "#34D399",
+                  title: "SMS Notifications",
+                  desc: "Low-stock alerts and daily sales summaries delivered to your phone via SMS. Billed as a credit top-up — pay only for what you use.",
+                },
+              ].map((addon) => {
+                const Icon = addon.icon;
+                return (
+                  <div key={addon.title} className="flex gap-4 rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${addon.color}18` }}>
+                      <Icon className="h-4.5 w-4.5" style={{ color: addon.color }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white mb-1">{addon.title}</p>
+                      <p className="text-sm text-white/40 leading-relaxed">{addon.desc}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Maintenance policy note */}
