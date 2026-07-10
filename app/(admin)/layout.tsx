@@ -17,7 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <ShieldCheck className="h-4 w-4 text-white" />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-foreground">StoreMate</span>
+            <span className="text-sm font-bold text-foreground">eStoreMate</span>
             <span className="text-[11px] bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25 rounded-full px-2 py-0.5 font-bold tracking-wide">
               ADMIN
             </span>

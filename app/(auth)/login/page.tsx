@@ -174,7 +174,7 @@ function LoginPage() {
             <p className="font-semibold">Private / Incognito mode detected</p>
           </div>
           <p className="text-sm text-muted-foreground">
-            StoreMate requires persistent storage to identify your device and enforce plan limits.
+            eStoreMate requires persistent storage to identify your device and enforce plan limits.
             Private browsing clears storage on exit, so sign-in is not allowed in this mode.
           </p>
           <p className="text-sm font-medium text-foreground">
@@ -278,7 +278,7 @@ function LoginPage() {
 
       <div className="space-y-4">
         <p className="text-sm text-center text-muted-foreground">
-          New to StoreMate?{" "}
+          New to eStoreMate?{" "}
           <Link href="/register" className="text-primary font-semibold hover:underline">
             Create a free account
           </Link>

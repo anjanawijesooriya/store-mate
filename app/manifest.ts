@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "StoreMate — Shop Management",
-    short_name: "StoreMate",
+    name: "eStoreMate — Shop Management",
+    short_name: "eStoreMate",
     description: "Point of sale and inventory management for small shops",
     start_url: "/dashboard",
     display: "standalone",

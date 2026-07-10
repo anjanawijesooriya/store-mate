@@ -55,7 +55,7 @@ export default function AdminLoginPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white">Admin Console</h1>
-            <p className="text-sm text-gray-500 mt-1">StoreMate internal billing panel</p>
+            <p className="text-sm text-gray-500 mt-1">eStoreMate internal billing panel</p>
           </div>
         </div>
 
@@ -106,7 +106,7 @@ export default function AdminLoginPage() {
         </div>
 
         <p className="text-xs text-center text-gray-700">
-          StoreMate Admin — restricted access
+          eStoreMate Admin — restricted access
         </p>
       </div>
     </div>

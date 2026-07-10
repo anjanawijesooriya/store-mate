@@ -492,7 +492,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
             <p className="text-xs text-muted-foreground mt-0.5">
               {trialDaysLeft > 0
                 ? "Contact admin to upgrade your plan before the trial ends."
-                : "Your free trial has ended. Contact admin to continue using StoreMate."}
+                : "Your free trial has ended. Contact admin to continue using eStoreMate."}
             </p>
           </div>
           <a
@@ -653,7 +653,7 @@ export function SettingsClient({ shop }: { shop: Shop }) {
               <div>
                 <p className="text-sm font-medium text-foreground">SMS add-on not activated</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Contact your StoreMate admin to enable the SMS add-on for your shop. Once activated you can send low-stock alerts, daily summaries, and customer receipts.
+                  Contact your eStoreMate admin to enable the SMS add-on for your shop. Once activated you can send low-stock alerts, daily summaries, and customer receipts.
                 </p>
               </div>
             </div>

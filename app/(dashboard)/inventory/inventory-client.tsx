@@ -175,7 +175,7 @@ export function InventoryClient() {
       const sheetName = tab === "service" ? "Services" : "Products";
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
       const date = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `storemate-${tab}s-${date}.xlsx`);
+      XLSX.writeFile(wb, `estoremate-\${tab}s-${date}.xlsx`);
       toast.success(`${allProducts.length} ${tab}s exported`);
     } catch {
       toast.error("Export failed");

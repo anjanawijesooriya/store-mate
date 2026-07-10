@@ -19,7 +19,7 @@ export default async function PayrollPage() {
         <div className="text-4xl">💼</div>
         <h2 className="text-xl font-semibold">Payroll is not enabled</h2>
         <p className="text-muted-foreground max-w-sm">
-          The Payroll module is not enabled for your shop. Contact your StoreMate provider to activate it.
+          The Payroll module is not enabled for your shop. Contact your eStoreMate provider to activate it.
         </p>
       </div>
     );

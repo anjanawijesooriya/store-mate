@@ -23,7 +23,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={logoSrc.src}
-            alt="StoreMate"
+            alt="eStoreMate"
             style={{ height: 158, width: "auto", display: "block",}}
           />
         </Link>
@@ -79,7 +79,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="lg:hidden text-center mb-10">
             <Link href="/" className="inline-flex items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logoSrc.src} alt="StoreMate" style={{ height: 80, width: "auto" }} />
+              <img src={logoSrc.src} alt="eStoreMate" style={{ height: 80, width: "auto" }} />
             </Link>
           </div>
 

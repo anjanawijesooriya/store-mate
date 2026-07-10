@@ -39,7 +39,7 @@ export default async function HomePage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={logoSrc.src}
-            alt="StoreMate"
+            alt="eStoreMate"
             style={{ height: 120, width: "auto", display: "block" }}
           />
           <nav className="hidden md:flex items-center gap-6 text-sm text-white/60">
@@ -82,7 +82,7 @@ export default async function HomePage() {
 
             <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold leading-[1.1] mb-6 tracking-tight">
               Your shop runs smoother{" "}
-              <span className="text-[#2DA86B]">with StoreMate</span>
+              <span className="text-[#2DA86B]">with eStoreMate</span>
             </h1>
 
             <p className="text-lg text-white/60 leading-relaxed mb-10 max-w-lg">
@@ -219,7 +219,7 @@ export default async function HomePage() {
             </h2>
             <p className="text-white/40 max-w-xl mx-auto">
               One app that replaces your ledger book, stock register, and calculator.
-              No training required — if you can use a phone, you can use StoreMate.
+              No training required — if you can use a phone, you can use eStoreMate.
             </p>
           </div>
 
@@ -374,7 +374,7 @@ export default async function HomePage() {
       <section className="py-24 px-4 sm:px-6">
         <div className="mx-auto max-w-6xl">
           <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-[#2DA86B] uppercase tracking-widest mb-3">Why StoreMate</p>
+            <p className="text-sm font-semibold text-[#2DA86B] uppercase tracking-widest mb-3">Why eStoreMate</p>
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Built for Sri Lanka, not borrowed from abroad
             </h2>
@@ -385,7 +385,7 @@ export default async function HomePage() {
                 icon: WifiOff,
                 color: "#EA580C",
                 title: "Offline-first",
-                desc: "Most POS apps break without internet. StoreMate keeps selling and syncs when you reconnect.",
+                desc: "Most POS apps break without internet. eStoreMate keeps selling and syncs when you reconnect.",
               },
               {
                 icon: MessageSquare,
@@ -753,7 +753,7 @@ export default async function HomePage() {
             Ready to modernize your shop?
           </h2>
           <p className="text-white/40 text-base mb-10 max-w-lg mx-auto leading-relaxed">
-            Join shop owners across Sri Lanka who manage their business with StoreMate.
+            Join shop owners across Sri Lanka who manage their business with eStoreMate.
             Start your free trial today — no credit card, no commitment.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -782,13 +782,13 @@ export default async function HomePage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={logoSrc.src}
-              alt="StoreMate"
+              alt="eStoreMate"
               style={{ height: 98, width: "auto", display: "block", opacity: 0.75, }}
             />
             <span className="text-white/20 text-sm">— Smart shop management</span>
           </div>
           <p className="text-xs text-white/20 order-last sm:order-none">
-            © {new Date().getFullYear()} StoreMate. Built for Sri Lankan businesses.
+            © {new Date().getFullYear()} eStoreMate. Built for Sri Lankan businesses.
           </p>
           <div className="flex gap-5 text-sm text-white/30">
             <Link href="/login" className="hover:text-white/70 transition-colors">Login</Link>

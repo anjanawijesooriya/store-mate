@@ -41,7 +41,7 @@ async function attemptSend(formattedTo: string, message: string, userId: string,
 export async function sendSms(to: string, message: string): Promise<SmsResult> {
   const userId = process.env.SMSLENZ_USER_ID;
   const apiKey = process.env.SMSLENZ_API_KEY;
-  const senderId = process.env.SMSLENZ_SENDER_ID || "StoreMate";
+  const senderId = process.env.SMSLENZ_SENDER_ID || "eStoreMate";
 
   if (!userId || !apiKey) {
     console.warn("SMS not configured — SMSLENZ_USER_ID or SMSLENZ_API_KEY missing");
@@ -107,11 +107,11 @@ export async function sendSmsAndLog(
 
 export function buildLowStockMessage(shopName: string, items: { name: string; qty: number }[]): string {
   const list = items.slice(0, 5).map((i) => `• ${i.name} (${i.qty} left)`).join("\n");
-  return `StoreMate Low Stock Alert - ${shopName}\n\n${list}${items.length > 5 ? `\n+${items.length - 5} more` : ""}\n\nVisit app to restock.`;
+  return `eStoreMate Low Stock Alert - ${shopName}\n\n${list}${items.length > 5 ? `\n+${items.length - 5} more` : ""}\n\nVisit app to restock.`;
 }
 
 export function buildDailySummaryMessage(shopName: string, salesCount: number, revenue: number): string {
-  return `StoreMate Daily Summary - ${shopName}\n\nToday: ${salesCount} sales, LKR ${revenue.toLocaleString()} revenue.\n\nPowered by StoreMate.`;
+  return `eStoreMate Daily Summary - ${shopName}\n\nToday: ${salesCount} sales, LKR ${revenue.toLocaleString()} revenue.\n\nPowered by eStoreMate.`;
 }
 
 export function buildReceiptLinkMessage(shopName: string, saleId: string): string {

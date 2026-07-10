@@ -156,7 +156,7 @@ export function BackupClient({
         setRestoreResult(null);
         setRestoreDialogOpen(true);
       } catch {
-        toast.error("Could not parse backup file — make sure it is a valid StoreMate JSON backup");
+        toast.error("Could not parse backup file — make sure it is a valid eStoreMate JSON backup");
       }
     };
     reader.readAsText(file);
@@ -277,7 +277,7 @@ export function BackupClient({
             Restore from Backup
           </CardTitle>
           <CardDescription>
-            Upload a StoreMate JSON backup file to restore data. Existing records are updated (upsert) — nothing is deleted.
+            Upload a eStoreMate JSON backup file to restore data. Existing records are updated (upsert) — nothing is deleted.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

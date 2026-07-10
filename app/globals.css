@@ -45,7 +45,7 @@
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
 
-  /* StoreMate brand extras */
+  /* eStoreMate brand extras */
   --color-brand-success: var(--brand-success);
   --color-brand-warning: var(--brand-warning);
   --color-brand-danger: var(--brand-danger);
@@ -54,7 +54,7 @@
   --color-cta-foreground: var(--cta-foreground);
 }
 
-/* ===== StoreMate Design System — Light Mode ===== */
+/* ===== eStoreMate Design System — Light Mode ===== */
 :root {
   --radius: 0.625rem;
 

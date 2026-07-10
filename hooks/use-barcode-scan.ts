@@ -42,6 +42,8 @@ export function useBarcodeScan(
       bufferRef.current = "";
     }
 
+    if (!e.key) return;
+
     if (e.key === "Enter") {
       const barcode = bufferRef.current.trim();
       bufferRef.current = "";
@@ -57,7 +59,7 @@ export function useBarcodeScan(
     }
 
     // Accumulate only printable single characters (ignore Shift, Ctrl, F-keys, etc.)
-    if (e.key.length === 1) {
+    if (e.key?.length === 1) {
       bufferRef.current += e.key;
 
       // Safety valve: auto-clear if Enter never arrives within 500 ms

@@ -17,14 +17,14 @@ const robotoMono = Roboto_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "StoreMate",
-    template: "%s | StoreMate",
+    default: "eStoreMate",
+    template: "%s | eStoreMate",
   },
-  description: "Smart shop management for Sri Lankan small businesses — POS, inventory, sales reports and more. Powered by StoreMate.",
+  description: "Smart shop management for Sri Lankan small businesses — POS, inventory, sales reports and more. Powered by eStoreMate.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "StoreMate",
+    title: "eStoreMate",
   },
 };
 

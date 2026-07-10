@@ -63,7 +63,7 @@ async function sendDriveNotificationEmail(
   if (!isEmailConfigured()) return;
 
   const to = process.env.BACKUP_EMAIL || process.env.SMTP_USER!;
-  const from = `"StoreMate Backup" <${process.env.SMTP_USER}>`;
+  const from = `"eStoreMate Backup" <${process.env.SMTP_USER}>`;
   const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
   const date = new Date().toLocaleString("en-LK", {
     day: "numeric", month: "long", year: "numeric",
@@ -79,7 +79,7 @@ async function sendDriveNotificationEmail(
   const transporter = getTransporter();
   await transporter.sendMail({
     from, to,
-    subject: `[StoreMate Backup] ${typeLabel} ✅ — ${new Date().toISOString().slice(0, 10)}`,
+    subject: `[eStoreMate Backup] ${typeLabel} ✅ — ${new Date().toISOString().slice(0, 10)}`,
     html: `
       <div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
         <div style="margin-bottom:20px">
@@ -87,7 +87,7 @@ async function sendDriveNotificationEmail(
             ${typeLabel} Backup ✅
           </span>
         </div>
-        <h2 style="font-size:18px;font-weight:700;color:#111827;margin:0 0 8px">StoreMate Database Backup</h2>
+        <h2 style="font-size:18px;font-weight:700;color:#111827;margin:0 0 8px">eStoreMate Database Backup</h2>
         <p style="color:#6b7280;font-size:14px;margin:0 0 20px">
           Your ${type} backup completed successfully on <strong>${date} (Sri Lanka Time)</strong> and was saved to Google Drive.
         </p>
@@ -107,7 +107,7 @@ async function sendDriveNotificationEmail(
           Download and decompress it to restore.
         </p>
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f3f4f6">
-          <p style="color:#d1d5db;font-size:11px;margin:0">Sent by StoreMate · Smart Shop Manager</p>
+          <p style="color:#d1d5db;font-size:11px;margin:0">Sent by eStoreMate · Smart Shop Manager</p>
         </div>
       </div>`,
   });
@@ -117,7 +117,7 @@ async function sendDriveNotificationEmail(
 
 async function sendBackupEmailAttachment(fileName: string, content: string, type: BackupType): Promise<void> {
   const to = process.env.BACKUP_EMAIL || process.env.SMTP_USER!;
-  const from = `"StoreMate Backup" <${process.env.SMTP_USER}>`;
+  const from = `"eStoreMate Backup" <${process.env.SMTP_USER}>`;
   const fileSize = Buffer.byteLength(content, "utf8");
   const sizeFmt = fileSize < 1024 * 1024
     ? `${(fileSize / 1024).toFixed(1)} KB`
@@ -131,7 +131,7 @@ async function sendBackupEmailAttachment(fileName: string, content: string, type
   const transporter = getTransporter();
   await transporter.sendMail({
     from, to,
-    subject: `[StoreMate Backup] ${typeLabel} — ${new Date().toISOString().slice(0, 10)}`,
+    subject: `[eStoreMate Backup] ${typeLabel} — ${new Date().toISOString().slice(0, 10)}`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
         <div style="margin-bottom:20px">
@@ -139,7 +139,7 @@ async function sendBackupEmailAttachment(fileName: string, content: string, type
             ${typeLabel} Backup
           </span>
         </div>
-        <h2 style="font-size:18px;font-weight:700;color:#111827;margin:0 0 8px">StoreMate Database Backup</h2>
+        <h2 style="font-size:18px;font-weight:700;color:#111827;margin:0 0 8px">eStoreMate Database Backup</h2>
         <p style="color:#6b7280;font-size:14px;margin:0 0 20px">Your ${type} backup completed on <strong>${date} (Sri Lanka Time)</strong>.</p>
         <table style="width:100%;border-collapse:collapse;font-size:13px;background:#f9fafb;border-radius:8px;overflow:hidden">
           <tr><td style="padding:10px 14px;color:#6b7280;border-bottom:1px solid #e5e7eb">File</td><td style="padding:10px 14px;font-family:monospace;color:#111827;border-bottom:1px solid #e5e7eb">${fileName}</td></tr>
@@ -148,7 +148,7 @@ async function sendBackupEmailAttachment(fileName: string, content: string, type
         </table>
         <p style="color:#9ca3af;font-size:12px;margin:20px 0 0">The full database export is attached. Store it safely.</p>
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f3f4f6">
-          <p style="color:#d1d5db;font-size:11px;margin:0">Sent by StoreMate · Smart Shop Manager</p>
+          <p style="color:#d1d5db;font-size:11px;margin:0">Sent by eStoreMate · Smart Shop Manager</p>
         </div>
       </div>`,
     attachments: [{ filename: fileName, content: Buffer.from(content, "utf8"), contentType: "application/json" }],
@@ -160,18 +160,18 @@ async function sendBackupEmailAttachment(fileName: string, content: string, type
 async function sendFailureEmail(type: BackupType, error: string): Promise<void> {
   if (!isEmailConfigured()) return;
   const to = process.env.BACKUP_EMAIL || process.env.SMTP_USER!;
-  const from = `"StoreMate Backup" <${process.env.SMTP_USER}>`;
+  const from = `"eStoreMate Backup" <${process.env.SMTP_USER}>`;
   const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
   const transporter = getTransporter();
   await transporter.sendMail({
     from, to,
-    subject: `[StoreMate Backup] ❌ ${typeLabel} Backup Failed — ${new Date().toISOString().slice(0, 10)}`,
+    subject: `[eStoreMate Backup] ❌ ${typeLabel} Backup Failed — ${new Date().toISOString().slice(0, 10)}`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #fecaca">
         <h2 style="color:#dc2626;margin:0 0 12px">Backup Failed ❌</h2>
-        <p style="color:#6b7280;font-size:14px;margin:0 0 16px">The ${type} backup for StoreMate failed.</p>
+        <p style="color:#6b7280;font-size:14px;margin:0 0 16px">The ${type} backup for eStoreMate failed.</p>
         <pre style="background:#fef2f2;border:1px solid #fecaca;padding:12px;border-radius:6px;font-size:12px;color:#dc2626;white-space:pre-wrap;word-break:break-all">${error}</pre>
-        <p style="color:#d1d5db;font-size:11px;margin:20px 0 0">StoreMate · Smart Shop Manager</p>
+        <p style="color:#d1d5db;font-size:11px;margin:20px 0 0">eStoreMate · Smart Shop Manager</p>
       </div>`,
   });
 }
@@ -187,7 +187,7 @@ export async function runBackup(type: BackupType): Promise<{
 }> {
   const now = new Date();
   const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const fileName = `storemate-backup-${type}-${timestamp}.json`;
+  const fileName = `estoremate-backup-${type}-${timestamp}.json`;
 
   try {
     const data = await exportAllData();

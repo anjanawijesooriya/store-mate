@@ -118,7 +118,7 @@ function buildHtml(data: ReceiptData, saleId: string): string {
 
     <div class="footer">
       <p>Thank you — Come again!</p>
-      <small>Powered by StoreMate</small>
+      <small>Powered by eStoreMate</small>
     </div>
   </div>
 </body>

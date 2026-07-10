@@ -1,5 +1,5 @@
 /**
- * StoreMate Database Restore Script
+ * eStoreMate Database Restore Script
  *
  * Restores data from a JSON backup file produced by the backup system.
  * Uses upsert — safe to run on a database that already has data.

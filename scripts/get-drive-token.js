@@ -44,7 +44,7 @@ const authUrl = auth.generateAuthUrl({
 });
 
 console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-console.log("  StoreMate — Google Drive Backup Token Setup");
+console.log("  eStoreMate — Google Drive Backup Token Setup");
 console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 console.log("\n1. Open this URL in your browser:\n");
 console.log("  " + authUrl);

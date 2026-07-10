@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CheckCircle } from "lucide-react";
 import { PrintButton } from "./print-button";
 
-export const metadata: Metadata = { title: "Your Receipt — StoreMate" };
+export const metadata: Metadata = { title: "Your Receipt — eStoreMate" };
 
 function fmtLKR(n: number) {
   return `LKR ${n.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -121,7 +121,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ saleId
         {/* Footer */}
         <div className="px-6 py-4 text-center">
           <p className="text-xs text-gray-400">Thank you for your purchase!</p>
-          <p className="text-xs text-gray-300 mt-1">Powered by StoreMate</p>
+          <p className="text-xs text-gray-300 mt-1">Powered by eStoreMate</p>
         </div>
       </div>
 

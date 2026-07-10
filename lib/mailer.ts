@@ -8,10 +8,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const FROM = `"StoreMate" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`;
+const FROM = `"eStoreMate" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`;
 
 function baseLayout(content: string) {
-  const logoHtml = `<img src="https://i.ibb.co/xqXJD4W0/Store-Mate-1-removebg-preview.png" alt="StoreMate" style="height:60px;width:auto;object-fit:contain" />`;
+  const logoHtml = `<img src="https://res.cloudinary.com/dej61fdjn/image/upload/v1783673328/dc34dcbd-5c2d-444a-a47c-46be06596de7_mbniau.png" alt="eStoreMate" style="height:60px;width:auto;object-fit:contain" />`;
   return `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
       <div style="margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #f3f4f6">
@@ -19,7 +19,7 @@ function baseLayout(content: string) {
       </div>
       ${content}
       <div style="margin-top:24px;padding-top:16px;border-top:1px solid #f3f4f6">
-        <p style="color:#d1d5db;font-size:11px;margin:0">Sent by StoreMate · Smart Shop Manager</p>
+        <p style="color:#d1d5db;font-size:11px;margin:0">Sent by eStoreMate · Smart Shop Manager</p>
       </div>
     </div>`;
 }
@@ -28,7 +28,7 @@ export async function sendPasswordResetOTP(to: string, name: string, otp: string
   await transporter.sendMail({
     from: FROM,
     to,
-    subject: "StoreMate — Password Reset OTP",
+    subject: "eStoreMate — Password Reset OTP",
     html: baseLayout(`
       <h2 style="font-size:18px;font-weight:600;color:#111827;margin:0 0 8px">Password Reset</h2>
       <p style="color:#6b7280;font-size:14px;margin:0 0 24px">Hi ${name}, use the code below to reset your password. It expires in 15 minutes.</p>
@@ -94,7 +94,7 @@ export async function sendDailySummaryEmail(
           <p style="margin:4px 0 0;font-size:13px;color:#1e40af">Revenue</p>
         </div>
       </div>
-      <p style="color:#6b7280;font-size:13px;margin:0">Log in to StoreMate for detailed reports.</p>
+      <p style="color:#6b7280;font-size:13px;margin:0">Log in to eStoreMate for detailed reports.</p>
     `),
   });
 }
@@ -190,7 +190,7 @@ export async function sendMaintenanceEmail(
   await transporter.sendMail({
     from: FROM,
     to,
-    subject: `StoreMate — Scheduled Maintenance Notice for ${shopName}`,
+    subject: `eStoreMate — Scheduled Maintenance Notice for ${shopName}`,
     html: baseLayout(`
       <h2 style="font-size:18px;font-weight:700;color:#111827;margin:0 0 8px">Maintenance Notice</h2>
       <p style="color:#6b7280;font-size:14px;margin:0 0 20px">Hi ${ownerName},</p>

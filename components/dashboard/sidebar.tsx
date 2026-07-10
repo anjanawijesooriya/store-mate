@@ -95,7 +95,7 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/StoreMate-logo-1.png"
-            alt="StoreMate"
+            alt="eStoreMate"
             style={{
               width: "100%",
               maxWidth: 175,
@@ -266,7 +266,7 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 flex-1">
             <Zap className="h-3 w-3 text-primary/60" />
-            <p className="text-[10px] text-sidebar-foreground/30 font-medium">StoreMate v1.0</p>
+            <p className="text-[10px] text-sidebar-foreground/30 font-medium">eStoreMate v1.0</p>
           </div>
           <div className="flex items-center gap-1">
             <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isOnline ? "bg-[color:var(--brand-success)] animate-pulse" : "bg-destructive"}`} />

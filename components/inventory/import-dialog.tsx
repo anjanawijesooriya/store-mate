@@ -177,7 +177,7 @@ async function downloadTemplate() {
     { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 17 }, { wch: 16 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Products");
-  XLSX.writeFile(wb, "storemate-products-template.xlsx");
+  XLSX.writeFile(wb, "estoremate-products-template.xlsx");
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
