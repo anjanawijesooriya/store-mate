@@ -6,11 +6,24 @@ Deploy in two phases:
 
 | Phase | Hosting | Database | Cost | When |
 |---|---|---|---|---|
-| 1 — Launch | Vercel (free) | Neon PostgreSQL (free) | LKR 0 | Now |
-| 2 — Scale | Hostinger VPS + Coolify | PostgreSQL on VPS | ~$6–8/mo | Once you have paying customers |
+| 1 — Testing & Development | Vercel (free) | Neon PostgreSQL (free) | LKR 0 | Now — your own testing only |
+| 2 — Production (real shops) | VPS (Hostinger or any provider) + Coolify | PostgreSQL on VPS | ~$6–8/mo | Before onboarding paying customers |
+
+> **Important:** Neon free tier (0.5 GB, limited compute) is only suitable for your own development and testing. For 5–10 live shops it will be exceeded quickly. **Set up the VPS before you go live with paying customers.**
 
 **Why this order?**
-Vercel + Neon gets you live in under an hour with zero server management. When you're ready to move to your own VPS, Coolify makes the migration straightforward — it's a self-hosted deployment platform (like a mini Heroku on your own server) that handles SSL, reverse proxy, and deployments through a UI rather than the terminal.
+Vercel + Neon gets you a working live URL in under an hour — useful for testing, sharing demos with potential customers, and validating the system end-to-end. When you're ready to go live, a VPS with Coolify gives you unlimited compute, no cold starts, full data ownership, and lower cost than any managed platform at your scale.
+
+**VPS provider options (any of these work — same Coolify setup applies):**
+
+| Provider | Plan | RAM | Cost | Notes |
+|---|---|---|---|---|
+| Hostinger | KVM 2 | 8 GB | ~$6–8/mo | Good value, easy control panel |
+| DigitalOcean | Droplet 2GB | 2 GB | $12/mo | Reliable, great docs |
+| Hetzner | CX22 | 4 GB | ~€4/mo | Best price/performance in Europe |
+| Vultr | Regular 2GB | 2 GB | $10/mo | Good global coverage |
+
+Hostinger KVM 2 is the recommended starting point — 8 GB RAM comfortably runs Next.js + PostgreSQL + Coolify with room to grow.
 
 ---
 
@@ -305,6 +318,105 @@ ufw enable
 
 ---
 
+## Domain & DNS Setup — nexoratech.lk with Cloudflare
+
+> **Recommended approach:** Point your .lk domain's nameservers to Cloudflare (free). This gives you wildcard DNS, instant propagation, DDoS protection, and works regardless of what domains.lk's own DNS panel supports.
+
+### Step 1: Buy nexoratech.lk from domains.lk
+
+1. Go to [www.domains.lk](https://www.domains.lk)
+2. Search for `nexoratech.lk` and complete the purchase
+3. You'll receive login credentials for their control panel
+4. **Do not configure DNS in domains.lk** — you'll manage DNS in Cloudflare instead
+
+---
+
+### Step 2: Create a Free Cloudflare Account
+
+1. Go to [cloudflare.com](https://cloudflare.com) and sign up (free)
+2. Click **Add a Site**
+3. Enter `nexoratech.lk` and click **Continue**
+4. Select the **Free plan** → Continue
+5. Cloudflare scans your domain and imports any existing DNS records
+6. Click **Continue to nameservers**
+7. Cloudflare gives you two nameservers, e.g.:
+   ```
+   anya.ns.cloudflare.com
+   bob.ns.cloudflare.com
+   ```
+   **Copy these — you'll need them in the next step**
+
+---
+
+### Step 3: Point nexoratech.lk to Cloudflare Nameservers
+
+1. Log in to your **domains.lk control panel**
+2. Go to **My Domains → nexoratech.lk → Manage → Nameservers**
+3. Replace the default nameservers with the two Cloudflare nameservers you copied
+4. Save
+
+> This is a one-time change. Propagation takes 24–48 hours. After this, all DNS is managed in Cloudflare — you never touch domains.lk DNS again.
+
+---
+
+### Step 4: Add DNS Records in Cloudflare
+
+Once Cloudflare confirms your nameservers are active, go to **DNS → Records → Add Record**:
+
+| Type | Name | Content | Proxy Status | TTL |
+|---|---|---|---|---|
+| A | `@` | `YOUR_VPS_IP` | DNS only (grey cloud) | Auto |
+| A | `www` | `YOUR_VPS_IP` | DNS only (grey cloud) | Auto |
+| A | `*` | `YOUR_VPS_IP` | DNS only (grey cloud) | Auto |
+
+> **Important — use DNS only (grey cloud), NOT the orange proxy cloud.**
+> Coolify generates its own SSL certificates via Let's Encrypt. If you enable Cloudflare's proxy (orange cloud), it intercepts HTTPS traffic and conflicts with Coolify's SSL, causing certificate errors.
+
+The `*` wildcard record means every subdomain you create (`estoremate.nexoratech.lk`, `lms.nexoratech.lk`, etc.) automatically routes to your VPS — no further DNS changes ever needed.
+
+---
+
+### Step 5: Verify DNS is Working
+
+After propagation (can check progress at [dnschecker.org](https://dnschecker.org)):
+
+```bash
+# Should return your VPS IP
+nslookup nexoratech.lk
+nslookup estoremate.nexoratech.lk
+nslookup anything.nexoratech.lk
+```
+
+All three should resolve to the same VPS IP.
+
+---
+
+### Step 6: SSL in Coolify (Automatic)
+
+When you add a domain to any app in Coolify:
+
+1. App settings → **Domains** → enter `estoremate.nexoratech.lk`
+2. Toggle **Generate SSL Certificate** → ON
+3. Coolify contacts Let's Encrypt, issues the certificate, and configures HTTPS automatically
+4. Repeat for every subdomain / product you add — each gets its own certificate
+
+> Because the wildcard DNS is already set up, this just works every time without any DNS changes.
+
+---
+
+### Cloudflare vs domains.lk DNS — Why Cloudflare
+
+| Feature | domains.lk DNS | Cloudflare (free) |
+|---|---|---|
+| Wildcard `*` DNS record | May not support | Full support |
+| DNS propagation | 24–48 hrs per change | 1–5 minutes |
+| DDoS protection | None | Built-in |
+| Traffic analytics | None | Basic (free) |
+| Reliability | Basic | Enterprise-grade |
+| Cost | Included with domain | Free |
+
+---
+
 ## Migrating from Vercel to VPS (When the Time Comes)
 
 1. Export your data from Neon:
@@ -351,16 +463,146 @@ openssl rand -hex 32
 
 ---
 
+## Nexora Technologies — Multi-Product Setup on One VPS
+
+This section covers running multiple products (eStoreMate, LMS, and future platforms) under a single VPS and the `nexoratech.lk` domain using subdomains.
+
+### Architecture Overview
+
+```
+nexoratech.lk          → Company landing page
+estoremate.nexoratech.lk  → eStoreMate (Next.js + PostgreSQL)
+lms.nexoratech.lk         → LMS platform
+crm.nexoratech.lk         → Future product
+admin.nexoratech.lk       → Internal admin panel
+```
+
+All subdomains point to the **same VPS IP**. Coolify's built-in Nginx reverse proxy routes each subdomain to the correct app and issues a separate SSL certificate for each — no manual Nginx config needed.
+
+---
+
+### Step 1: Register nexoratech.lk
+
+Purchase the domain from any registrar (Hostinger domains, Namecheap, or GoDaddy). Point it to your VPS by setting up DNS as described in Step 2.
+
+---
+
+### Step 2: Set Up Wildcard DNS (Do This Once, Works Forever)
+
+Instead of adding a DNS record for every new subdomain, set a single wildcard record. Log in to your domain registrar's DNS panel and add:
+
+| Type | Host | Value | TTL |
+|---|---|---|---|
+| A | `@` | `YOUR_VPS_IP` | 300 |
+| A | `*` | `YOUR_VPS_IP` | 300 |
+
+- The `@` record covers `nexoratech.lk` itself
+- The `*` wildcard covers **every subdomain** — `estoremate.nexoratech.lk`, `lms.nexoratech.lk`, any future product — all automatically route to your VPS without touching DNS again
+
+> After adding these records, DNS propagates in 5–60 minutes globally.
+
+---
+
+### Step 3: Organise Products as Separate Projects in Coolify
+
+Coolify uses a **Projects** structure — create one project per product:
+
+```
+Coolify
+├── Project: eStoreMate
+│   ├── App: estoremate-app (Next.js)
+│   └── DB:  estoremate-db  (PostgreSQL)
+│
+├── Project: LMS
+│   ├── App: lms-app
+│   └── DB:  lms-db (PostgreSQL / MySQL)
+│
+├── Project: Nexora Landing
+│   └── App: nexoratech-site
+│
+└── Project: [Future Product]
+    ├── App: ...
+    └── DB:  ...
+```
+
+Each project is **fully isolated** — separate environment variables, separate databases, separate deployment pipelines. Deploying or restarting eStoreMate has zero effect on the LMS.
+
+---
+
+### Step 4: Adding a New Product (Repeatable Process)
+
+Every time you launch a new product under Nexora Technologies:
+
+1. **Coolify → Projects → New Project** — name it after the product
+2. **New Resource → Database** — create a dedicated database for it
+3. **New Resource → Application** — connect its GitHub repo, set build/start commands
+4. **Environment Variables** — add all the product's secrets
+5. **Domains** — set `productname.nexoratech.lk` — SSL is auto-issued
+6. That's it. The wildcard DNS record you set in Step 2 means the subdomain already works
+
+---
+
+### VPS Plan Guide for Nexora Technologies
+
+| Products Running | Recommended Plan | RAM | Approx. Cost |
+|---|---|---|---|
+| 1–2 products (launch) | Hostinger KVM 2 | 8 GB | ~$6–8/mo |
+| 3–5 products | Hostinger KVM 4 | 16 GB | ~$12–16/mo |
+| 6+ products or high traffic | Hostinger KVM 8 or 2nd VPS | 32 GB | ~$24–30/mo |
+
+> Hostinger lets you **resize the VPS plan in-place** — no migration, no downtime, just upgrade through the control panel when you outgrow the current plan.
+
+---
+
+### Scaling Strategy as Nexora Grows
+
+**Stage 1 — Launch (now):** One KVM 2 VPS, eStoreMate only. Validate and get paying customers.
+
+**Stage 2 — 2nd product:** Same VPS, add LMS or next product as a new Coolify project. Upgrade to KVM 4 if RAM usage goes above 70%.
+
+**Stage 3 — Established:** Either upgrade to KVM 8 (everything on one powerful server) or split by adding a second VPS and moving newer/heavier products there. Keep eStoreMate on the original server for stability.
+
+**Stage 4 — Enterprise:** Dedicated servers or cloud (AWS/GCP) per product — but that's a problem for when you have the revenue to match.
+
+---
+
+### Database Isolation Best Practice
+
+Each product must have its **own database** — never share a database between products. In Coolify:
+
+- `estoremate` database → eStoreMate app only
+- `lms_db` database → LMS app only
+- Each database has its own credentials
+
+This ensures one product's schema changes or failures never affect another.
+
+---
+
+### Coolify Dashboard Security
+
+Once you have multiple products running, restrict Coolify's dashboard (port 8000) to your IP only:
+
+```bash
+# Allow only your office/home IP to access Coolify UI
+ufw delete allow 8000
+ufw allow from YOUR_IP_ADDRESS to any port 8000
+```
+
+This prevents anyone else from accessing your deployment panel even if they find the port.
+
+---
+
 ## Quick Comparison
 
-| | Vercel + Neon | Hostinger VPS + Coolify |
+| | Vercel + Neon (Phase 1) | VPS + Coolify (Phase 2) |
 |---|---|---|
-| Cost | Free to start | ~$6–8/mo |
+| Cost | Free | ~$6–8/mo |
 | Setup time | ~1 hour | ~3–4 hours |
 | Server management | None | Minimal (Coolify handles it) |
 | Cold starts | Yes (serverless) | No (always running) |
 | Cron jobs | Via `vercel.json` | System crontab |
-| Database | Neon (managed) | Self-hosted PostgreSQL |
-| SSL | Automatic | Automatic (Let's Encrypt) |
-| Scaling | Automatic | Manual VPS upgrade |
-| Best for | Launch / validation | Production with customers |
+| Database | Neon free (0.5 GB) | Self-hosted PostgreSQL (unlimited) |
+| SSL | Automatic | Automatic (Let's Encrypt via Coolify) |
+| Suitable for | Your own testing & demos | 5–10+ live shops, real customers |
+| Data ownership | Neon cloud | Your server, full control |
+| Best for | Validation before launch | Production — use this for go-live |
