@@ -121,6 +121,7 @@ model Shop {
   emailLowStock        Boolean      @default(true)
   emailDailySummary    Boolean      @default(true)
   emailReceiptEnabled  Boolean      @default(true)
+  creditReminderEnabled Boolean     @default(false)
   smsBalance        Decimal      @default(0) @db.Decimal(10, 2)
   billingStatus          BillingStatus @default(TRIAL)
   gracePeriodEndsAt      DateTime?

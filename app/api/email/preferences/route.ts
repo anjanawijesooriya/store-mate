@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
-const ALLOWED = new Set(["emailLowStock", "emailDailySummary", "emailReceiptEnabled"]);
+const ALLOWED = new Set(["emailLowStock", "emailDailySummary", "emailReceiptEnabled", "creditReminderEnabled"]);
 
 export async function PATCH(req: NextRequest) {
   try {

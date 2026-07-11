@@ -13,7 +13,7 @@ export async function GET() {
         category: true, address: true, planTier: true, trialEndsAt: true,
         billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true,
         smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsBalance: true,
-        emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true,
+        emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true, creditReminderEnabled: true,
         cardSurchargeEnabled: true, cardSurchargeRate: true,
       },
     });

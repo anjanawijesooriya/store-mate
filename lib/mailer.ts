@@ -212,6 +212,67 @@ export async function sendMaintenanceEmail(
   });
 }
 
+export async function sendCreditReminderEmail(
+  to: string,
+  customerName: string,
+  shopName: string,
+  creditBalance: number,
+  pendingSales: { id: string; createdAt: Date; total: number; amountPaid: number }[],
+) {
+  const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const salesRows = pendingSales.map((s) => {
+    const due = s.total - s.amountPaid;
+    const date = new Date(s.createdAt).toLocaleDateString("en-LK", { day: "numeric", month: "short", year: "numeric" });
+    return `
+      <tr>
+        <td style="padding:8px 12px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6">${date}</td>
+        <td style="padding:8px 12px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6;text-align:right">${fmt(s.total)}</td>
+        <td style="padding:8px 12px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6;text-align:right">${fmt(s.amountPaid)}</td>
+        <td style="padding:8px 12px;font-size:13px;font-weight:600;color:#DC2626;border-bottom:1px solid #f3f4f6;text-align:right">${fmt(due)}</td>
+      </tr>`;
+  }).join("");
+
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: `Payment Reminder — ${shopName}`,
+    html: baseLayout(`
+      <h2 style="font-size:18px;font-weight:700;color:#111827;margin:0 0 6px">Payment Reminder</h2>
+      <p style="color:#6b7280;font-size:14px;margin:0 0 20px">From <strong>${shopName}</strong></p>
+
+      <p style="font-size:14px;color:#374151;margin:0 0 16px">
+        Dear <strong>${customerName}</strong>,<br/><br/>
+        This is a friendly reminder that you have an outstanding credit balance with us.
+        We would appreciate if you could settle the amount at your earliest convenience.
+      </p>
+
+      <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:13px;font-weight:600;color:#991B1B">Total Outstanding Balance</span>
+        <span style="font-size:20px;font-weight:800;color:#DC2626;font-family:monospace">${fmt(creditBalance)}</span>
+      </div>
+
+      ${pendingSales.length > 0 ? `
+      <p style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 8px">Outstanding Purchases</p>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #f3f4f6;border-radius:8px;overflow:hidden;margin-bottom:20px">
+        <thead>
+          <tr style="background:#f9fafb">
+            <th style="padding:8px 12px;font-size:11px;font-weight:600;color:#6b7280;text-align:left">Date</th>
+            <th style="padding:8px 12px;font-size:11px;font-weight:600;color:#6b7280;text-align:right">Total</th>
+            <th style="padding:8px 12px;font-size:11px;font-weight:600;color:#6b7280;text-align:right">Paid</th>
+            <th style="padding:8px 12px;font-size:11px;font-weight:600;color:#6b7280;text-align:right">Due</th>
+          </tr>
+        </thead>
+        <tbody>${salesRows}</tbody>
+      </table>` : ""}
+
+      <p style="font-size:13px;color:#6b7280;margin:0">
+        Please visit <strong>${shopName}</strong> or contact us to make your payment.<br/>
+        Thank you for your continued business.
+      </p>
+    `),
+  });
+}
+
 export async function sendMaintenanceBulkEmails(
   recipients: { email: string; ownerName: string; shopName: string }[],
   customMessage?: string | null

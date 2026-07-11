@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { toast } from "sonner";
-import { Users, Plus, Search, Phone, Mail, CreditCard, Banknote, CheckCircle2, ShoppingBag, Lock, MoreVertical, Pencil, Trash2, MapPin, ChevronRight } from "lucide-react";
+import { Users, Plus, Search, Phone, Mail, CreditCard, Banknote, CheckCircle2, ShoppingBag, Lock, MoreVertical, Pencil, Trash2, MapPin, ChevronRight, MessageSquare } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -688,7 +688,7 @@ export function CustomersClient() {
               </div>
 
               {/* Quick actions */}
-              <div className="flex gap-2 px-6 py-3 border-b border-border flex-shrink-0">
+              <div className="flex flex-wrap gap-2 px-6 py-3 border-b border-border flex-shrink-0">
                 <Button
                   size="sm"
                   variant="outline"
@@ -705,6 +705,21 @@ export function CustomersClient() {
                     onClick={() => { setPayCustomer(profileCustomer); setPayAmount(""); }}
                   >
                     <Banknote className="h-3.5 w-3.5" /> Record Payment
+                  </Button>
+                )}
+                {profileCustomer.creditBalance > 0 && profileCustomer.phone && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs gap-1.5 border-green-500/30 text-green-600 hover:bg-green-500/5"
+                    onClick={() => {
+                      const phone = profileCustomer.phone!.replace(/\D/g, "");
+                      const intlPhone = phone.startsWith("0") ? `94${phone.slice(1)}` : phone;
+                      const msg = `Hi ${profileCustomer.name}, this is a friendly reminder that you have an outstanding credit balance of LKR ${Number(profileCustomer.creditBalance).toLocaleString("en-LK", { minimumFractionDigits: 2 })} with us. Please visit us at your earliest convenience to settle the amount. Thank you!`;
+                      window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, "_blank");
+                    }}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" /> WhatsApp Reminder
                   </Button>
                 )}
               </div>

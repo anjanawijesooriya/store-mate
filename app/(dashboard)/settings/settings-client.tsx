@@ -47,6 +47,7 @@ interface Shop {
   emailLowStock: boolean;
   emailDailySummary: boolean;
   emailReceiptEnabled: boolean;
+  creditReminderEnabled: boolean;
   cardSurchargeEnabled: boolean;
   cardSurchargeRate: number;
   billingStatus: BillingStatus;
@@ -140,9 +141,10 @@ export function SettingsClient({ shop }: { shop: Shop }) {
   const [smsSaving, setSmsSaving] = useState(false);
 
   const [emailPrefs, setEmailPrefs] = useState({
-    emailLowStock:       shop.emailLowStock,
-    emailDailySummary:   shop.emailDailySummary,
-    emailReceiptEnabled: shop.emailReceiptEnabled,
+    emailLowStock:         shop.emailLowStock,
+    emailDailySummary:     shop.emailDailySummary,
+    emailReceiptEnabled:   shop.emailReceiptEnabled,
+    creditReminderEnabled: shop.creditReminderEnabled,
   });
   const [emailSaving, setEmailSaving] = useState(false);
 
@@ -674,9 +676,10 @@ export function SettingsClient({ shop }: { shop: Shop }) {
         </CardHeader>
         <CardContent className="space-y-5">
           {[
-            { key: "emailLowStock"       as const, label: "Low Stock Alert",      desc: "Daily morning alert when products are running low" },
-            { key: "emailDailySummary"   as const, label: "Daily Sales Summary",  desc: "Receive a summary at 9 PM with today's sales total" },
-            { key: "emailReceiptEnabled" as const, label: "Customer Receipt Email", desc: "Send receipts via email to customers after each sale" },
+            { key: "emailLowStock"           as const, label: "Low Stock Alert",         desc: "Daily morning alert when products are running low" },
+            { key: "emailDailySummary"       as const, label: "Daily Sales Summary",     desc: "Receive a summary at 9 PM with today's sales total" },
+            { key: "emailReceiptEnabled"     as const, label: "Customer Receipt Email",  desc: "Send receipts via email to customers after each sale" },
+            { key: "creditReminderEnabled"   as const, label: "Credit Payment Reminders", desc: "Auto-email customers with credit overdue 14+ days to remind them of their outstanding balance" },
           ].map((item) => (
             <div key={item.key} className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
