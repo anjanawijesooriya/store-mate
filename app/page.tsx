@@ -25,6 +25,9 @@ import {
   Banknote,
   CreditCard,
   Scale,
+  Monitor,
+  Shirt,
+  Keyboard,
 } from "lucide-react";
 
 export default async function HomePage() {
@@ -232,7 +235,7 @@ export default async function HomePage() {
                 color: "#2DA86B",
                 bg: "rgba(45,168,107,0.1)",
                 title: "Point of Sale",
-                desc: "Ring up a sale in under 30 seconds. Search by name or barcode, hold a sale mid-transaction and resume it later, collect payment, and share the receipt instantly.",
+                desc: "Ring up a sale in under 30 seconds. Search by name or scan a barcode, navigate with arrow keys and Enter — no mouse needed. Hold a sale mid-transaction and resume it later. Collect payment and share the receipt instantly.",
                 highlight: true,
               },
               {
@@ -240,7 +243,7 @@ export default async function HomePage() {
                 color: "#60A5FA",
                 bg: "rgba(96,165,250,0.1)",
                 title: "Inventory Management",
-                desc: "Know your stock at a glance. Get alerts when items run low. Bulk-import your catalog from Excel in minutes.",
+                desc: "Know your stock at a glance. Get alerts when items run low. Bulk-import your catalog from Excel, bulk-delete products, and manage variant stock (sizes, colours) all in one place.",
                 highlight: false,
               },
               {
@@ -296,7 +299,32 @@ export default async function HomePage() {
                 color: "#38BDF8",
                 bg: "rgba(56,189,248,0.1)",
                 title: "Scale-Ready POS",
-                desc: "Works with any electronic weighing scale (CAS, Mettler Toledo, Digi). Cashier scans the printed label — weight is read automatically and the price is calculated instantly. No extra hardware from us.",
+                desc: "Works with any electronic weighing scale (CAS, Mettler Toledo, Digi). Cashier scans the printed label — weight is read automatically and the price is calculated instantly. Also supports liquid products sold by litre or ml. No extra hardware from us.",
+                highlight: false,
+              },
+              {
+                icon: Monitor,
+                color: "#22D3EE",
+                bg: "rgba(34,211,238,0.1)",
+                title: "Customer-Facing Display",
+                desc: "Show customers exactly what they're paying — in real time, on a second screen facing them. No extra hardware needed, just a second monitor. Items scroll as they're scanned, total updates live, and a thank-you screen appears after payment.",
+                highlight: false,
+                isNew: true,
+              },
+              {
+                icon: Shirt,
+                color: "#A78BFA",
+                bg: "rgba(167,139,250,0.1)",
+                title: "Product Variants",
+                desc: "Sell clothing, shoes, or electronics with size and colour variants — each with its own stock count, barcode, and optional price override. Perfect for boutiques and fashion stores.",
+                highlight: false,
+              },
+              {
+                icon: Keyboard,
+                color: "#FB923C",
+                bg: "rgba(251,146,60,0.1)",
+                title: "Keyboard-First POS",
+                desc: "Cashiers can operate the entire POS without touching the mouse. Arrow keys navigate products, Enter adds to cart, and shortcuts flow through checkout, held sales, and receipt sharing — fast and error-free.",
                 highlight: false,
               },
             ].map((f) => {
@@ -304,12 +332,17 @@ export default async function HomePage() {
               return (
                 <div
                   key={f.title}
-                  className={`rounded-2xl border p-6 transition-all ${
+                  className={`relative rounded-2xl border p-6 transition-all ${
                     f.highlight
                       ? "border-[#2DA86B]/30 bg-[#2DA86B]/5"
                       : "border-white/5 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/10"
                   }`}
                 >
+                  {"isNew" in f && f.isNew && (
+                    <span className="absolute top-4 right-4 text-[10px] font-bold bg-[#22D3EE]/15 text-[#22D3EE] border border-[#22D3EE]/30 rounded-full px-2 py-0.5 tracking-wide">
+                      NEW
+                    </span>
+                  )}
                   <div
                     className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
                     style={{ background: f.bg }}
@@ -321,6 +354,84 @@ export default async function HomePage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Customer Display Spotlight ── */}
+      <section className="py-24 px-4 sm:px-6 bg-white/[0.02] border-y border-white/5">
+        <div className="mx-auto max-w-6xl grid lg:grid-cols-2 gap-16 items-center">
+          {/* Left — copy */}
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#22D3EE]/30 bg-[#22D3EE]/10 px-4 py-1.5 text-sm font-medium text-[#22D3EE] mb-6">
+              <Monitor className="h-3.5 w-3.5" />
+              New — No extra hardware needed
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-5 leading-tight">
+              Customers see what they&apos;re paying,{" "}
+              <span className="text-[#22D3EE]">in real time</span>
+            </h2>
+            <p className="text-white/50 text-base leading-relaxed mb-8">
+              Just like supermarkets and modern grocery shops — show a live running total on a second screen facing the customer as each item is scanned. No special hardware required; plug in a second monitor, click <strong className="text-white/70">Open Display</strong>, and it works instantly.
+            </p>
+            <ul className="space-y-3">
+              {[
+                "Live item list updates as cashier scans each product",
+                "Running subtotal, discount, and total shown in large text",
+                "\"Thank You\" screen with change amount after payment",
+                "Works on any second monitor — no dedicated hardware to buy",
+                "Idle welcome screen when no sale is in progress",
+              ].map((pt) => (
+                <li key={pt} className="flex items-start gap-3 text-sm text-white/50">
+                  <Check className="h-4 w-4 text-[#22D3EE] flex-shrink-0 mt-0.5" />
+                  {pt}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Right — customer display mockup */}
+          <div className="relative">
+            <div className="rounded-2xl overflow-hidden border border-[#22D3EE]/20 shadow-2xl shadow-[#22D3EE]/5">
+              {/* Display header */}
+              <div className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-gray-800">
+                <span className="text-base font-bold text-[#22D3EE]">Perera Grocery</span>
+                <span className="text-gray-500 font-mono text-sm">10:42 AM</span>
+              </div>
+              {/* Items */}
+              <div className="bg-gray-950 px-0">
+                <div className="flex text-[10px] font-semibold text-gray-600 uppercase tracking-wider px-6 py-2 border-b border-gray-800">
+                  <span className="flex-1">Item</span>
+                  <span className="w-20 text-center">Qty</span>
+                  <span className="w-24 text-right">Amount</span>
+                </div>
+                {[
+                  { name: "Basmati Rice", qty: "2 kg", amt: "LKR 960.00" },
+                  { name: "Coconut Oil 1L", qty: "1 bottle", amt: "LKR 520.00" },
+                  { name: "Dhal 500g", qty: "3 pkt", amt: "LKR 450.00" },
+                  { name: "Chicken Breast", qty: "1.2 kg", amt: "LKR 1,440.00" },
+                ].map((item, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center px-6 py-3 border-b border-gray-800/50 ${i === 3 ? "bg-gray-900/40" : ""}`}
+                  >
+                    <span className={`flex-1 text-sm font-medium ${i === 3 ? "text-white" : "text-gray-400"}`}>{item.name}</span>
+                    <span className="w-20 text-center text-xs text-gray-500 font-mono">{item.qty}</span>
+                    <span className={`w-24 text-right text-sm font-bold font-mono ${i === 3 ? "text-white" : "text-gray-400"}`}>{item.amt}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Total footer */}
+              <div className="bg-gray-900 border-t border-gray-800 px-6 py-5">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-bold text-gray-300">TOTAL</span>
+                  <span className="text-4xl font-bold text-white font-mono">LKR 3,370.00</span>
+                </div>
+              </div>
+            </div>
+            {/* Monitor frame hint */}
+            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-24 h-3 bg-gray-700 rounded-b-sm" />
+            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-10 h-2 bg-gray-700 rounded-sm" />
           </div>
         </div>
       </section>
@@ -454,12 +565,13 @@ export default async function HomePage() {
                 features: [
                   "1 device / cashier",
                   "Up to 500 products",
-                  "POS + hold & resume sales",
+                  "Keyboard & barcode-driven POS",
+                  "Hold & resume up to 5 sales",
                   "Sales reports + custom date range",
                   "WhatsApp & email receipt sharing",
                   "Shareable receipt links",
                   "Low-stock alerts",
-                  "Email receipts & notifications",
+                  "Customer-facing display",
                 ],
                 popular: false,
               },
@@ -471,6 +583,8 @@ export default async function HomePage() {
                 features: [
                   "Up to 3 devices",
                   "Unlimited products",
+                  "Product variants (size / colour)",
+                  "Scale & volume product support (kg, g, L, ml)",
                   "Customer profiles & purchase history",
                   "Sales history filters (method, status, name)",
                   "Expense tracking + P&L",
@@ -571,12 +685,13 @@ export default async function HomePage() {
                 features: [
                   "1 device / cashier",
                   "Up to 500 products",
-                  "POS + hold & resume sales",
+                  "Keyboard & barcode-driven POS",
+                  "Hold & resume up to 5 sales",
                   "Sales reports + custom date range",
                   "WhatsApp & email receipt sharing",
                   "Shareable receipt links",
                   "Low-stock alerts",
-                  "Email receipts & notifications",
+                  "Customer-facing display",
                   "1 year free support",
                 ],
               },
@@ -588,6 +703,8 @@ export default async function HomePage() {
                 features: [
                   "Up to 3 devices",
                   "Unlimited products",
+                  "Product variants (size / colour)",
+                  "Scale & volume product support (kg, g, L, ml)",
                   "Customer profiles & purchase history",
                   "Sales history filters (method, status, name)",
                   "Expense tracking + P&L",
