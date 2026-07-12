@@ -355,10 +355,10 @@ export function POSClient({
   const handleBarcodeScan = useCallback((barcode: string) => {
     // Scale barcode: EAN-13 starting with "2" (variable-weight label from electronic scale)
     // Format: 2 PPPPP WWWWW C  (prefix=1, PLU=5, weight-grams=5, check=1)
+    // Only applies to kg/g products — L/ml products use manual qty entry
     if (/^2\d{12}$/.test(barcode)) {
       const plu = barcode.slice(1, 6);
-      const weightGrams = parseInt(barcode.slice(6, 11), 10);
-      const weightKg = Math.round((weightGrams / 1000) * 1000) / 1000; // 3 decimal places
+      const encodedGrams = parseInt(barcode.slice(6, 11), 10);
       const match = allCached.find((p) => p.isWeighted && p.pluCode === plu);
       if (!match) {
         toast.error(`No weighted product found for PLU: ${plu}`, { duration: 3000 });
@@ -366,14 +366,20 @@ export function POSClient({
         setSearchResults([]);
         return;
       }
+      // Convert encoded grams to the product's native unit
+      const qty = match.unit === "g"
+        ? encodedGrams                                               // grams product → raw grams
+        : Math.round((encodedGrams / 1000) * 1000) / 1000;         // kg product → kg (3 dp)
+      const qtyLabel = `${qty} ${match.unit}`;
       setSearchQuery("");
       setSearchResults([]);
-      // Add to cart — accumulate weight across multiple packages of the same product
+      // Accumulate — customer may bring multiple pre-weighed packages of the same product
       const cartKey = match.id;
       setCart((prev) => {
         const existing = prev.find((i) => i.cartKey === cartKey);
         if (existing) {
-          const newQty = Math.round((existing.quantity + weightKg) * 1000) / 1000;
+          const precision = match.unit === "g" ? 0 : 3;
+          const newQty = parseFloat((existing.quantity + qty).toFixed(precision));
           return prev.map((i) =>
             i.cartKey === cartKey
               ? { ...i, quantity: newQty, lineTotal: newQty * i.unitPrice }
@@ -387,11 +393,11 @@ export function POSClient({
             productId: match.id,
             name: match.name,
             itemCode: match.itemCode ?? null,
-            unit: "kg",
+            unit: match.unit,
             unitPrice: match.sellPrice,
             originalPrice: match.sellPrice,
-            quantity: weightKg,
-            lineTotal: match.sellPrice * weightKg,
+            quantity: qty,
+            lineTotal: match.sellPrice * qty,
             stockQty: match.stockQty,
             warrantyPeriod: match.warrantyPeriod ?? null,
             isService: false,
@@ -399,7 +405,7 @@ export function POSClient({
           },
         ];
       });
-      toast.success(`${match.name} — ${weightKg} kg added`, { duration: 2000 });
+      toast.success(`${match.name} — ${qtyLabel} added`, { duration: 2000 });
       return;
     }
 
@@ -1241,7 +1247,9 @@ export function POSClient({
           <p className="text-xs text-blue-500 font-medium mt-0.5">Service</p>
         )}
         {product.isWeighted && (
-          <p className="text-xs text-sky-500 font-medium mt-0.5">Scan scale label</p>
+          <p className="text-xs text-sky-500 font-medium mt-0.5">
+            {["kg", "g"].includes(product.unit) ? "Scan scale label" : `Enter qty (${product.unit})`}
+          </p>
         )}
         {hasVariants && (
           <p className="text-xs text-primary/70 font-medium mt-0.5 flex items-center gap-1">

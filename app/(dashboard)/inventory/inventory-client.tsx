@@ -57,11 +57,11 @@ function formatLKR(n: number) {
   return `LKR ${int.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${dec}`;
 }
 
-function StockBadge({ qty, low, isWeighted }: { qty: number; low: number; isWeighted?: boolean }) {
+function StockBadge({ qty, low, isWeighted, unit }: { qty: number; low: number; isWeighted?: boolean; unit?: string }) {
   if (isWeighted)
     return (
       <Badge className="bg-sky-50 text-sky-600 border-sky-200 hover:bg-sky-50 dark:bg-sky-950/30 dark:border-sky-800 dark:text-sky-400">
-        by weight
+        per {unit || "unit"}
       </Badge>
     );
   if (qty <= 0)
@@ -454,7 +454,7 @@ export function InventoryClient() {
                           className="inline-flex"
                           title="Adjust stock"
                         >
-                          <StockBadge qty={Number(product.stockQty)} low={Number(product.lowStockAt)} isWeighted={product.isWeighted} />
+                          <StockBadge qty={Number(product.stockQty)} low={Number(product.lowStockAt)} isWeighted={product.isWeighted} unit={product.unit} />
                         </button>
                       )}
                     </TableCell>

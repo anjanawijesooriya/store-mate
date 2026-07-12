@@ -70,16 +70,22 @@ type WeightedColKey = keyof ImportWeightedRow | "_ignore";
 const WEIGHTED_ALIASES: Record<string, WeightedColKey> = {
   "name": "name", "product name": "name", "item name": "name", "product": "name",
   "item code": "itemCode", "itemcode": "itemCode", "product code": "itemCode", "code": "itemCode",
+  "unit": "unit", "uom": "unit", "unit of measure": "unit", "unit (kg g l ml)": "unit",
   "plu": "pluCode", "plu code": "pluCode", "plucode": "pluCode", "plu no": "pluCode",
   "plu number": "pluCode", "scale code": "pluCode",
   "category": "category", "cat": "category", "group": "category",
   "cost price": "costPrice", "cost": "costPrice", "buying price": "costPrice", "cp": "costPrice",
   "sell price": "sellPrice", "price": "sellPrice", "selling price": "sellPrice",
-  "price per kg": "sellPrice", "rate per kg": "sellPrice", "rate": "sellPrice",
-  "sell price kg": "sellPrice", "sell price per kg": "sellPrice",
+  "price per unit": "sellPrice", "rate per unit": "sellPrice", "rate": "sellPrice",
+  "sell price unit": "sellPrice", "price unit": "sellPrice",
+  "sell price kg": "sellPrice", "price per kg": "sellPrice", "rate per kg": "sellPrice",
+  "sell price l": "sellPrice", "price per l": "sellPrice",
+  "sell price ml": "sellPrice", "price per ml": "sellPrice",
+  "sell price g": "sellPrice", "price per g": "sellPrice",
   "low stock": "lowStockAt", "low stock alert": "lowStockAt", "min stock": "lowStockAt",
   "low stock at": "lowStockAt", "low stock alert (kg)": "lowStockAt",
   "low stock (kg)": "lowStockAt", "min stock (kg)": "lowStockAt",
+  "low stock alert (unit)": "lowStockAt", "low stock (unit)": "lowStockAt",
 };
 
 // ── Parsed row types ───────────────────────────────────────────────────────────
@@ -219,7 +225,7 @@ function parseSheetForWeighted(data: unknown[][]): WeightedPreviewRow[] {
     Object.entries(colMap).forEach(([idxStr, field]) => {
       if (field === "_ignore") return;
       const val = cells[Number(idxStr)];
-      if (["name", "itemCode", "pluCode", "category"].includes(field as string)) {
+      if (["name", "itemCode", "unit", "pluCode", "category"].includes(field as string)) {
         if (val !== undefined && val !== "") (raw as Record<string, unknown>)[field] = String(val).trim();
       } else {
         const n = toNum(val);
@@ -313,9 +319,9 @@ async function downloadTemplate(includeVariants: boolean, weightedMode = false) 
 
   // Weighted products sheet — separate template when in weighted mode
   if (weightedMode) {
-    const wHeaders = ["Name", "Item Code", "PLU Code", "Category", "Cost Price", "Sell Price/kg", "Low Stock Alert (kg)"];
+    const wHeaders = ["Name", "Item Code", "Unit (kg/g/L/ml)", "PLU Code", "Category", "Cost Price", "Price/unit", "Low Stock Alert"];
 
-    type WRow = { name: string; itemCode: string | null; pluCode: string | null; category: string | null; costPrice: number; sellPrice: number; lowStockAt: number };
+    type WRow = { name: string; itemCode: string | null; unit: string; pluCode: string | null; category: string | null; costPrice: number; sellPrice: number; lowStockAt: number };
     let wRows: unknown[][] = [];
     try {
       const res = await fetch("/api/products/weighted");
@@ -326,6 +332,7 @@ async function downloadTemplate(includeVariants: boolean, weightedMode = false) 
           wRows = live.map((p) => [
             p.name,
             p.itemCode ?? "",
+            p.unit ?? "kg",
             p.pluCode ?? "",
             p.category ?? "",
             Number(p.costPrice),
@@ -338,17 +345,17 @@ async function downloadTemplate(includeVariants: boolean, weightedMode = false) 
 
     if (wRows.length === 0) {
       wRows = [
-        ["Chicken Breast",  "WP-001", "00001", "Meat & Seafood", 600,  850, 0],
-        ["Beef",            "WP-002", "00002", "Meat & Seafood", 900, 1200, 0],
-        ["Red Rice",        "WP-003", "00003", "Groceries",      150,  220, 0],
-        ["Dhal",            "WP-004", "00004", "Groceries",      280,  380, 0],
-        ["Coconut (grated)","WP-005", "00005", "Groceries",      200,  280, 0],
+        ["Chicken Breast",   "WP-001", "kg", "00001", "Meat & Seafood", 600,   850,  0],
+        ["Beef",             "WP-002", "kg", "00002", "Meat & Seafood", 900,  1200,  0],
+        ["Red Rice",         "WP-003", "kg", "00003", "Groceries",      150,   220,  0],
+        ["Coconut Oil (bulk)","WP-004", "l",  "",     "Groceries",      400,   550,  0],
+        ["Vanilla Extract",  "WP-005", "ml", "",      "Groceries",      1200, 1800,  0],
       ];
     }
 
     const wsW = XLSX.utils.aoa_to_sheet([wHeaders, ...wRows]);
     wsW["!cols"] = [
-      { wch: 22 }, { wch: 12 }, { wch: 11 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 22 },
+      { wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 11 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
     ];
     XLSX.utils.book_append_sheet(wb, wsW, "Weighted Products");
     XLSX.writeFile(wb, "estoremate-weighted-products.xlsx");
@@ -562,7 +569,7 @@ export function ImportDialog({ open, variantsEnabled = false, weightedProductsEn
     create:   <>Upload an Excel (.xlsx, .xls) or CSV file to bulk-import new products. Required columns: <span className="font-semibold text-foreground">Name</span>, <span className="font-semibold text-foreground">Sell Price</span>.</>,
     update:   <>Upload a file to bulk-update existing products. Identify each product by <span className="font-semibold text-foreground">Item Code</span>, <span className="font-semibold text-foreground">SKU</span>, or <span className="font-semibold text-foreground">Name</span>. Only columns you include will be updated — blank cells are left unchanged.</>,
     variants: <>Upload a file to bulk-import or update variant stock. Identify the parent product by <span className="font-semibold text-foreground">Name</span>, <span className="font-semibold text-foreground">Item Code</span>, or <span className="font-semibold text-foreground">SKU</span>. Each row is one size/colour combination. Existing variants are updated; new ones are created.</>,
-    weighted: <>Upload a weighted products file to bulk-import or update scale items. Required columns: <span className="font-semibold text-foreground">Name</span>, <span className="font-semibold text-foreground">Sell Price/kg</span>. Include <span className="font-semibold text-foreground">PLU Code</span> (1–5 digits) to link with your label-printing scale. Existing products are matched by Item Code or Name and updated.</>,
+    weighted: <>Upload a file to bulk-import or update products sold by weight or volume. Required columns: <span className="font-semibold text-foreground">Name</span>, <span className="font-semibold text-foreground">Price/unit</span>. Use <span className="font-semibold text-foreground">Unit</span> to specify kg, g, L, or ml — defaults to kg. Include <span className="font-semibold text-foreground">PLU Code</span> for kg/g products linked to a label-printing scale.</>,
   };
 
   const successLabel = {
@@ -680,10 +687,11 @@ export function ImportDialog({ open, variantsEnabled = false, weightedProductsEn
                   <p className="font-semibold text-sm">Required columns:</p>
                   <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
                     <li><span className="font-medium text-foreground">Name</span> — product name (used to match existing)</li>
-                    <li><span className="font-medium text-foreground">Sell Price/kg</span> — price per kilogram</li>
-                    <li>Item Code, PLU Code (1–5 digits), Category, Cost Price, Low Stock Alert — optional</li>
+                    <li><span className="font-medium text-foreground">Price/unit</span> — price per kg, g, L, or ml</li>
+                    <li><span className="font-medium text-foreground">Unit</span> — kg, g, L, or ml (defaults to kg if omitted)</li>
+                    <li>Item Code, PLU Code (kg/g only, 1–5 digits), Category, Cost Price, Low Stock Alert — optional</li>
                   </ul>
-                  <p className="text-muted-foreground mt-1">Existing products are matched by Item Code first, then Name. PLU Code links your digital scale labels to the POS.</p>
+                  <p className="text-muted-foreground mt-1">Existing products matched by Item Code first, then Name. PLU Code links kg/g products to your label-printing scale.</p>
                 </div>
               )}
 
@@ -752,10 +760,11 @@ export function ImportDialog({ open, variantsEnabled = false, weightedProductsEn
                       <th className="px-3 py-2 text-left font-semibold text-muted-foreground w-12">#</th>
                       <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Name</th>
                       <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Item Code</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Unit</th>
                       <th className="px-3 py-2 text-left font-semibold text-muted-foreground">PLU Code</th>
                       <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Category</th>
-                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Cost/kg</th>
-                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Price/kg</th>
+                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Cost</th>
+                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Price/unit</th>
                       <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Low Stock</th>
                       <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Status</th>
                     </tr>
@@ -815,6 +824,8 @@ export function ImportDialog({ open, variantsEnabled = false, weightedProductsEn
                     }
                     if (isWeighted) {
                       const r = row.raw as ImportWeightedRow;
+                      const resolvedUnit = ["kg","g","l","ml"].includes(r.unit?.toLowerCase() ?? "") ? r.unit! : "kg";
+                      const isScaleUnit = ["kg","g"].includes(resolvedUnit.toLowerCase());
                       return (
                         <tr key={row.rowNum} className={cn("border-t border-border", isValid ? "bg-background" : "bg-destructive/5")}>
                           <td className="px-3 py-1.5 text-muted-foreground">{row.rowNum}</td>
@@ -822,8 +833,9 @@ export function ImportDialog({ open, variantsEnabled = false, weightedProductsEn
                             {r.name || <span className="text-destructive italic">missing</span>}
                           </td>
                           <td className="px-3 py-1.5 text-muted-foreground font-mono">{r.itemCode || "—"}</td>
+                          <td className="px-3 py-1.5 font-semibold text-sky-600 text-center">{resolvedUnit}</td>
                           <td className="px-3 py-1.5 text-center font-mono font-semibold text-sky-600">
-                            {r.pluCode ? r.pluCode.trim().padStart(5, "0") : "—"}
+                            {isScaleUnit && r.pluCode ? r.pluCode.trim().padStart(5, "0") : "—"}
                           </td>
                           <td className="px-3 py-1.5 text-muted-foreground">{r.category || "—"}</td>
                           <td className="px-3 py-1.5 text-right font-mono">

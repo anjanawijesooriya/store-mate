@@ -1212,7 +1212,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               <DropdownMenuItem
                                 onClick={() => setConfirmAction({
                                   title: "Disable Weighted Products",
-                                  description: `Disable scale barcode support for ${shop.name}? The "Sold by weight" toggle will be hidden from products. Existing PLU data is preserved.`,
+                                  description: `Disable weight/volume measure support for ${shop.name}? The "Sold by weight / volume" toggle will be hidden from products. Existing PLU data is preserved.`,
                                   confirmLabel: "Disable",
                                   variant: "destructive",
                                   onConfirm: () => toggleWeighted(shop, false),
@@ -1227,7 +1227,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               <DropdownMenuItem
                                 onClick={() => setConfirmAction({
                                   title: "Enable Weighted Products",
-                                  description: `Enable scale barcode support for ${shop.name}? The shop owner will be able to mark products as "Sold by weight" and assign a 5-digit PLU code that matches their electronic scale.`,
+                                  description: `Enable weight/volume measure support for ${shop.name}? The shop owner will be able to mark products as "Sold by weight / volume" (kg, g, L, ml) and assign a PLU code for kg/g scale integration.`,
                                   confirmLabel: "Enable",
                                   onConfirm: () => toggleWeighted(shop, true),
                                 })}

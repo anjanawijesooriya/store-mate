@@ -3,9 +3,13 @@ import { db } from "@/lib/db";
 import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 import { MovementType } from "@/lib/generated/prisma/enums";
 
+const MEASURE_UNITS = ["kg", "g", "l", "ml"] as const;
+type MeasureUnit = typeof MEASURE_UNITS[number];
+
 export interface ImportWeightedRow {
   name: string;
   itemCode?: string | null;
+  unit?: string | null;
   pluCode?: string | null;
   category?: string | null;
   costPrice?: number;
@@ -49,14 +53,22 @@ export async function POST(req: NextRequest) {
         continue;
       }
       if (row.sellPrice === undefined || row.sellPrice === null || row.sellPrice < 0) {
-        errors.push({ row: rowNum, name: nameKey, reason: "Sell Price (per kg) is required and must be ≥ 0" });
+        errors.push({ row: rowNum, name: nameKey, reason: "Sell Price is required and must be ≥ 0" });
         continue;
       }
-      if (row.pluCode && !/^\d{1,5}$/.test(row.pluCode.trim())) {
+      // Resolve and validate unit — default kg
+      const rawUnit = row.unit?.trim().toLowerCase() ?? "";
+      const unit: MeasureUnit = (MEASURE_UNITS as readonly string[]).includes(rawUnit)
+        ? (rawUnit as MeasureUnit)
+        : "kg";
+      const isScaleUnit = unit === "kg" || unit === "g";
+      if (row.pluCode && !isScaleUnit) {
+        // PLU codes only apply to scale (weight) products — ignore silently
+      } else if (row.pluCode && !/^\d{1,5}$/.test(row.pluCode.trim())) {
         errors.push({ row: rowNum, name: nameKey, reason: "PLU Code must be 1–5 digits" });
         continue;
       }
-      const pluCode = row.pluCode ? row.pluCode.trim().padStart(5, "0") : null;
+      const pluCode = (isScaleUnit && row.pluCode) ? row.pluCode.trim().padStart(5, "0") : null;
 
       try {
         // Find existing by itemCode → name (case-insensitive)
@@ -75,12 +87,12 @@ export async function POST(req: NextRequest) {
         }
 
         if (existing) {
-          // Update existing product — mark as weighted, update PLU + prices
+          // Update existing product — mark as weighted, update unit + PLU + prices
           await db.product.update({
             where: { id: existing.id },
             data: {
               isWeighted: true,
-              unit: "kg",
+              unit,
               pluCode,
               ...(row.itemCode?.trim() && { itemCode: row.itemCode.trim() }),
               ...(row.category?.trim() && { category: row.category.trim() }),
@@ -105,7 +117,7 @@ export async function POST(req: NextRequest) {
               itemCode: row.itemCode?.trim() || null,
               sku: null,
               category: row.category?.trim() || null,
-              unit: "kg",
+              unit,
               costPrice: row.costPrice ?? 0,
               sellPrice: row.sellPrice,
               stockQty: 0,

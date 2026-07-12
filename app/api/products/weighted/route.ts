@@ -10,6 +10,7 @@ export async function GET() {
       select: {
         name: true,
         itemCode: true,
+        unit: true,
         pluCode: true,
         category: true,
         costPrice: true,

@@ -224,7 +224,8 @@ export function ProductDialog({ open, product, variantsEnabled, weightedProducts
         }
         body.warrantyPeriod = form.warrantyPeriod.trim() || null;
         body.isWeighted = isWeighted;
-        body.pluCode = isWeighted ? (form.pluCode.trim() || null) : null;
+        const isScaleUnit = ["kg", "g"].includes(form.unit);
+        body.pluCode = isWeighted && isScaleUnit ? (form.pluCode.trim() || null) : null;
       }
 
       const res = await fetch(url, {
@@ -257,7 +258,8 @@ export function ProductDialog({ open, product, variantsEnabled, weightedProducts
     ? (serviceMode ? "Edit Service" : "Edit Product")
     : (serviceMode ? "Add Service" : "Add Product");
 
-  const units = serviceMode ? SERVICE_UNITS : PRODUCT_UNITS;
+  const MEASURE_UNITS = ["kg", "g", "l", "ml"];
+  const units = serviceMode ? SERVICE_UNITS : isWeighted ? MEASURE_UNITS : PRODUCT_UNITS;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -471,12 +473,12 @@ export function ProductDialog({ open, product, variantsEnabled, weightedProducts
                 />
               </div>
 
-              {/* Sold by weight (scale barcode) — only shown when enabled by admin */}
+              {/* Sold by weight / volume — only shown when enabled by admin */}
               {weightedProductsEnabled && <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Sold by weight</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">For items weighed on an electronic scale with a label printer</p>
+                    <p className="text-sm font-medium">Sold by weight / volume</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">For items weighed on a scale (kg, g) or dispensed by volume (L, ml)</p>
                   </div>
                   <button
                     type="button"
@@ -485,16 +487,16 @@ export function ProductDialog({ open, product, variantsEnabled, weightedProducts
                     onClick={() => {
                       const next = !isWeighted;
                       setIsWeighted(next);
-                      if (next) update("unit", "kg");
+                      if (next && !["kg", "g", "l", "ml"].includes(form.unit)) update("unit", "kg");
                     }}
                     className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${isWeighted ? "bg-primary" : "bg-input"}`}
                   >
                     <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg transform transition-transform ${isWeighted ? "translate-x-4" : "translate-x-0"}`} />
                   </button>
                 </div>
-                {isWeighted && (
+                {isWeighted && ["kg", "g"].includes(form.unit) && (
                   <div className="space-y-1.5">
-                    <Label htmlFor="pluCode" className="text-xs">PLU Code <span className="text-muted-foreground font-normal">(5-digit code programmed on the scale)</span></Label>
+                    <Label htmlFor="pluCode" className="text-xs">PLU Code <span className="text-muted-foreground font-normal">(5-digit code for label-printing scale — weight products only)</span></Label>
                     <Input
                       id="pluCode"
                       placeholder="e.g. 00123"
@@ -505,6 +507,9 @@ export function ProductDialog({ open, product, variantsEnabled, weightedProducts
                     />
                     <p className="text-xs text-muted-foreground">Set the same 5-digit PLU on your weighing scale to match this product.</p>
                   </div>
+                )}
+                {isWeighted && ["l", "ml"].includes(form.unit) && (
+                  <p className="text-xs text-muted-foreground">Volume products (L, ml) — cashier enters quantity manually at POS. No scale barcode integration.</p>
                 )}
               </div>}
             </>
