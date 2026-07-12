@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Download, BarChart3, TrendingUp, TrendingDown, CreditCard, Clock } from "lucide-react";
+import { Download, BarChart3, TrendingUp, TrendingDown, CreditCard, Clock, Lock } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,6 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
-
 interface ReportData {
   summary: {
     totalRevenue: number;
@@ -32,6 +31,10 @@ interface ReportData {
   topProducts: Array<{ name: string; qty: number; revenue: number }>;
 }
 
+interface Props {
+  planTier: "BASIC" | "STANDARD" | "PREMIUM";
+}
+
 const PAYMENT_COLORS = {
   CASH:   "var(--color-chart-1)",
   CARD:   "var(--color-chart-2)",
@@ -43,13 +46,13 @@ function formatLKR(n: number) {
   return `LKR ${n.toLocaleString("en-LK", { maximumFractionDigits: 0 })}`;
 }
 
-const PERIODS = [
-  { value: "today",      label: "Today" },
-  { value: "week",       label: "This Week" },
-  { value: "month",      label: "This Month" },
-  { value: "last_month", label: "Last Month" },
-  { value: "3months",    label: "Last 3 Months" },
-  { value: "custom",     label: "Custom Range" },
+const PERIODS_BASE = [
+  { value: "today",      label: "Today",          pro: false },
+  { value: "week",       label: "This Week",       pro: false },
+  { value: "month",      label: "This Month",      pro: false },
+  { value: "last_month", label: "Last Month",      pro: false },
+  { value: "3months",    label: "Last 3 Months",   pro: true  },
+  { value: "custom",     label: "Custom Range",    pro: true  },
 ];
 
 function todayStr() {
@@ -57,7 +60,10 @@ function todayStr() {
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
 }
 
-export function ReportsClient() {
+
+export function ReportsClient({ planTier }: Props) {
+  const isPremium = planTier === "PREMIUM";
+
   const [period, setPeriod] = useState("week");
   const [customFrom, setCustomFrom] = useState(todayStr);
   const [customTo, setCustomTo] = useState(todayStr);
@@ -93,7 +99,7 @@ export function ReportsClient() {
     a.click();
   }
 
-  const periodLabel = PERIODS.find((p) => p.value === period)?.label ?? "Select";
+  const periodLabel = PERIODS_BASE.find((p) => p.value === period)?.label ?? "Select";
 
   return (
     <div className="space-y-6">
@@ -102,17 +108,38 @@ export function ReportsClient() {
         description="Understand your business performance"
         action={
           <div className="flex flex-wrap gap-2 items-center">
-            <Select value={period} onValueChange={(v) => v && setPeriod(v)}>
+            <Select
+              value={period}
+              onValueChange={(v) => {
+                const opt = PERIODS_BASE.find((p) => p.value === v);
+                if (opt?.pro && !isPremium) {
+                  toast.info("Upgrade to Premium to use this filter.");
+                  return;
+                }
+                if (v) setPeriod(v);
+              }}
+            >
               <SelectTrigger className="w-44">
                 <SelectValue>{periodLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {PERIODS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                {PERIODS_BASE.map((p) => (
+                  <SelectItem
+                    key={p.value}
+                    value={p.value}
+                    disabled={p.pro && !isPremium}
+                    className={p.pro && !isPremium ? "opacity-50" : ""}
+                  >
+                    <span className="flex items-center gap-2">
+                      {p.pro && !isPremium && <Lock className="h-3 w-3 shrink-0" />}
+                      {p.label}
+                    </span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {period === "custom" && (
+
+            {isPremium && period === "custom" && (
               <>
                 <input
                   type="date"
@@ -132,6 +159,7 @@ export function ReportsClient() {
                 />
               </>
             )}
+
             <Button variant="outline" onClick={exportCSV} disabled={!data}>
               <Download className="h-4 w-4 mr-2" />
               Export CSV
@@ -151,7 +179,7 @@ export function ReportsClient() {
         </div>
       ) : data ? (
         <>
-          {/* Summary stat cards */}
+          {/* Summary stat cards — visible to all plans */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <StatCard
               title="Total Revenue"
@@ -187,7 +215,7 @@ export function ReportsClient() {
             />
           </div>
 
-          {/* P&L Breakdown — always visible */}
+          {/* P&L Breakdown — visible to all plans */}
           <div className="rounded-xl border bg-card shadow-sm p-5">
             <h3 className="text-sm font-semibold text-foreground mb-4">Profit &amp; Loss Breakdown</h3>
             <div className="space-y-2 text-sm max-w-md">
@@ -233,7 +261,6 @@ export function ReportsClient() {
               </div>
             </div>
 
-            {/* Quick cards for fees/expenses when non-zero */}
             {(data.summary.totalCardFees > 0 || data.summary.totalExpenses > 0 || data.summary.totalPayroll > 0) && (
               <div className="grid grid-cols-3 gap-3 mt-5 pt-4 border-t">
                 <div className="text-center">
@@ -258,137 +285,157 @@ export function ReportsClient() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Revenue over time */}
-            <Card className="shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Revenue Over Time</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={data.salesByDay}>
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false}
-                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip
-                      formatter={(v) => [formatLKR(Number(v ?? 0)), "Revenue"]}
-                      contentStyle={{ fontSize: 12, borderRadius: "8px" }}
-                    />
-                    <Line type="monotone" dataKey="revenue" stroke="var(--color-primary)"
-                      strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+          {/* Advanced analytics charts — Premium only */}
+          {isPremium ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Revenue over time */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Revenue Over Time</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={data.salesByDay}>
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false}
+                        tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip
+                        formatter={(v) => [formatLKR(Number(v ?? 0)), "Revenue"]}
+                        contentStyle={{ fontSize: 12, borderRadius: "8px" }}
+                      />
+                      <Line type="monotone" dataKey="revenue" stroke="var(--color-primary)"
+                        strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
 
-            {/* Sales by payment method */}
-            <Card className="shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Sales by Payment Method</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {data.salesByPayment.length === 0 ? (
-                  <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">
-                    No sales data
-                  </div>
-                ) : (
-                  <>
-                    <ResponsiveContainer width="100%" height={180}>
-                      <PieChart>
-                        <Pie
-                          data={data.salesByPayment}
-                          dataKey="total"
-                          nameKey="method"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={70}
-                          label={false}
-                          labelLine={false}
-                        >
-                          {data.salesByPayment.map((entry, i) => (
-                            <Cell
-                              key={i}
-                              fill={PAYMENT_COLORS[entry.method as keyof typeof PAYMENT_COLORS] ?? `var(--color-chart-${i + 1})`}
+              {/* Sales by payment method */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Sales by Payment Method</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.salesByPayment.length === 0 ? (
+                    <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">
+                      No sales data
+                    </div>
+                  ) : (
+                    <>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <PieChart>
+                          <Pie
+                            data={data.salesByPayment}
+                            dataKey="total"
+                            nameKey="method"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={70}
+                            label={false}
+                            labelLine={false}
+                          >
+                            {data.salesByPayment.map((entry, i) => (
+                              <Cell
+                                key={i}
+                                fill={PAYMENT_COLORS[entry.method as keyof typeof PAYMENT_COLORS] ?? `var(--color-chart-${i + 1})`}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(v) => formatLKR(Number(v ?? 0))} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {data.salesByPayment.map((entry, i) => (
+                          <span key={i} className="flex items-center gap-1">
+                            <span
+                              className="inline-block w-2.5 h-2.5 rounded-full"
+                              style={{ background: PAYMENT_COLORS[entry.method as keyof typeof PAYMENT_COLORS] ?? `var(--color-chart-${i + 1})` }}
                             />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(v) => formatLKR(Number(v ?? 0))} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      {data.salesByPayment.map((entry, i) => (
-                        <span key={i} className="flex items-center gap-1">
-                          <span
-                            className="inline-block w-2.5 h-2.5 rounded-full"
-                            style={{ background: PAYMENT_COLORS[entry.method as keyof typeof PAYMENT_COLORS] ?? `var(--color-chart-${i + 1})` }}
-                          />
-                          {entry.method} · {entry.count} sale{entry.count !== 1 ? "s" : ""}
-                        </span>
+                            {entry.method} · {entry.count} sale{entry.count !== 1 ? "s" : ""}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Sales by hour */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Busy Hours
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={data.salesByHour}>
+                      <XAxis
+                        dataKey="hour"
+                        tickFormatter={(h) => `${h}:00`}
+                        tick={{ fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        labelFormatter={(h) => `${h}:00 - ${h + 1}:00`}
+                        formatter={(v) => [Number(v ?? 0), "Sales"]}
+                        contentStyle={{ fontSize: 11, borderRadius: "8px" }}
+                      />
+                      <Bar dataKey="count" fill="var(--color-chart-2)" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Top products */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Top Products</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.topProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No sales data</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {data.topProducts.map((p, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-muted-foreground w-5">#{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{p.name}</p>
+                            <p className="text-xs text-muted-foreground">{p.qty} units sold</p>
+                          </div>
+                          <span className="text-sm font-mono font-semibold text-primary">
+                            {formatLKR(p.revenue)}
+                          </span>
+                        </div>
                       ))}
                     </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Sales by hour */}
-            <Card className="shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Busy Hours
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={data.salesByHour}>
-                    <XAxis
-                      dataKey="hour"
-                      tickFormatter={(h) => `${h}:00`}
-                      tick={{ fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      labelFormatter={(h) => `${h}:00 - ${h + 1}:00`}
-                      formatter={(v) => [Number(v ?? 0), "Sales"]}
-                      contentStyle={{ fontSize: 11, borderRadius: "8px" }}
-                    />
-                    <Bar dataKey="count" fill="var(--color-chart-2)" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Top products */}
-            <Card className="shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Top Products</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {data.topProducts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No sales data</p>
-                ) : (
-                  <div className="space-y-3">
-                    {data.topProducts.map((p, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-muted-foreground w-5">#{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">{p.qty} units sold</p>
-                        </div>
-                        <span className="text-sm font-mono font-semibold text-primary">
-                          {formatLKR(p.revenue)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="relative rounded-2xl border border-dashed border-amber-300 bg-amber-50/40 p-10 flex flex-col items-center justify-center text-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                <Lock className="h-7 w-7 text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Advanced Analytics — Premium only</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                  Revenue trends, busy-hour breakdown, payment method breakdown, top products chart, and extended date ranges are available on the Premium plan.
+                </p>
+              </div>
+              <a
+                href="/settings"
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors"
+              >
+                Upgrade to Premium in Settings
+              </a>
+            </div>
+          )}
         </>
       ) : null}
     </div>

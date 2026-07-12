@@ -6,5 +6,7 @@ import { BranchGuard } from "@/components/dashboard/branch-guard";
 export const metadata: Metadata = { title: "Sales Reports" };
 
 export default async function ReportsPage() {
-  return <BranchGuard><ReportsClient /></BranchGuard>;
+  const session = await auth();
+  const planTier = (session?.user?.planTier ?? "BASIC") as "BASIC" | "STANDARD" | "PREMIUM";
+  return <BranchGuard><ReportsClient planTier={planTier} /></BranchGuard>;
 }
