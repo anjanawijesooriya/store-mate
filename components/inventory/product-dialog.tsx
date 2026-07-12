@@ -130,6 +130,10 @@ export function ProductDialog({ open, product, variantsEnabled, weightedProducts
 
   useBarcodeScan(handleBarcodeScan, { enabled: open && !serviceMode });
 
+  useEffect(() => {
+    return () => { if (flashTimer.current) clearTimeout(flashTimer.current); };
+  }, []);
+
   const [form, setForm] = useState({
     name: "",
     itemCode: "",

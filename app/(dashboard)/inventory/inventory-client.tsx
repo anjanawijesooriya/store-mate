@@ -217,6 +217,8 @@ export function InventoryClient() {
       const params = new URLSearchParams();
       params.set("type", tab);
       params.set("limit", "10000");
+      if (search) params.set("search", search);
+      if (filter && tab === "product") params.set("filter", filter);
       const res = await fetch(`/api/products?${params}`);
       const data = await res.json();
       const allProducts: Product[] = (data.products ?? []).sort(

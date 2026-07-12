@@ -92,6 +92,8 @@ export async function POST(req: NextRequest) {
       const product = productMap.get(item.productId)!;
       const qty = parseFloat(String(item.quantity));
       const unitPrice = parseFloat(String(item.unitPrice ?? product.sellPrice));
+      if (isNaN(qty) || qty <= 0) throw new Error(`Invalid quantity for ${product.name}`);
+      if (isNaN(unitPrice) || unitPrice < 0) throw new Error(`Invalid price for ${product.name}`);
       return {
         productId: item.productId,
         variantId: item.variantId ?? null,
@@ -160,6 +162,7 @@ export async function POST(req: NextRequest) {
           items: {
             create: saleItems.map((i) => ({
               productId: i.productId,
+              variantId: i.variantId ?? null,
               variantLabel: i.variantLabel,
               quantity: i.quantity,
               unitPrice: i.unitPrice,

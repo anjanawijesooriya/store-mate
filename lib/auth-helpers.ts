@@ -2,16 +2,36 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 
 export class UnauthorizedError extends Error {
-  constructor(public reason: "unauthorized" | "device_revoked" = "unauthorized") {
-    super(reason === "device_revoked" ? "Device removed" : "Unauthorized");
+  constructor(public reason: "unauthorized" | "device_revoked" | "non_primary" = "unauthorized") {
+    super(
+      reason === "device_revoked" ? "Device removed"
+      : reason === "non_primary"  ? "Primary device only"
+      : "Unauthorized"
+    );
     this.name = "UnauthorizedError";
   }
 }
 
 export async function getShopId(): Promise<string> {
-  const session = await auth();
-  if (!session?.user?.shopId) throw new UnauthorizedError();
+  const session = await getSession(); // includes device-revocation check
   return session.user.shopId;
+}
+
+// Use in routes restricted to the primary device (Reports, Expenses, Payroll).
+// Throws UnauthorizedError("non_primary") when device lock is on and caller is not primary.
+export async function requirePrimary(): Promise<string> {
+  const session = await getSession();
+  const { shopId, deviceId } = session.user;
+  if (deviceId) {
+    const [shop, device] = await Promise.all([
+      db.shop.findUnique({ where: { id: shopId }, select: { deviceLockEnabled: true } }),
+      db.deviceSession.findUnique({ where: { shopId_deviceId: { shopId, deviceId } }, select: { isPrimary: true } }),
+    ]);
+    if (shop?.deviceLockEnabled && !device?.isPrimary) {
+      throw new UnauthorizedError("non_primary");
+    }
+  }
+  return shopId;
 }
 
 export async function getShopWithPlan(): Promise<{ shopId: string; planTier: string; smsBalance: number }> {
@@ -52,6 +72,9 @@ export function apiError(message: string, status = 400) {
 }
 
 export function apiUnauthorized(reason?: string) {
+  if (reason === "non_primary") {
+    return Response.json({ error: "Primary device only", reason }, { status: 403 });
+  }
   return Response.json(
     { error: "Unauthorized", reason: reason ?? "unauthorized" },
     { status: 401 }

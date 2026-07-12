@@ -63,33 +63,35 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        const product = await db.product.create({
-          data: {
-            shopId,
-            name: row.name.trim(),
-            itemCode: row.itemCode?.trim() || null,
-            sku: row.sku?.trim() || null,
-            category: row.category?.trim() || null,
-            unit: row.unit?.trim() || "pcs",
-            costPrice: row.costPrice,
-            sellPrice: row.sellPrice,
-            stockQty: row.stockQty ?? 0,
-            lowStockAt: row.lowStockAt ?? 5,
-            warrantyPeriod: row.warrantyPeriod?.trim() || null,
-            isService: false,
-          },
-        });
-
-        if ((row.stockQty ?? 0) > 0) {
-          await db.stockMovement.create({
+        await db.$transaction(async (tx) => {
+          const product = await tx.product.create({
             data: {
-              productId: product.id,
-              type: MovementType.RESTOCK,
-              quantity: row.stockQty!,
-              note: "Initial stock (imported)",
+              shopId,
+              name: row.name.trim(),
+              itemCode: row.itemCode?.trim() || null,
+              sku: row.sku?.trim() || null,
+              category: row.category?.trim() || null,
+              unit: row.unit?.trim() || "pcs",
+              costPrice: row.costPrice,
+              sellPrice: row.sellPrice,
+              stockQty: row.stockQty ?? 0,
+              lowStockAt: row.lowStockAt ?? 5,
+              warrantyPeriod: row.warrantyPeriod?.trim() || null,
+              isService: false,
             },
           });
-        }
+
+          if ((row.stockQty ?? 0) > 0) {
+            await tx.stockMovement.create({
+              data: {
+                productId: product.id,
+                type: MovementType.RESTOCK,
+                quantity: row.stockQty!,
+                note: "Initial stock (imported)",
+              },
+            });
+          }
+        });
 
         created++;
       } catch (err) {

@@ -100,13 +100,24 @@ export async function deductCachedStock(
   shopId: string,
   items: Array<{ productId: string; quantity: number }>
 ): Promise<void> {
-  const cached = await getCachedProducts(shopId);
-  if (!cached) return;
-  const updated = cached.map((p) => {
-    const item = items.find((i) => i.productId === p.id);
-    return item ? { ...p, stockQty: Math.max(0, p.stockQty - item.quantity) } : p;
+  const idb = await openDb();
+  // Single IDB transaction for read+write prevents TOCTOU race between concurrent callers
+  await new Promise<void>((resolve, reject) => {
+    const tx = idb.transaction("products", "readwrite");
+    const store = tx.objectStore("products");
+    const req = store.get(shopId);
+    req.onsuccess = () => {
+      const record = req.result as { shopId: string; products: CachedProduct[]; cachedAt: number } | undefined;
+      if (!record) { resolve(); return; }
+      const updated = record.products.map((p) => {
+        const item = items.find((i) => i.productId === p.id);
+        return item ? { ...p, stockQty: Math.max(0, p.stockQty - item.quantity) } : p;
+      });
+      store.put({ ...record, products: updated });
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
-  await cacheProducts(shopId, updated);
 }
 
 export async function addPendingSale(

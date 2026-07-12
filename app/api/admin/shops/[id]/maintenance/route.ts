@@ -35,8 +35,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const note     = body.note     || null;
 
   const now = new Date();
-  const periodStart = now;
-  const periodEnd   = new Date(now);
+  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { maintenancePaidUntil: true } });
+  // Start the new period from where the last one ends (or today if lapsed)
+  const periodStart = shop?.maintenancePaidUntil && shop.maintenancePaidUntil > now
+    ? shop.maintenancePaidUntil
+    : now;
+  const periodEnd = new Date(periodStart);
   periodEnd.setFullYear(periodEnd.getFullYear() + 1);
 
   // Record the payment and update shop maintenance dates in a transaction

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { randomInt } from "crypto";
 import { db } from "@/lib/db";
 import { sendPasswordResetOTP } from "@/lib/mailer";
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
       data:  { used: true },
     });
 
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otp = String(randomInt(100000, 1000000));
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     await db.passwordResetToken.create({

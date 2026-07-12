@@ -73,12 +73,10 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
 
     const onVisible = () => { if (document.visibilityState === "visible") checkFeatures(); };
     document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", checkFeatures);
     const interval = setInterval(checkFeatures, 30_000);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", checkFeatures);
       clearInterval(interval);
     };
   }, []);

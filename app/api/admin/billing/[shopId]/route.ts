@@ -22,6 +22,12 @@ export async function PATCH(
     if (!amount || !planTier || !billingMonth) {
       return apiError("amount, planTier and billingMonth are required");
     }
+    if (!Object.values(PlanTier).includes(planTier as PlanTier)) {
+      return apiError(`Invalid planTier — must be one of: ${Object.values(PlanTier).join(", ")}`);
+    }
+    if (billingMonth !== "LIFETIME" && !/^\d{4}-\d{2}$/.test(billingMonth)) {
+      return apiError("billingMonth must be YYYY-MM or LIFETIME");
+    }
 
     // For lifetime payments there is no next billing date
     let nextBillingDate: Date | null = null;
@@ -60,6 +66,9 @@ export async function PATCH(
   if (action === "change_plan") {
     const { planTier } = body;
     if (!planTier) return apiError("planTier is required");
+    if (!Object.values(PlanTier).includes(planTier as PlanTier)) {
+      return apiError(`Invalid planTier — must be one of: ${Object.values(PlanTier).join(", ")}`);
+    }
     const shop = await db.shop.update({
       where: { id: shopId },
       data: { planTier: planTier as PlanTier },
@@ -94,6 +103,7 @@ export async function PATCH(
   if (action === "extend_trial") {
     const { days } = body;
     const d = parseInt(days ?? "14");
+    if (isNaN(d) || d <= 0 || d > 365) return apiError("days must be a positive integer (1–365)");
     const current = await db.shop.findUnique({ where: { id: shopId }, select: { trialEndsAt: true, billingStatus: true } });
     const now = new Date();
     // Extend from existing trial end if still in future; otherwise extend from today
@@ -103,7 +113,7 @@ export async function PATCH(
     base.setDate(base.getDate() + d);
     const shop = await db.shop.update({
       where: { id: shopId },
-      data: { trialEndsAt: base, billingStatus: BillingStatus.TRIAL },
+      data: { trialEndsAt: base, billingStatus: BillingStatus.TRIAL, gracePeriodEndsAt: null },
     });
     return Response.json({ shop });
   }
@@ -136,7 +146,7 @@ export async function PATCH(
     graceEndsAt.setDate(graceEndsAt.getDate() + GRACE_DAYS);
     const shop = await db.shop.update({
       where: { id: shopId },
-      data: { billingStatus: BillingStatus.GRACE, gracePeriodEndsAt: graceEndsAt },
+      data: { billingStatus: BillingStatus.GRACE, gracePeriodEndsAt: graceEndsAt, nextBillingDate: null },
     });
     return Response.json({ shop });
   }

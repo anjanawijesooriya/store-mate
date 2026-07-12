@@ -5,6 +5,7 @@ import { SaleStatus, PaymentMethod } from "@/lib/generated/prisma/enums";
 
 interface NewItemInput {
   productId: string;
+  variantId?: string;
   quantity: number;
   unitPrice: number;
 }
@@ -64,8 +65,8 @@ export async function POST(
       return item;
     });
 
-    // Validate + load new products
-    const newProductIds = newItems.map((i) => i.productId);
+    // Validate + load new products (deduplicate so a repeated productId doesn't break the length check)
+    const newProductIds = [...new Set(newItems.map((i) => i.productId))];
     const newProducts = newProductIds.length
       ? await db.product.findMany({ where: { id: { in: newProductIds }, shopId, isActive: true } })
       : [];
@@ -76,11 +77,10 @@ export async function POST(
 
     const newProductMap = new Map(newProducts.map((p) => [p.id, p]));
 
-    // Stock check for new items
+    // Pre-flight: verify products exist (stock is re-checked inside the transaction to prevent races)
     for (const item of newItems) {
-      const product = newProductMap.get(item.productId)!;
-      if (Number(product.stockQty) < item.quantity) {
-        return apiError(`Insufficient stock for ${product.name} (have ${product.stockQty}, need ${item.quantity})`);
+      if (!newProductMap.has(item.productId)) {
+        return apiError(`Product not found: ${item.productId}`);
       }
     }
 
@@ -115,12 +115,19 @@ export async function POST(
         });
       }
 
-      // 3. Restore stock for returned items
+      // 3. Restore stock for returned items — use variant table when the original sale was a variant sale
       for (const item of returnItems) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stockQty: { increment: item.quantity } },
-        });
+        if (item.variantId) {
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stockQty: { increment: item.quantity } },
+          });
+        } else {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQty: { increment: item.quantity } },
+          });
+        }
         await tx.stockMovement.create({
           data: {
             productId: item.productId,
@@ -131,12 +138,36 @@ export async function POST(
         });
       }
 
-      // 4. Deduct stock for new items
+      // 4. Deduct stock for new items — re-check inside tx to prevent races
       for (const item of newItems) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stockQty: { decrement: item.quantity } },
-        });
+        const product = newProductMap.get(item.productId)!;
+        if (item.variantId) {
+          const fresh = await tx.productVariant.findUnique({
+            where: { id: item.variantId },
+            select: { stockQty: true },
+          });
+          const currentQty = Number(fresh?.stockQty ?? 0);
+          if (currentQty < item.quantity) {
+            throw new Error(`Insufficient stock for ${product.name} variant (have ${currentQty}, need ${item.quantity})`);
+          }
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stockQty: { decrement: item.quantity } },
+          });
+        } else {
+          const fresh = await tx.product.findUnique({
+            where: { id: item.productId },
+            select: { stockQty: true },
+          });
+          const currentQty = Number(fresh?.stockQty ?? 0);
+          if (currentQty < item.quantity) {
+            throw new Error(`Insufficient stock for ${product.name} (have ${currentQty}, need ${item.quantity})`);
+          }
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQty: { decrement: item.quantity } },
+          });
+        }
         await tx.stockMovement.create({
           data: {
             productId: item.productId,
@@ -164,6 +195,7 @@ export async function POST(
           items: {
             create: newItems.map((i) => ({
               productId: i.productId,
+              variantId: i.variantId ?? null,
               quantity: i.quantity,
               unitPrice: i.unitPrice,
               lineTotal: i.quantity * i.unitPrice,
@@ -178,34 +210,38 @@ export async function POST(
 
       // 6. Adjust customer credit balance if relevant
       if (originalSale.customerId) {
-        // totalSpent: add new items cost, subtract returned items cost
         const spentDelta = newItemsSubtotal - returnedValue;
 
-        // creditBalance adjustments:
-        // - If original was credit and we're returning items: reduce the debt
-        // - If new items are on credit: add to debt
         let creditDelta = 0;
         if (originalSale.paymentMethod === PaymentMethod.CREDIT) {
-          // Returned items reduce the original credit debt
           creditDelta -= returnedValue;
         }
         if (isCredit && netTotal > 0) {
-          // New items on credit add to debt
           creditDelta += netTotal;
         }
 
-        await tx.customer.update({
-          where: { id: originalSale.customerId },
-          data: {
-            ...(spentDelta !== 0 && {
-              totalSpent: spentDelta > 0
-                ? { increment: spentDelta }
-                : { decrement: -spentDelta },
-            }),
-            ...(creditDelta > 0 && { creditBalance: { increment: creditDelta } }),
-            ...(creditDelta < 0 && { creditBalance: { decrement: Math.min(-creditDelta, Number((await tx.customer.findUnique({ where: { id: originalSale.customerId! } }))?.creditBalance ?? 0)) } }),
-          },
-        });
+        if (spentDelta !== 0 || creditDelta > 0) {
+          await tx.customer.update({
+            where: { id: originalSale.customerId },
+            data: {
+              ...(spentDelta !== 0 && {
+                totalSpent: spentDelta > 0
+                  ? { increment: spentDelta }
+                  : { decrement: -spentDelta },
+              }),
+              ...(creditDelta > 0 && { creditBalance: { increment: creditDelta } }),
+            },
+          });
+        }
+
+        // Atomic floor-at-zero decrement: avoids the read-then-decrement race under READ COMMITTED
+        if (creditDelta < 0) {
+          await tx.$executeRaw`
+            UPDATE "Customer"
+            SET "creditBalance" = GREATEST(0::numeric, "creditBalance" - ${-creditDelta}::numeric)
+            WHERE id = ${originalSale.customerId}
+          `;
+        }
       }
 
       return { sale: newSale, cashback, fullyExchanged };

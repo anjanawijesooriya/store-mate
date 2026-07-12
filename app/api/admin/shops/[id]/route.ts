@@ -21,6 +21,13 @@ export async function DELETE(
     db.stockMovement.deleteMany({ where: { product: { shopId } } }),
     db.smsLog.deleteMany({ where: { shopId } }),
     db.deviceSession.deleteMany({ where: { shopId } }),
+    // PasswordResetToken has no cascade from User
+    db.passwordResetToken.deleteMany({ where: { user: { shopId } } }),
+    // PayrollDeduction cascades from PayrollRecord, but PayrollRecord has no cascade from Shop
+    db.payrollDeduction.deleteMany({ where: { record: { shopId } } }),
+    db.payrollRecord.deleteMany({ where: { shopId } }),
+    db.employee.deleteMany({ where: { shopId } }),
+    db.maintenancePayment.deleteMany({ where: { shopId } }),
     db.sale.deleteMany({ where: { shopId } }),
     db.product.deleteMany({ where: { shopId } }),
     db.customer.deleteMany({ where: { shopId } }),

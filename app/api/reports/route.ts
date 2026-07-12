@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
+import { requirePrimary, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
 function getDateRange(period: string): { from: Date; to: Date } {
   const now = new Date();
@@ -35,7 +35,7 @@ function getDateRange(period: string): { from: Date; to: Date } {
 
 export async function GET(req: NextRequest) {
   try {
-    const shopId = await getShopId();
+    const shopId = await requirePrimary();
     const { searchParams } = new URL(req.url);
     const period = searchParams.get("period") ?? "week";
     const customFrom = searchParams.get("from");

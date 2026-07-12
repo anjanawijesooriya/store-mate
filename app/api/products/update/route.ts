@@ -30,6 +30,15 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(rows) || rows.length === 0) return apiError("No rows provided");
     if (rows.length > 5000) return apiError("Maximum 5,000 rows per update");
 
+    // Single preload eliminates up to 3 DB round-trips per row
+    const allProducts = await db.product.findMany({
+      where: { shopId, isActive: true },
+      select: { id: true, itemCode: true, sku: true, name: true },
+    });
+    const byItemCode = new Map(allProducts.filter((p) => p.itemCode).map((p) => [p.itemCode!.toLowerCase(), p]));
+    const bySku = new Map(allProducts.filter((p) => p.sku).map((p) => [p.sku!.toLowerCase(), p]));
+    const byName = new Map(allProducts.map((p) => [p.name.toLowerCase(), p]));
+
     let updated = 0;
     const errors: UpdateError[] = [];
 
@@ -43,26 +52,11 @@ export async function POST(req: NextRequest) {
       const identifier = itemCodeKey || skuKey || nameKey || `row ${rowNum}`;
 
       // Identify product: item code → SKU → name (case-insensitive)
-      let product: { id: string } | null = null;
-
-      if (itemCodeKey) {
-        product = await db.product.findFirst({
-          where: { shopId, itemCode: itemCodeKey, isActive: true },
-          select: { id: true },
-        });
-      }
-      if (!product && skuKey) {
-        product = await db.product.findFirst({
-          where: { shopId, sku: skuKey, isActive: true },
-          select: { id: true },
-        });
-      }
-      if (!product && nameKey) {
-        product = await db.product.findFirst({
-          where: { shopId, name: { equals: nameKey, mode: "insensitive" }, isActive: true },
-          select: { id: true },
-        });
-      }
+      const product =
+        (itemCodeKey && byItemCode.get(itemCodeKey.toLowerCase())) ||
+        (skuKey && bySku.get(skuKey.toLowerCase())) ||
+        (nameKey && byName.get(nameKey.toLowerCase())) ||
+        null;
 
       if (!product) {
         errors.push({ row: rowNum, identifier, reason: "Product not found" });

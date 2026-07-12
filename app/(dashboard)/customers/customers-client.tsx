@@ -84,8 +84,9 @@ export function CustomersClient() {
 
   useEffect(() => {
     if (!profileCustomer) { setProfileSales([]); return; }
+    const controller = new AbortController();
     setProfileLoading(true);
-    fetch(`/api/customers/${profileCustomer.id}?view=profile`)
+    fetch(`/api/customers/${profileCustomer.id}?view=profile`, { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => {
         const sales: SaleHistoryItem[] = (d.customer?.sales ?? []).map((s: SaleHistoryItem) => ({
@@ -96,8 +97,9 @@ export function CustomersClient() {
         }));
         setProfileSales(sales);
       })
-      .catch(() => {})
+      .catch((err) => { if (err.name !== "AbortError") console.error(err); })
       .finally(() => setProfileLoading(false));
+    return () => controller.abort();
   }, [profileCustomer]);
 
   // Record payment dialog
@@ -140,8 +142,9 @@ export function CustomersClient() {
 
   useEffect(() => {
     if (!payCustomer) { setPendingSales([]); return; }
+    const controller = new AbortController();
     setLoadingPending(true);
-    fetch(`/api/customers/${payCustomer.id}`)
+    fetch(`/api/customers/${payCustomer.id}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => {
         const sales: PendingSale[] = (d.customer?.sales ?? []).map((s: PendingSale) => ({
@@ -152,8 +155,9 @@ export function CustomersClient() {
         }));
         setPendingSales(sales);
       })
-      .catch(() => {})
+      .catch((err) => { if (err.name !== "AbortError") console.error(err); })
       .finally(() => setLoadingPending(false));
+    return () => controller.abort();
   }, [payCustomer]);
 
   async function handleAdd(e: React.FormEvent) {

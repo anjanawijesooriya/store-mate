@@ -31,19 +31,25 @@ export default function CustomerDisplay() {
 
   // Restore persisted state from localStorage on first load
   useEffect(() => {
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
     try {
       const saved = localStorage.getItem(LS_KEY);
       if (saved) {
         const msg = JSON.parse(saved);
-        applyMessage(msg, setState);
+        idleTimer = applyMessage(msg, setState);
       }
     } catch {}
+    return () => { if (idleTimer !== null) clearTimeout(idleTimer); };
   }, []);
 
   useEffect(() => {
     const ch = new BroadcastChannel(CHANNEL);
-    ch.onmessage = (e) => applyMessage(e.data, setState);
-    return () => ch.close();
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    ch.onmessage = (e) => {
+      if (idleTimer !== null) { clearTimeout(idleTimer); idleTimer = null; }
+      idleTimer = applyMessage(e.data, setState);
+    };
+    return () => { ch.close(); if (idleTimer !== null) clearTimeout(idleTimer); };
   }, []);
 
   useEffect(() => {
@@ -204,9 +210,10 @@ export default function CustomerDisplay() {
 function applyMessage(
   msg: { type: string; [k: string]: unknown },
   setState: React.Dispatch<React.SetStateAction<DisplayState>>,
-) {
+): ReturnType<typeof setTimeout> | null {
   if (msg.type === "idle") {
-    setState((prev) => ({ mode: "idle", shopName: prev.shopName }));
+    const shopName = (msg.shopName as string) || "";
+    setState((prev) => ({ mode: "idle", shopName: shopName || prev.shopName }));
   } else if (msg.type === "cart") {
     setState({
       mode: "cart",
@@ -225,6 +232,10 @@ function applyMessage(
       change: msg.change as number,
       paymentMethod: msg.paymentMethod as string,
     });
-    setTimeout(() => setState((prev) => ({ mode: "idle", shopName: prev.shopName })), 4500);
+    return setTimeout(
+      () => setState((prev) => ({ mode: "idle", shopName: prev.shopName })),
+      4500,
+    );
   }
+  return null;
 }

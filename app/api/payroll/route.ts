@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { DeductionType, RecordPeriod } from "@/lib/generated/prisma/client";
-import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
+import { requirePrimary, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
 const VALID_PERIOD_TYPES: RecordPeriod[] = ["DAY", "WEEK", "MONTH"];
 const VALID_DEDUCTION_TYPES: DeductionType[] = ["EPF", "ETF", "ADVANCE", "CUSTOM"];
 
 export async function GET(req: NextRequest) {
   try {
-    const shopId = await getShopId();
+    const shopId = await requirePrimary();
     const { searchParams } = new URL(req.url);
     const employeeId = searchParams.get("employeeId");
     const status = searchParams.get("status");
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const shopId = await getShopId();
+    const shopId = await requirePrimary();
     const body = await req.json().catch(() => ({}));
     const { employeeId, periodType, periodStart, periodEnd, hoursWorked, grossAmount, note, deductions } = body;
 
@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
     }
 
     const netAmount = computedGross - totalDeductions;
+    if (netAmount < 0) return apiError("Total deductions exceed gross amount");
 
     const record = await db.payrollRecord.create({
       data: {

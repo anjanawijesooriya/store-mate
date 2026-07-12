@@ -33,8 +33,7 @@ export async function POST(req: NextRequest) {
     if (!to) return apiError("No email address available");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return apiError("Invalid email address");
 
-    // Fire and don't await — return immediately so the POS doesn't block
-    sendReceiptEmail(to, {
+    await sendReceiptEmail(to, {
       saleId:        sale.id,
       shopName:      shop.name,
       shopAddress:   shop.address,
@@ -55,7 +54,7 @@ export async function POST(req: NextRequest) {
       paymentMethod: sale.paymentMethod,
       amountPaid:    Number(sale.amountPaid),
       createdAt:     sale.createdAt,
-    }).catch((err) => console.error("Receipt email delivery error:", err));
+    });
 
     return Response.json({ success: true });
   } catch (err) {

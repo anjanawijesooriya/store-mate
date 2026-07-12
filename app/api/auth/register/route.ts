@@ -3,8 +3,29 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { ShopCategory } from "@/lib/generated/prisma/enums";
 
+const registrationAttempts = new Map<string, { count: number; resetAt: number }>();
+const RL_WINDOW = 15 * 60 * 1000;
+const RL_MAX = 5;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = registrationAttempts.get(ip);
+  if (!entry || entry.resetAt < now) {
+    registrationAttempts.set(ip, { count: 1, resetAt: now + RL_WINDOW });
+    return true;
+  }
+  if (entry.count >= RL_MAX) return false;
+  entry.count++;
+  return true;
+}
+
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+    if (!checkRateLimit(ip)) {
+      return Response.json({ error: "Too many registration attempts. Please try again later." }, { status: 429 });
+    }
+
     const body = await req.json();
     const { shopName, ownerName, phone, email, password, category, address } = body;
 

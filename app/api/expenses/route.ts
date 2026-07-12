@@ -1,10 +1,10 @@
 ﻿import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
+import { requirePrimary, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
 export async function GET(req: NextRequest) {
   try {
-    const shopId = await getShopId();
+    const shopId = await requirePrimary();
     const shop = await db.shop.findUnique({ where: { id: shopId }, select: { planTier: true } });
     if (shop?.planTier === "BASIC") return apiError("Expense tracking requires Standard plan or higher.", 403);
     const { searchParams } = new URL(req.url);
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const shopId = await getShopId();
+    const shopId = await requirePrimary();
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) return apiError("Expense id is required");
@@ -64,12 +64,14 @@ export async function PATCH(req: NextRequest) {
     if (!category || amount === undefined || !expenseDate) {
       return apiError("Category, amount and date are required");
     }
+    const parsedAmountPatch = parseFloat(amount);
+    if (isNaN(parsedAmountPatch) || parsedAmountPatch < 0) return apiError("Amount must be a non-negative number");
 
     const expense = await db.expense.update({
       where: { id },
       data: {
         category: category.trim(),
-        amount: parseFloat(amount),
+        amount: parsedAmountPatch,
         note: note?.trim() || null,
         expenseDate: new Date(expenseDate),
       },
@@ -83,7 +85,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const shopId = await getShopId();
+    const shopId = await requirePrimary();
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) return apiError("Expense id is required");
@@ -101,7 +103,7 @@ export async function DELETE(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const shopId = await getShopId();
+    const shopId = await requirePrimary();
     const shop = await db.shop.findUnique({ where: { id: shopId }, select: { planTier: true } });
     if (shop?.planTier === "BASIC") return apiError("Expense tracking requires Standard plan or higher.", 403);
     const body = await req.json();
@@ -110,12 +112,14 @@ export async function POST(req: NextRequest) {
     if (!category || amount === undefined || !expenseDate) {
       return apiError("Category, amount and date are required");
     }
+    const parsedAmountPost = parseFloat(amount);
+    if (isNaN(parsedAmountPost) || parsedAmountPost < 0) return apiError("Amount must be a non-negative number");
 
     const expense = await db.expense.create({
       data: {
         shopId,
         category: category.trim(),
-        amount: parseFloat(amount),
+        amount: parsedAmountPost,
         note: note?.trim() || null,
         expenseDate: new Date(expenseDate),
         receiptUrl: receiptUrl || null,

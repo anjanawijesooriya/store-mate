@@ -17,16 +17,34 @@ export async function POST(req: NextRequest) {
     const user = await db.user.findUnique({ where: { phone: phoneClean } });
     if (!user) return Response.json({ error: "Invalid or expired OTP" }, { status: 400 });
 
+    // Find an active (not used, not expired, not locked) token for this user
     const token = await db.passwordResetToken.findFirst({
       where: {
-        userId:    user.id,
-        otp:       String(otp),
-        used:      false,
+        userId:   user.id,
+        used:     false,
         expiresAt: { gt: new Date() },
+        attempts: { lt: 5 },
       },
     });
 
     if (!token) {
+      return Response.json({ error: "Invalid or expired OTP" }, { status: 400 });
+    }
+
+    // Verify the OTP — increment attempts first so a crash after this point
+    // still counts the attempt (prevents retry-on-timeout bypass)
+    const updated = await db.passwordResetToken.update({
+      where: { id: token.id },
+      data:  { attempts: { increment: 1 } },
+      select: { attempts: true },
+    });
+
+    if (token.otp !== String(otp)) {
+      if (updated.attempts >= 5) {
+        // Lock the token so it can't be retried even if not yet expired
+        await db.passwordResetToken.update({ where: { id: token.id }, data: { used: true } });
+        return Response.json({ error: "Too many incorrect attempts. Request a new OTP." }, { status: 400 });
+      }
       return Response.json({ error: "Invalid or expired OTP" }, { status: 400 });
     }
 

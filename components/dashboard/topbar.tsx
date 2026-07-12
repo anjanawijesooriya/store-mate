@@ -66,6 +66,8 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
     .join("")
     .toUpperCase();
 
+  const NOTIF_ID_CAP = 200;
+
   const [notifOpen, setNotifOpen]     = useState(false);
   const [allFetched, setAllFetched]   = useState<NotificationItem[]>([]);
   const [dismissed, setDismissed]     = useState<Set<string>>(new Set());
@@ -91,13 +93,14 @@ export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
 
   function saveDismissed(ids: Set<string>) {
     try {
-      localStorage.setItem("notif-dismissed-ids", JSON.stringify([...ids]));
+      const arr = [...ids].slice(-NOTIF_ID_CAP);
+      localStorage.setItem("notif-dismissed-ids", JSON.stringify(arr));
     } catch {}
   }
 
   function markAllSeen(items: NotificationItem[]) {
     try {
-      localStorage.setItem("notif-seen-ids", JSON.stringify(items.map((n) => n.id)));
+      localStorage.setItem("notif-seen-ids", JSON.stringify(items.map((n) => n.id).slice(-NOTIF_ID_CAP)));
     } catch {}
     setHasUnseen(false);
   }

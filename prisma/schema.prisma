@@ -207,6 +207,7 @@ model PasswordResetToken {
   otp       String
   expiresAt DateTime
   used      Boolean  @default(false)
+  attempts  Int      @default(0)
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -243,18 +244,19 @@ model Product {
 }
 
 model ProductVariant {
-  id         String   @id @default(cuid())
+  id         String     @id @default(cuid())
   productId  String
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  saleItems  SaleItem[]
   size       String
   color      String?
   sku        String?
-  stockQty   Decimal  @db.Decimal(10, 2) @default(0)
-  lowStockAt Decimal  @db.Decimal(10, 2) @default(3)
-  sellPrice  Decimal? @db.Decimal(10, 2)
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  stockQty   Decimal    @db.Decimal(10, 2) @default(0)
+  lowStockAt Decimal    @db.Decimal(10, 2) @default(3)
+  sellPrice  Decimal?   @db.Decimal(10, 2)
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 
   @@unique([productId, size, color])
   @@index([productId])
@@ -312,16 +314,18 @@ model Sale {
 }
 
 model SaleItem {
-  id           String  @id @default(cuid())
+  id           String          @id @default(cuid())
   saleId       String
-  sale         Sale    @relation(fields: [saleId], references: [id])
+  sale         Sale            @relation(fields: [saleId], references: [id])
   productId    String
-  product      Product @relation(fields: [productId], references: [id])
+  product      Product         @relation(fields: [productId], references: [id])
+  variantId    String?
+  variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   variantLabel String?
-  quantity     Decimal @db.Decimal(10, 2)
-  unitPrice    Decimal @db.Decimal(10, 2)
-  lineTotal    Decimal @db.Decimal(10, 2)
-  returned     Boolean @default(false)
+  quantity     Decimal         @db.Decimal(10, 2)
+  unitPrice    Decimal         @db.Decimal(10, 2)
+  lineTotal    Decimal         @db.Decimal(10, 2)
+  returned     Boolean         @default(false)
 }
 
 model Expense {

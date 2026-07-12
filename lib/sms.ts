@@ -79,9 +79,19 @@ export async function sendSmsAndLog(
   type: SmsType,
   pages = 1
 ): Promise<SmsResult> {
-  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { smsBalance: true } });
-  const balance = Number(shop?.smsBalance ?? 0);
-  if (!shop || balance <= 0) {
+  const cost = SMS_COST_PER_PAGE * pages;
+
+  // Atomically reserve the balance before sending — this prevents the TOCTOU
+  // race where two concurrent calls both pass the balance check and both send.
+  // The UPDATE only succeeds when balance >= cost; affected rows = 0 means insufficient.
+  const reserved = await db.$executeRaw`
+    UPDATE "Shop"
+    SET "smsBalance" = "smsBalance" - ${cost}::numeric
+    WHERE id = ${shopId}
+      AND "smsBalance" >= ${cost}::numeric
+  `;
+
+  if (reserved === 0) {
     return { success: false, error: "Insufficient SMS balance" };
   }
 
@@ -91,11 +101,11 @@ export async function sendSmsAndLog(
     await db.smsLog.create({
       data: { shopId, to, type, message, status: result.success ? "sent" : "failed", error: result.error ?? null },
     });
-    if (result.success) {
-      const cost = SMS_COST_PER_PAGE * pages;
+    // If the SMS failed after we already reserved the balance, refund it
+    if (!result.success) {
       await db.shop.update({
         where: { id: shopId },
-        data: { smsBalance: { decrement: cost } },
+        data: { smsBalance: { increment: cost } },
       });
     }
   } catch (logErr) {

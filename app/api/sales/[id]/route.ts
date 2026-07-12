@@ -18,7 +18,7 @@ export async function PATCH(
 
     const sale = await db.sale.findUnique({
       where: { id, shopId },
-      include: { items: true },
+      include: { items: { include: { product: { select: { isService: true } } } } },
     });
 
     if (!sale) return apiError("Sale not found", 404);
@@ -35,10 +35,21 @@ export async function PATCH(
       });
 
       for (const item of sale.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stockQty: { increment: item.quantity } },
-        });
+        if (item.product.isService) {
+          // Services have no stock — nothing to restore
+          continue;
+        }
+        if (item.variantId) {
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stockQty: { increment: item.quantity } },
+          });
+        } else {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQty: { increment: item.quantity } },
+          });
+        }
         await tx.stockMovement.create({
           data: {
             productId: item.productId,

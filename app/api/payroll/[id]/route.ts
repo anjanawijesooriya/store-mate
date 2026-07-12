@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { DeductionType } from "@/lib/generated/prisma/client";
-import { getShopId, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
+import { requirePrimary, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
 const VALID_DEDUCTION_TYPES: DeductionType[] = ["EPF", "ETF", "ADVANCE", "CUSTOM"];
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const shopId = await getShopId();
+    const shopId = await requirePrimary();
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
 
@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Determine gross amount
     let computedGross = Number(existing.grossAmount);
-    const employee = await db.employee.findUnique({ where: { id: existing.employeeId } });
+    const employee = await db.employee.findFirst({ where: { id: existing.employeeId, shopId } });
 
     if (employee?.payType === "HOURLY" && hoursWorked !== undefined) {
       const hrs = parseFloat(hoursWorked);
@@ -106,7 +106,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const shopId = await getShopId();
+    const shopId = await requirePrimary();
     const { id } = await params;
 
     const existing = await db.payrollRecord.findFirst({ where: { id, shopId } });

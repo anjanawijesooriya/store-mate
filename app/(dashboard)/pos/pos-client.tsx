@@ -298,6 +298,8 @@ export function POSClient({
       }
       const disc = localStorage.getItem(`pos-discount-${shopId}`);
       if (disc) setDiscount(parseFloat(disc) || 0);
+      const discType = localStorage.getItem(`pos-discountType-${shopId}`);
+      if (discType === "percent" || discType === "amount") setDiscountType(discType);
       const held = localStorage.getItem(`pos-held-${shopId}`);
       if (held) {
         const parsed = JSON.parse(held) as HeldCart[];
@@ -319,8 +321,9 @@ export function POSClient({
     if (!shopId) return;
     try {
       localStorage.setItem(`pos-discount-${shopId}`, String(discount));
+      localStorage.setItem(`pos-discountType-${shopId}`, discountType);
     } catch {}
-  }, [discount, shopId]);
+  }, [discount, discountType, shopId]);
 
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountTendered, setAmountTendered] = useState("");
@@ -338,7 +341,7 @@ export function POSClient({
   const [walkInPhone, setWalkInPhone] = useState("");
   const [walkInEmail, setWalkInEmail] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const displayChannel = useRef<BroadcastChannel | null>(null);
 
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
@@ -356,12 +359,12 @@ export function POSClient({
 
   // Reset keyboard selection when search query changes or receipt dialog closes
   useEffect(() => {
-    setSelectedIndex(-1);
+    setSelectedIndex(null);
   }, [searchQuery]);
 
   useEffect(() => {
     if (!showReceipt) {
-      setSelectedIndex(-1);
+      setSelectedIndex(null);
       // Return focus to search so arrow/enter keys work immediately after sale
       setTimeout(() => searchRef.current?.focus(), 50);
     }
@@ -377,7 +380,7 @@ export function POSClient({
 
   // Scroll selected product card into view
   useEffect(() => {
-    if (selectedIndex < 0) return;
+    if (selectedIndex === null) return;
     const el = document.querySelector("[data-keyboard-selected='true']");
     el?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
@@ -540,7 +543,7 @@ export function POSClient({
   useEffect(() => {
     const ch = displayChannel.current;
     if (!ch) return;
-    const shopName = shopInfo?.name ?? (session?.user as { shopName?: string })?.shopName ?? "";
+    const shopName = shopInfo?.name ?? "";
     const msg =
       cart.length === 0
         ? { type: "idle", shopName }
@@ -559,16 +562,15 @@ export function POSClient({
             discountAmt,
             total,
           };
-    ch.postMessage(msg);
-    try { localStorage.setItem("storemate-display-state", JSON.stringify(msg)); } catch {}
+    try { ch.postMessage(msg); localStorage.setItem("storemate-display-state", JSON.stringify(msg)); } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart, discountAmt, total, shopInfo, session]);
+  }, [cart, discountAmt, total, shopInfo]);
 
   // Broadcast sale-complete to customer display
   useEffect(() => {
     const ch = displayChannel.current;
     if (!ch || !completedSale) return;
-    const shopName = shopInfo?.name ?? (session?.user as { shopName?: string })?.shopName ?? "";
+    const shopName = shopInfo?.name ?? "";
     const msg = {
       type: "complete",
       shopName,
@@ -577,8 +579,7 @@ export function POSClient({
       change: Math.max(0, completedSale.amountPaid - completedSale.total),
       paymentMethod: completedSale.paymentMethod,
     };
-    ch.postMessage(msg);
-    try { localStorage.setItem("storemate-display-state", JSON.stringify(msg)); } catch {}
+    try { ch.postMessage(msg); localStorage.setItem("storemate-display-state", JSON.stringify(msg)); } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completedSale]);
 
@@ -1105,7 +1106,7 @@ export function POSClient({
     setSelectedCustomer(null);
     setCustomerQuery("");
     setCustomerResults([]);
-    setSelectedIndex(-1);
+    setSelectedIndex(null);
     setTimeout(() => searchRef.current?.focus(), 50);
   }
 
@@ -1285,7 +1286,7 @@ export function POSClient({
     setSelectedCustomer(null);
     setCustomerQuery("");
     setAmountTendered("");
-    setSelectedIndex(-1);
+    setSelectedIndex(null);
     setTimeout(() => searchRef.current?.focus(), 50);
     toast.success("Sale held — cart cleared for next customer");
   }
@@ -1312,7 +1313,7 @@ export function POSClient({
 
   function ProductCard({ product, index }: { product: Product; index: number }) {
     const hasVariants = shopInfo?.variantsEnabled && (product._count?.variants ?? 0) > 0;
-    const isKeyboardSelected = index === selectedIndex;
+    const isKeyboardSelected = selectedIndex !== null && index === selectedIndex;
     return (
       <button
         onClick={() => addToCart(product)}
@@ -1394,13 +1395,13 @@ export function POSClient({
               onKeyDown={(e) => {
                 if (e.key === "ArrowDown") {
                   e.preventDefault();
-                  setSelectedIndex((prev) => Math.min(prev + 1, displayProducts.length - 1));
+                  setSelectedIndex((prev) => Math.min((prev ?? -1) + 1, displayProducts.length - 1));
                 } else if (e.key === "ArrowUp") {
                   e.preventDefault();
-                  setSelectedIndex((prev) => Math.max(prev - 1, -1));
+                  setSelectedIndex((prev) => { const next = (prev ?? 0) - 1; return next < 0 ? null : next; });
                 } else if (e.key === "Enter") {
                   e.preventDefault();
-                  const target = selectedIndex >= 0 ? displayProducts[selectedIndex] : displayProducts[0];
+                  const target = selectedIndex !== null ? displayProducts[selectedIndex] : displayProducts[0];
                   if (target) addToCart(target);
                 } else if (e.key === "Escape") {
                   setSearchQuery("");

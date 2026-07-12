@@ -40,7 +40,7 @@ export async function GET(req: Request) {
   if (expiredTrials.length > 0) {
     const graceEndsAt = graceEndMidnightSL(now);
     await db.shop.updateMany({
-      where: { id: { in: expiredTrials.map((s) => s.id) } },
+      where: { id: { in: expiredTrials.map((s) => s.id) }, billingStatus: BillingStatus.TRIAL },
       data: { billingStatus: BillingStatus.GRACE, gracePeriodEndsAt: graceEndsAt },
     });
     transitioned += expiredTrials.length;
@@ -59,7 +59,7 @@ export async function GET(req: Request) {
   if (overdueActive.length > 0) {
     const graceEndsAt = graceEndMidnightSL(now);
     await db.shop.updateMany({
-      where: { id: { in: overdueActive.map((s) => s.id) } },
+      where: { id: { in: overdueActive.map((s) => s.id) }, billingStatus: BillingStatus.ACTIVE },
       data: { billingStatus: BillingStatus.GRACE, gracePeriodEndsAt: graceEndsAt },
     });
     transitioned += overdueActive.length;
@@ -77,7 +77,7 @@ export async function GET(req: Request) {
 
   if (graceExpired.length > 0) {
     await db.shop.updateMany({
-      where: { id: { in: graceExpired.map((s) => s.id) } },
+      where: { id: { in: graceExpired.map((s) => s.id) }, billingStatus: BillingStatus.GRACE },
       data: { billingStatus: BillingStatus.LOCKED },
     });
     transitioned += graceExpired.length;
