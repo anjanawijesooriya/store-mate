@@ -337,6 +337,7 @@ export function POSClient({
   const [walkInPhone, setWalkInPhone] = useState("");
   const [walkInEmail, setWalkInEmail] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
 
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
   const [heldOpen, setHeldOpen] = useState(false);
@@ -350,6 +351,26 @@ export function POSClient({
       localStorage.setItem(`pos-held-${shopId}`, JSON.stringify(heldCarts));
     } catch {}
   }, [heldCarts, shopId]);
+
+  // Reset keyboard selection when search query changes or receipt dialog closes
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!showReceipt) {
+      setSelectedIndex(-1);
+      // Return focus to search so arrow/enter keys work immediately after sale
+      setTimeout(() => searchRef.current?.focus(), 50);
+    }
+  }, [showReceipt]);
+
+  // Scroll selected product card into view
+  useEffect(() => {
+    if (selectedIndex < 0) return;
+    const el = document.querySelector("[data-keyboard-selected='true']");
+    el?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
 
   // Barcode scanner — look up product by SKU from the in-memory cache and add to cart
   const handleBarcodeScan = useCallback((barcode: string) => {
@@ -1229,15 +1250,18 @@ export function POSClient({
 
   const displayProducts = searchQuery ? searchResults : recentProducts;
 
-  function ProductCard({ product }: { product: Product }) {
+  function ProductCard({ product, index }: { product: Product; index: number }) {
     const hasVariants = shopInfo?.variantsEnabled && (product._count?.variants ?? 0) > 0;
+    const isKeyboardSelected = index === selectedIndex;
     return (
       <button
         onClick={() => addToCart(product)}
         disabled={!product.isService && !hasVariants && !product.isWeighted && product.stockQty <= 0}
+        data-keyboard-selected={isKeyboardSelected ? "true" : undefined}
         className={cn(
           "text-left rounded-xl border border-border bg-card p-3 hover:border-primary hover:shadow-sm transition-all active:scale-95",
-          !product.isService && !hasVariants && !product.isWeighted && product.stockQty <= 0 && "opacity-50 cursor-not-allowed"
+          !product.isService && !hasVariants && !product.isWeighted && product.stockQty <= 0 && "opacity-50 cursor-not-allowed",
+          isKeyboardSelected && "ring-2 ring-primary border-primary bg-primary/5"
         )}
       >
         <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">
@@ -1307,6 +1331,21 @@ export function POSClient({
               placeholder="Search or scan barcode..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setSelectedIndex((prev) => Math.min(prev + 1, displayProducts.length - 1));
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSelectedIndex((prev) => Math.max(prev - 1, -1));
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  const target = selectedIndex >= 0 ? displayProducts[selectedIndex] : displayProducts[0];
+                  if (target) addToCart(target);
+                } else if (e.key === "Escape") {
+                  setSearchQuery("");
+                }
+              }}
               className="pl-10 h-12 text-base"
               autoFocus
             />
@@ -1389,7 +1428,7 @@ export function POSClient({
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-0.5">Services</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
                 {allServices.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                  <ProductCard key={product.id} product={product} index={-1} />
                 ))}
               </div>
             </div>
@@ -1402,8 +1441,8 @@ export function POSClient({
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-0.5">Products</p>
               )}
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 content-start">
-                {displayProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                {displayProducts.map((product, idx) => (
+                  <ProductCard key={product.id} product={product} index={idx} />
                 ))}
                 {displayProducts.length === 0 && searchQuery && (
                   <div className="col-span-full py-12 text-center text-sm text-muted-foreground">
@@ -1525,6 +1564,12 @@ export function POSClient({
                             if (!isNaN(qty) && qty > 0) setExactQty(item.cartKey, qty);
                             setQtyInputs((prev) => { const n = { ...prev }; delete n[item.cartKey]; return n; });
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.currentTarget.blur();
+                              searchRef.current?.focus();
+                            }
+                          }}
                           className="w-16 text-sm font-mono text-center border border-border rounded px-1 py-0.5 bg-background text-foreground"
                         />
                         <span className="text-xs text-muted-foreground">{item.unit}</span>
@@ -1547,11 +1592,28 @@ export function POSClient({
               </div>
             </ScrollArea>
 
-            <div className="border-t border-border p-4 space-y-3 flex-shrink-0">
+            <div
+              className="border-t border-border p-4 space-y-3 flex-shrink-0"
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+                const active = document.activeElement;
+                if ((active instanceof HTMLInputElement) && !active.hasAttribute("data-cart-nav")) return;
+                e.preventDefault();
+                const els = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-cart-nav]"));
+                if (els.length === 0) return;
+                const idx = els.indexOf(active as HTMLElement);
+                if (e.key === "ArrowDown") {
+                  els[(idx + 1) % els.length]?.focus();
+                } else {
+                  els[(idx - 1 + els.length) % els.length]?.focus();
+                }
+              }}
+            >
               {/* Discount */}
               <div className="flex items-center gap-2">
                 <Tag className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <input
+                  data-cart-nav
                   type="number"
                   min={0}
                   step={1}
@@ -1563,6 +1625,7 @@ export function POSClient({
                   className="flex-1 text-sm border border-border rounded-lg px-3 py-1.5 bg-background font-mono"
                 />
                 <button
+                  data-cart-nav
                   onClick={() =>
                     setDiscountType(
                       discountType === "amount" ? "percent" : "amount"
@@ -1600,6 +1663,7 @@ export function POSClient({
               </div>
 
               <button
+                data-cart-nav
                 onClick={() => setCheckoutOpen(true)}
                 className="w-full h-14 rounded-xl font-bold text-lg text-white transition-all active:scale-[0.98]"
                 style={{ backgroundColor: "var(--cta)" }}
@@ -1742,8 +1806,15 @@ export function POSClient({
                   step={0.01}
                   value={amountTendered}
                   onChange={(e) => setAmountTendered(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const isDisabled = loading || parseFloat(amountTendered || "0") < total;
+                      if (!isDisabled) completeSale();
+                    }
+                  }}
                   className="font-mono text-lg h-12"
                   placeholder={total.toFixed(2)}
+                  autoFocus
                 />
                 {change >= 0 && amountTendered && (
                   <div className="flex justify-between items-center rounded-lg bg-[color:var(--brand-success)]/10 border border-[color:var(--brand-success)]/20 px-4 py-2">
@@ -2027,8 +2098,27 @@ export function POSClient({
               </div>
 
               {/* Action buttons — hidden when printing */}
-              <div className="print:hidden flex gap-2 flex-wrap">
+              <div
+                className="print:hidden flex gap-2 flex-wrap"
+                onKeyDown={(e) => {
+                  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+                  const active = document.activeElement;
+                  // Allow navigation FROM inputs that are part of the receipt nav list,
+                  // but skip inputs that aren't (e.g. walk-in fields already being typed into without data-receipt-btn would be excluded)
+                  if ((active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) && !active.hasAttribute("data-receipt-btn")) return;
+                  e.preventDefault();
+                  const btns = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-receipt-btn]"));
+                  if (btns.length === 0) return;
+                  const idx = btns.indexOf(active as HTMLElement);
+                  if (e.key === "ArrowDown") {
+                    btns[(idx + 1) % btns.length]?.focus();
+                  } else {
+                    btns[(idx - 1 + btns.length) % btns.length]?.focus();
+                  }
+                }}
+              >
                 <Button
+                  data-receipt-btn
                   variant="outline"
                   className="flex-1"
                   onClick={handlePrint}
@@ -2039,6 +2129,7 @@ export function POSClient({
 
                 {!completedSale?.isOffline && (
                   <Button
+                    data-receipt-btn
                     variant="outline"
                     className="flex-1"
                     onClick={() => window.open(`/r/${completedSale!.id}`, "_blank")}
@@ -2057,6 +2148,7 @@ export function POSClient({
                   const waUrl = `https://wa.me/${waPhone}?text=${waText}`;
                   return (
                     <a
+                      data-receipt-btn
                       href={waUrl}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -2070,20 +2162,21 @@ export function POSClient({
 
                 {!completedSale?.isOffline && shopInfo?.smsAddonEnabled && shopInfo?.smsReceiptEnabled && (
                   selectedCustomer?.phone ? (
-                    <Button variant="outline" className="flex-1" onClick={sendSmsReceipt} disabled={sendingSms}>
+                    <Button data-receipt-btn variant="outline" className="flex-1" onClick={sendSmsReceipt} disabled={sendingSms}>
                       <MessageSquare className="h-4 w-4 mr-2" />
                       {sendingSms ? "Sending…" : "SMS Receipt"}
                     </Button>
                   ) : (
                     <div className="w-full flex gap-2">
                       <Input
+                        data-receipt-btn
                         placeholder="Walk-in phone (07X XXXXXXX)"
                         value={walkInPhone}
                         onChange={(e) => setWalkInPhone(e.target.value)}
                         className="flex-1 h-9 text-sm"
                         type="tel"
                       />
-                      <Button variant="outline" className="h-9 px-3" onClick={sendSmsReceipt} disabled={sendingSms || !walkInPhone.trim()}>
+                      <Button data-receipt-btn variant="outline" className="h-9 px-3" onClick={sendSmsReceipt} disabled={sendingSms || !walkInPhone.trim()}>
                         <MessageSquare className="h-4 w-4" />
                         {sendingSms ? "…" : "Send"}
                       </Button>
@@ -2093,20 +2186,21 @@ export function POSClient({
 
                 {!completedSale?.isOffline && shopInfo?.emailReceiptEnabled && (
                   selectedCustomer?.email ? (
-                    <Button variant="outline" className="flex-1" onClick={() => sendEmailReceipt()} disabled={sendingEmail}>
+                    <Button data-receipt-btn variant="outline" className="flex-1" onClick={() => sendEmailReceipt()} disabled={sendingEmail}>
                       <Mail className="h-4 w-4 mr-2" />
                       {sendingEmail ? "Sending…" : "Email Receipt"}
                     </Button>
                   ) : (
                     <div className="w-full flex gap-2">
                       <Input
+                        data-receipt-btn
                         placeholder="Walk-in email address"
                         value={walkInEmail}
                         onChange={(e) => setWalkInEmail(e.target.value)}
                         className="flex-1 h-9 text-sm"
                         type="email"
                       />
-                      <Button variant="outline" className="h-9 px-3" onClick={() => sendEmailReceipt(walkInEmail)} disabled={sendingEmail || !walkInEmail.trim()}>
+                      <Button data-receipt-btn variant="outline" className="h-9 px-3" onClick={() => sendEmailReceipt(walkInEmail)} disabled={sendingEmail || !walkInEmail.trim()}>
                         <Mail className="h-4 w-4" />
                         {sendingEmail ? "…" : "Send"}
                       </Button>
@@ -2115,6 +2209,8 @@ export function POSClient({
                 )}
 
                 <Button
+                  data-receipt-btn
+                  autoFocus
                   className="flex-1 font-semibold"
                   onClick={() => {
                     setShowReceipt(false);
