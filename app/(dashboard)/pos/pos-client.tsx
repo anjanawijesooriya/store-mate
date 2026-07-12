@@ -30,6 +30,7 @@ import {
   BookmarkCheck,
   Share2,
   Shirt,
+  Monitor,
 } from "lucide-react";
 import { VariantPickerDialog, type PickerVariant } from "@/components/pos/variant-picker-dialog";
 import { Button } from "@/components/ui/button";
@@ -338,6 +339,7 @@ export function POSClient({
   const [walkInEmail, setWalkInEmail] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const displayChannel = useRef<BroadcastChannel | null>(null);
 
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
   const [heldOpen, setHeldOpen] = useState(false);
@@ -364,6 +366,14 @@ export function POSClient({
       setTimeout(() => searchRef.current?.focus(), 50);
     }
   }, [showReceipt]);
+
+  // Customer display — BroadcastChannel lifecycle
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const ch = new BroadcastChannel("storemate-pos-display");
+    displayChannel.current = ch;
+    return () => { ch.close(); displayChannel.current = null; };
+  }, []);
 
   // Scroll selected product card into view
   useEffect(() => {
@@ -525,6 +535,52 @@ export function POSClient({
     discountType === "percent" ? (subtotal * discount) / 100 : discount;
   const total = Math.max(0, subtotal - discountAmt);
   const change = parseFloat(amountTendered || "0") - total;
+
+  // Broadcast cart state to customer display on every change
+  useEffect(() => {
+    const ch = displayChannel.current;
+    if (!ch) return;
+    const shopName = shopInfo?.name ?? (session?.user as { shopName?: string })?.shopName ?? "";
+    const msg =
+      cart.length === 0
+        ? { type: "idle", shopName }
+        : {
+            type: "cart",
+            shopName,
+            items: cart.map((i) => ({
+              name: i.name,
+              variantLabel: i.variantLabel,
+              quantity: i.quantity,
+              unit: i.unit,
+              unitPrice: i.unitPrice,
+              lineTotal: i.lineTotal,
+            })),
+            subtotal,
+            discountAmt,
+            total,
+          };
+    ch.postMessage(msg);
+    try { localStorage.setItem("storemate-display-state", JSON.stringify(msg)); } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, discountAmt, total, shopInfo, session]);
+
+  // Broadcast sale-complete to customer display
+  useEffect(() => {
+    const ch = displayChannel.current;
+    if (!ch || !completedSale) return;
+    const shopName = shopInfo?.name ?? (session?.user as { shopName?: string })?.shopName ?? "";
+    const msg = {
+      type: "complete",
+      shopName,
+      total: completedSale.total,
+      amountPaid: completedSale.amountPaid,
+      change: Math.max(0, completedSale.amountPaid - completedSale.total),
+      paymentMethod: completedSale.paymentMethod,
+    };
+    ch.postMessage(msg);
+    try { localStorage.setItem("storemate-display-state", JSON.stringify(msg)); } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completedSale]);
 
   // Fetch shop contact details for receipt — wait for session so auth cookie is ready
   useEffect(() => {
@@ -1411,6 +1467,15 @@ export function POSClient({
               Sync {pendingCount}
             </button>
           )}
+
+          <button
+            onClick={() => window.open("/display", "customer-display", "width=1280,height=720")}
+            title="Open Customer Display"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+          >
+            <Monitor className="h-4 w-4" />
+            <span className="hidden sm:block">Display</span>
+          </button>
         </div>
 
         <div className="overflow-y-auto flex-1 min-h-0 space-y-4">
