@@ -1187,6 +1187,10 @@ export function POSClient({
 
   function holdSale() {
     if (cart.length === 0) return;
+    if (heldCarts.length >= 5) {
+      toast.error("Maximum 5 sales can be held. Restore or discard one first.");
+      return;
+    }
     const held: HeldCart = {
       id: Date.now().toString(),
       savedAt: new Date().toISOString(),
@@ -1439,8 +1443,9 @@ export function POSClient({
               <>
                 <button
                   onClick={holdSale}
-                  className="text-xs text-muted-foreground hover:text-amber-600 transition-colors"
-                  title="Hold this sale"
+                  disabled={heldCarts.length >= 5}
+                  className="text-xs text-muted-foreground hover:text-amber-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={heldCarts.length >= 5 ? "Maximum 5 held sales reached" : "Hold this sale"}
                 >
                   <Bookmark className="h-3.5 w-3.5" />
                 </button>
@@ -1793,44 +1798,83 @@ export function POSClient({
 
       {/* Held Sales Dialog */}
       <Dialog open={heldOpen} onOpenChange={setHeldOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BookmarkCheck className="h-5 w-5 text-amber-600" />
-              Held Sales
+        <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-5 py-4 border-b border-border">
+            <DialogTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2 text-base">
+                <BookmarkCheck className="h-4 w-4 text-amber-500" />
+                Held Sales
+              </span>
+              <span className="text-xs font-normal text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+                {heldCarts.length} / 5
+              </span>
             </DialogTitle>
           </DialogHeader>
+
           {heldCarts.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">No held sales</p>
+            <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
+              <Bookmark className="h-8 w-8 opacity-30" />
+              <p className="text-sm">No held sales</p>
+            </div>
           ) : (
-            <div className="space-y-2">
-              {heldCarts.map((held) => {
+            <div className="divide-y divide-border max-h-[70vh] overflow-y-auto">
+              {heldCarts.map((held, idx) => {
                 const heldTotal = held.cart.reduce((s, i) => s + i.lineTotal, 0);
                 const discAmt = held.discountType === "percent" ? (heldTotal * held.discount) / 100 : held.discount;
                 const net = Math.max(0, heldTotal - discAmt);
                 return (
-                  <div key={held.id} className="rounded-lg border border-border bg-background p-3 flex items-start gap-3">
+                  <div key={held.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-muted/40 transition-colors">
+                    {/* Index badge */}
+                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center justify-center">
+                      {idx + 1}
+                    </div>
+
+                    {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-sm font-semibold text-foreground font-mono">{formatLKR(net)}</p>
-                        {held.customer && (
-                          <span className="text-xs text-muted-foreground">· {held.customer.name}</span>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-sm font-semibold font-mono">{formatLKR(net)}</span>
+                        {held.discount > 0 && (
+                          <span className="text-xs text-muted-foreground line-through font-mono">{formatLKR(heldTotal)}</span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {held.cart.length} item{held.cart.length !== 1 ? "s" : ""} ·{" "}
-                        {new Date(held.savedAt).toLocaleTimeString("en-LK", { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-xs text-muted-foreground">
+                          {held.cart.length} item{held.cart.length !== 1 ? "s" : ""}
+                        </span>
+                        <span className="text-muted-foreground/40">·</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(held.savedAt).toLocaleTimeString("en-LK", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                        {held.customer && (
+                          <>
+                            <span className="text-muted-foreground/40">·</span>
+                            <span className="text-xs text-primary truncate max-w-[80px]">{held.customer.name}</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">
                         {held.cart.map((i) => i.name).join(", ")}
                       </p>
                     </div>
-                    <div className="flex flex-col gap-1.5 flex-shrink-0">
-                      <Button size="sm" className="h-7 text-xs" onClick={() => restoreHeld(held)}>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                        onClick={() => { restoreHeld(held); setHeldOpen(false); }}
+                      >
                         Restore
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => discardHeld(held.id)}>
-                        Discard
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => discardHeld(held.id)}
+                        title="Discard"
+                      >
+                        <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>
