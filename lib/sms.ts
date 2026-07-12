@@ -111,7 +111,7 @@ export function buildLowStockMessage(shopName: string, items: { name: string; qt
 }
 
 export function buildDailySummaryMessage(shopName: string, salesCount: number, revenue: number): string {
-  return `eStoreMate Daily Summary - ${shopName}\n\nToday: ${salesCount} sales, LKR ${revenue.toLocaleString()} revenue.\n\nPowered by eStoreMate.`;
+  return `eStoreMate Daily Summary - ${shopName}\n\nToday: ${salesCount} sales, LKR ${revenue.toLocaleString()} revenue.\n\nPowered by Nexora Technologies.`;
 }
 
 export function buildReceiptLinkMessage(shopName: string, saleId: string): string {

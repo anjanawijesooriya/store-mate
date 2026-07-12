@@ -126,7 +126,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ saleId
         {/* Footer */}
         <div className="px-6 py-4 text-center">
           <p className="text-xs text-gray-400">Thank you for your purchase!</p>
-          <p className="text-xs text-gray-300 mt-1">Powered by eStoreMate</p>
+          <p className="text-xs text-gray-300 mt-1">Powered by Nexora Technologies</p>
         </div>
       </div>
 

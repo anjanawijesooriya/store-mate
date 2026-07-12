@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     default: "eStoreMate",
     template: "%s | eStoreMate",
   },
-  description: "Smart shop management for Sri Lankan small businesses — POS, inventory, sales reports and more. Powered by eStoreMate.",
+  description: "Smart shop management for Sri Lankan small businesses — POS, inventory, sales reports and more. Powered by Nexora Technologies.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
