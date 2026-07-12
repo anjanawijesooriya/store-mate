@@ -13,6 +13,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
+import * as XLSX from "xlsx";
 interface ReportData {
   summary: {
     totalRevenue: number;
@@ -83,20 +84,58 @@ export function ReportsClient({ planTier }: Props) {
       .finally(() => setLoading(false));
   }, [period, customFrom, customTo]);
 
-  function exportCSV() {
+  function exportExcel() {
     if (!data) return;
-    const rows = [
-      ["Date", "Revenue (LKR)", "Sales Count"],
-      ...data.salesByDay.map((d) => [d.date, d.revenue.toFixed(2), d.count]),
+    const wb = XLSX.utils.book_new();
+    const label = PERIODS_BASE.find((p) => p.value === period)?.label ?? period;
+
+    // Sheet 1 — Summary (all plans)
+    const summaryRows = [
+      ["Report Period", label],
+      [],
+      ["Metric", "Amount (LKR)"],
+      ["Gross Revenue",    +data.summary.totalRevenue.toFixed(2)],
+      ["Cost of Goods (COGS)", +data.summary.totalCOGS.toFixed(2)],
+      ["Gross Profit",    +data.summary.totalGrossProfit.toFixed(2)],
+      ...(data.summary.totalCardFees > 0  ? [["Card Surcharge Fees", +data.summary.totalCardFees.toFixed(2)]]  : []),
+      ...(data.summary.totalExpenses > 0  ? [["Operating Expenses",  +data.summary.totalExpenses.toFixed(2)]]  : []),
+      ...(data.summary.totalPayroll > 0   ? [["Staff Wages (Payroll)", +data.summary.totalPayroll.toFixed(2)]] : []),
+      ["Net Profit",      +data.summary.totalProfit.toFixed(2)],
+      [],
+      ["Total Sales",     data.summary.totalSales],
+      ["Avg Order Value", +data.summary.avgOrderValue.toFixed(2)],
     ];
-    const csv = rows.map((r) => r.join(",")).join("\n");
-    const bom = "﻿";
-    const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `estoremate-sales-${period}.csv`;
-    a.click();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryRows), "Summary");
+
+    // Sheet 2 — Sales by Day (all plans)
+    const dailyRows = [
+      ["Date", "Revenue (LKR)", "Sales Count"],
+      ...data.salesByDay.map((d) => [d.date, +d.revenue.toFixed(2), d.count]),
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dailyRows), "Sales by Day");
+
+    // Sheets 3–5 — Premium only (analytics data exists)
+    if (isPremium) {
+      const paymentRows = [
+        ["Payment Method", "Total Revenue (LKR)", "Sales Count"],
+        ...data.salesByPayment.map((r) => [r.method, +r.total.toFixed(2), r.count]),
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(paymentRows), "Payment Methods");
+
+      const hourRows = [
+        ["Hour", "Revenue (LKR)", "Sales Count"],
+        ...data.salesByHour.map((r) => [`${r.hour}:00 – ${r.hour + 1}:00`, +r.revenue.toFixed(2), r.count]),
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hourRows), "Busy Hours");
+
+      const productRows = [
+        ["Rank", "Product Name", "Units Sold", "Revenue (LKR)"],
+        ...data.topProducts.map((p, i) => [i + 1, p.name, p.qty, +p.revenue.toFixed(2)]),
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(productRows), "Top Products");
+    }
+
+    XLSX.writeFile(wb, `estoremate-report-${period}.xlsx`);
   }
 
   const periodLabel = PERIODS_BASE.find((p) => p.value === period)?.label ?? "Select";
@@ -160,9 +199,9 @@ export function ReportsClient({ planTier }: Props) {
               </>
             )}
 
-            <Button variant="outline" onClick={exportCSV} disabled={!data}>
+            <Button variant="outline" onClick={exportExcel} disabled={!data}>
               <Download className="h-4 w-4 mr-2" />
-              Export CSV
+              Export Excel
             </Button>
           </div>
         }
