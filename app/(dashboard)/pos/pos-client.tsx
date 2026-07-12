@@ -1049,6 +1049,8 @@ export function POSClient({
     setSelectedCustomer(null);
     setCustomerQuery("");
     setCustomerResults([]);
+    setSelectedIndex(-1);
+    setTimeout(() => searchRef.current?.focus(), 50);
   }
 
   async function completeSale() {
@@ -1227,6 +1229,8 @@ export function POSClient({
     setSelectedCustomer(null);
     setCustomerQuery("");
     setAmountTendered("");
+    setSelectedIndex(-1);
+    setTimeout(() => searchRef.current?.focus(), 50);
     toast.success("Sale held — cart cleared for next customer");
   }
 
@@ -1868,7 +1872,7 @@ export function POSClient({
       </Dialog>
 
       {/* Held Sales Dialog */}
-      <Dialog open={heldOpen} onOpenChange={setHeldOpen}>
+      <Dialog open={heldOpen} onOpenChange={(o) => { setHeldOpen(o); if (!o) setTimeout(() => searchRef.current?.focus(), 50); }}>
         <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
           <DialogHeader className="px-5 py-4 border-b border-border">
             <DialogTitle className="flex items-center justify-between">

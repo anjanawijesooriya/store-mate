@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Upload, Download, Search, Package, Wrench, Edit, Trash2, AlertTriangle, RefreshCw, Shirt } from "lucide-react";
+import { Plus, Upload, Download, Search, Package, Wrench, Edit, Trash2, AlertTriangle, RefreshCw, Shirt, X } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -105,6 +105,11 @@ export function InventoryClient() {
   const [weightedProductsEnabled, setWeightedProductsEnabled] = useState(false);
   const [variantProduct, setVariantProduct] = useState<{ id: string; name: string; sellPrice: number } | null>(null);
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     fetch("/api/shop").then((r) => r.json()).then((d) => {
       setVariantsEnabled(d.shop?.variantsEnabled ?? false);
@@ -141,6 +146,34 @@ export function InventoryClient() {
     if (tab === "service") setFilter("");
   }, [tab]);
 
+  // Clear selection when list changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [tab, filter, search]);
+
+  const allSelected = products.length > 0 && products.every((p) => selectedIds.has(p.id));
+  const someSelected = products.some((p) => selectedIds.has(p.id)) && !allSelected;
+
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = someSelected;
+  }, [someSelected]);
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(products.map((p) => p.id)));
+    }
+  }
+
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   async function confirmDelete() {
     if (!deleteProduct) return;
     setDeleting(true);
@@ -154,6 +187,27 @@ export function InventoryClient() {
       toast.error("Failed to delete");
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function confirmBulkDelete() {
+    setBulkDeleting(true);
+    try {
+      const res = await fetch("/api/products/bulk-delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (!res.ok) throw new Error();
+      const { deleted } = await res.json();
+      toast.success(`${deleted} ${deleted === 1 ? itemLabel : itemLabelPlural} deleted`);
+      setBulkDeleteOpen(false);
+      setSelectedIds(new Set());
+      fetchProducts();
+    } catch {
+      toast.error("Bulk delete failed");
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
@@ -339,6 +393,31 @@ export function InventoryClient() {
         )}
       </div>
 
+      {/* Bulk selection bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-2.5">
+          <span className="text-sm font-semibold text-foreground">
+            {selectedIds.size} selected
+          </span>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-8"
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+            Delete {selectedIds.size} {selectedIds.size === 1 ? itemLabel : itemLabelPlural}
+          </Button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+            title="Clear selection"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="flex justify-center py-16">
@@ -366,6 +445,16 @@ export function InventoryClient() {
           <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow className="bg-muted/50">
+                <TableHead className="w-10 pl-4">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="h-4 w-4 rounded cursor-pointer accent-primary"
+                    title="Select all"
+                  />
+                </TableHead>
                 <TableHead className="font-semibold">{isServiceTab ? "Service" : "Product"}</TableHead>
                 {!isServiceTab && <TableHead className="font-semibold hidden md:table-cell">Item Code</TableHead>}
                 {!isServiceTab && <TableHead className="font-semibold hidden lg:table-cell">SKU / Barcode</TableHead>}
@@ -381,8 +470,20 @@ export function InventoryClient() {
               {products.map((product, i) => (
                 <TableRow
                   key={product.id}
-                  className={cn(i % 2 === 0 ? "bg-background" : "bg-muted/20")}
+                  className={cn(
+                    selectedIds.has(product.id)
+                      ? "bg-primary/5 border-l-2 border-l-primary"
+                      : i % 2 === 0 ? "bg-background" : "bg-muted/20"
+                  )}
                 >
+                  <TableCell className="pl-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(product.id)}
+                      onChange={() => toggleOne(product.id)}
+                      className="h-4 w-4 rounded cursor-pointer accent-primary"
+                    />
+                  </TableCell>
                   <TableCell>
                     <p className="font-medium text-foreground">{product.name}</p>
                     <p className="text-xs text-muted-foreground">{product.unit}</p>
@@ -566,6 +667,43 @@ export function InventoryClient() {
           onClose={() => { setVariantProduct(null); fetchProducts(); }}
         />
       )}
+
+      {/* Bulk delete confirmation dialog */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={(o) => { if (!o && !bulkDeleting) setBulkDeleteOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Delete {selectedIds.size} {selectedIds.size === 1 ? itemLabel : itemLabelPlural}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <p className="text-sm text-foreground">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">{selectedIds.size} {selectedIds.size === 1 ? itemLabel : itemLabelPlural}</span>?
+            </p>
+            <div className="rounded-lg bg-destructive/8 border border-destructive/20 px-3 py-2.5 text-xs text-destructive leading-relaxed">
+              This action cannot be undone. Products with past sales will be hidden; others will be permanently removed.
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteOpen(false)}
+              disabled={bulkDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmBulkDelete}
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting ? "Deleting…" : `Delete ${selectedIds.size} ${selectedIds.size === 1 ? itemLabel : itemLabelPlural}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteProduct} onOpenChange={(o) => { if (!o && !deleting) setDeleteProduct(null); }}>
