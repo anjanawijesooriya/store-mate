@@ -28,7 +28,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ saleId
     where: { id: saleId },
     include: {
       shop: { select: { name: true, phone: true, address: true } },
-      items: { include: { product: { select: { name: true, itemCode: true, unit: true } } } },
+      items: { include: { product: { select: { name: true, itemCode: true, unit: true } } }, orderBy: { id: "asc" as const } },
       customer: { select: { name: true } },
     },
   });
@@ -74,7 +74,12 @@ export default async function ReceiptPage({ params }: { params: Promise<{ saleId
             {sale.items.map((item, i) => (
               <div key={i} className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{item.product.name}</p>
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {item.product.name}
+                    {item.variantLabel && (
+                      <span className="text-gray-500"> ({item.variantLabel})</span>
+                    )}
+                  </p>
                   {item.product.itemCode && (
                     <p className="text-xs text-gray-400 font-mono">Code: {item.product.itemCode}</p>
                   )}

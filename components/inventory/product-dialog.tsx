@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, ScanBarcode } from "lucide-react";
+import { Loader2, ScanBarcode, Shirt } from "lucide-react";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import {
   Dialog,
@@ -84,17 +84,26 @@ interface Product {
   imageUrl: string | null;
   warrantyPeriod: string | null;
   isService?: boolean;
+  _count?: { variants: number };
+}
+
+export interface SavedProduct {
+  id: string;
+  name: string;
+  sellPrice: number;
+  openVariants: boolean;
 }
 
 interface ProductDialogProps {
   open: boolean;
   product?: Product | null;
+  variantsEnabled?: boolean;
   onClose: () => void;
-  onSave: () => void;
+  onSave: (created?: SavedProduct) => void;
   isService?: boolean;
 }
 
-export function ProductDialog({ open, product, onClose, onSave, isService: forceService }: ProductDialogProps) {
+export function ProductDialog({ open, product, variantsEnabled, onClose, onSave, isService: forceService }: ProductDialogProps) {
   const isEdit = !!product;
   const serviceMode = forceService ?? product?.isService ?? false;
   const [loading, setLoading] = useState(false);
@@ -102,17 +111,19 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
   const skuRef = useRef<HTMLInputElement>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // true when editing a product that already has variants — locked, cannot turn off
+  const lockedVariants = isEdit && (product?._count?.variants ?? 0) > 0;
+  const [hasVariants, setHasVariants] = useState(false);
+
   const handleBarcodeScan = useCallback((barcode: string) => {
     update("sku", barcode);
     skuRef.current?.focus();
     setSkuFlash(true);
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setSkuFlash(false), 1500);
-  // update is defined below but is stable (uses setForm only)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Only active when the dialog is open and we're adding/editing a product (not a service)
   useBarcodeScan(handleBarcodeScan, { enabled: open && !serviceMode });
 
   const [form, setForm] = useState({
@@ -142,6 +153,7 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
         lowStockAt: String(product.lowStockAt),
         warrantyPeriod: product.warrantyPeriod ?? "",
       });
+      setHasVariants((product._count?.variants ?? 0) > 0);
     } else {
       setForm({
         name: "",
@@ -155,6 +167,7 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
         lowStockAt: "5",
         warrantyPeriod: "",
       });
+      setHasVariants(false);
     }
   }, [product, open, serviceMode]);
 
@@ -192,8 +205,14 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
         body.costPrice = parseFloat(form.costPrice || "0");
       } else {
         body.costPrice = parseFloat(form.costPrice);
-        body.stockQty = parseFloat(form.stockQty || "0");
-        body.lowStockAt = parseFloat(form.lowStockAt || "5");
+        if (hasVariants) {
+          // Stock tracked per variant — product-level stock stays 0
+          body.stockQty = 0;
+          body.lowStockAt = 0;
+        } else {
+          body.stockQty = parseFloat(form.stockQty || "0");
+          body.lowStockAt = parseFloat(form.lowStockAt || "5");
+        }
         body.warrantyPeriod = form.warrantyPeriod.trim() || null;
       }
 
@@ -210,7 +229,12 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
       }
 
       toast.success(isEdit ? (serviceMode ? "Service updated" : "Product updated") : (serviceMode ? "Service added" : "Product added"));
-      onSave();
+
+      if (!isEdit && !serviceMode && hasVariants && data.product) {
+        onSave({ id: data.product.id, name: data.product.name, sellPrice: parseFloat(form.sellPrice), openVariants: true });
+      } else {
+        onSave();
+      }
     } catch {
       toast.error("Failed to save");
     } finally {
@@ -353,40 +377,78 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
             </div>
           </div>
 
+          {/* Variants toggle — only for physical products when variantsEnabled */}
+          {!serviceMode && variantsEnabled && (
+            <label className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+              hasVariants
+                ? "border-primary/40 bg-primary/5"
+                : "border-border hover:bg-muted/40"
+            } ${lockedVariants ? "opacity-60 cursor-not-allowed" : ""}`}>
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary flex-shrink-0"
+                checked={hasVariants}
+                disabled={lockedVariants}
+                onChange={(e) => !lockedVariants && setHasVariants(e.target.checked)}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <Shirt className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                  <p className="text-sm font-medium">This product has variants</p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {lockedVariants
+                    ? "Stock is tracked per variant — manage via the Variants button"
+                    : "Enable to track stock per size / colour instead of at product level"}
+                </p>
+              </div>
+            </label>
+          )}
+
           {!serviceMode && (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="stockQty">{isEdit ? "Current Stock" : "Opening Stock"}</Label>
-                  <Input
-                    id="stockQty"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0"
-                    value={form.stockQty}
-                    onChange={(e) => update("stockQty", e.target.value)}
-                    className="font-mono"
-                    disabled={isEdit}
-                  />
-                  {isEdit && (
-                    <p className="text-xs text-muted-foreground">Use stock adjustment to change stock level</p>
-                  )}
+              {hasVariants ? (
+                <div className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2.5 text-xs text-primary leading-relaxed flex items-start gap-2">
+                  <Shirt className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Opening stock and low stock alert are set <strong>per variant</strong>.
+                    {!isEdit && " After saving this product, the Variant Manager will open so you can add sizes and stock."}
+                  </span>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lowStockAt">Low Stock Alert At</Label>
-                  <Input
-                    id="lowStockAt"
-                    type="number"
-                    step="1"
-                    min="0"
-                    placeholder="5"
-                    value={form.lowStockAt}
-                    onChange={(e) => update("lowStockAt", e.target.value)}
-                    className="font-mono"
-                  />
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="stockQty">{isEdit ? "Current Stock" : "Opening Stock"}</Label>
+                    <Input
+                      id="stockQty"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0"
+                      value={form.stockQty}
+                      onChange={(e) => update("stockQty", e.target.value)}
+                      className="font-mono"
+                      disabled={isEdit}
+                    />
+                    {isEdit && (
+                      <p className="text-xs text-muted-foreground">Use stock adjustment to change stock level</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lowStockAt">Low Stock Alert At</Label>
+                    <Input
+                      id="lowStockAt"
+                      type="number"
+                      step="1"
+                      min="0"
+                      placeholder="5"
+                      value={form.lowStockAt}
+                      onChange={(e) => update("lowStockAt", e.target.value)}
+                      className="font-mono"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="warrantyPeriod">Warranty Period <span className="text-muted-foreground font-normal">(optional)</span></Label>
@@ -412,7 +474,7 @@ export function ProductDialog({ open, product, onClose, onSave, isService: force
             </Button>
             <Button type="submit" disabled={loading} className="font-semibold">
               {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {isEdit ? "Save Changes" : (serviceMode ? "Add Service" : "Add Product")}
+              {isEdit ? "Save Changes" : (serviceMode ? "Add Service" : (hasVariants ? "Add Product & Manage Variants →" : "Add Product"))}
             </Button>
           </DialogFooter>
         </form>

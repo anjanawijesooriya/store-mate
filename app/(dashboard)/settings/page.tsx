@@ -19,6 +19,7 @@ export default async function SettingsPage() {
         smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsBalance: true,
         emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true,
         cardSurchargeEnabled: true, cardSurchargeRate: true,
+        creditReminderEnabled: true,
         billingStatus: true, gracePeriodEndsAt: true, nextBillingDate: true, isLifetime: true,
         payments: {
           orderBy: { paidAt: "desc" },

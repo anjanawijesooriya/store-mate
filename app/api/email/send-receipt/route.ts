@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       shopPhone:     shop.phone,
       customerName:  sale.customer?.name ?? null,
       items:         sale.items.map((i) => ({
-        name:          i.product.name,
+        name:          i.variantLabel ? `${i.product.name} (${i.variantLabel})` : i.product.name,
         itemCode:      i.product.itemCode ?? null,
         quantity:      Number(i.quantity),
         unit:          i.product.unit,

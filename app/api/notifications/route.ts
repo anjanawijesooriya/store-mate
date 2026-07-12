@@ -37,14 +37,22 @@ export async function GET() {
         orderBy: { creditBalance: "desc" },
         take: 10,
       }),
-      // Compare two columns — requires raw SQL
+      // Compare two columns — requires raw SQL.
+      // Exclude products with active variants (stock tracked per-variant)
+      // and products with lowStockAt = 0 (no threshold / pending variant setup).
       db.$queryRaw<Array<{ id: string; name: string; stockQty: number; lowStockAt: number }>>`
         SELECT id, name, "stockQty"::float AS "stockQty", "lowStockAt"::float AS "lowStockAt"
         FROM "Product"
         WHERE "shopId" = ${shopId}
           AND "isActive" = true
           AND "isService" = false
+          AND "lowStockAt" > 0
           AND "stockQty" <= "lowStockAt"
+          AND NOT EXISTS (
+            SELECT 1 FROM "ProductVariant"
+            WHERE "ProductVariant"."productId" = "Product"."id"
+              AND "ProductVariant"."isActive" = true
+          )
         ORDER BY "stockQty" ASC
         LIMIT 10
       `,

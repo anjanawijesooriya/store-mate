@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
         category: category as ShopCategory,
         address: address || null,
         trialEndsAt,
+        variantsEnabled: category === ShopCategory.CLOTHING,
         users: {
           create: {
             name: ownerName,

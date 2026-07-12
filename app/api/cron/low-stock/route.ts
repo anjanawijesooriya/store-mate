@@ -20,8 +20,12 @@ export async function GET(req: Request) {
       id: true, name: true, phone: true,
       smsAddonEnabled: true, smsLowStock: true, emailLowStock: true,
       products: {
-        // isService: false — services have no stock, always excluded
-        where: { isActive: true, isService: false },
+        where: {
+          isActive: true,
+          isService: false,
+          lowStockAt: { gt: 0 },                    // skip products with no threshold
+          variants: { none: { isActive: true } },   // skip products tracked at variant level
+        },
         select: { name: true, stockQty: true, lowStockAt: true },
       },
       users: { where: { role: "OWNER" }, select: { name: true, email: true }, take: 1 },

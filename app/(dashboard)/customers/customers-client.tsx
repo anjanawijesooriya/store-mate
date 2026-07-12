@@ -30,7 +30,7 @@ interface SaleHistoryItem {
   amountPaid: number;
   status: string;
   paymentMethod: string;
-  items: { quantity: number; unitPrice: number; lineTotal: number; product: { name: string; unit: string } }[];
+  items: { quantity: number; unitPrice: number; lineTotal: number; variantLabel: string | null; product: { name: string; unit: string } }[];
 }
 
 interface PendingSale {
@@ -38,7 +38,7 @@ interface PendingSale {
   createdAt: string;
   total: number;
   amountPaid: number;
-  items: { quantity: number; unitPrice: number; lineTotal: number; product: { name: string; unit: string } }[];
+  items: { quantity: number; unitPrice: number; lineTotal: number; variantLabel: string | null; product: { name: string; unit: string } }[];
 }
 
 interface Customer {
@@ -554,7 +554,7 @@ export function CustomersClient() {
                                 {new Date(s.createdAt).toLocaleDateString("en-LK", { day: "numeric", month: "short", year: "numeric" })}
                               </p>
                               <p className="text-muted-foreground mt-0.5 leading-relaxed">
-                                {s.items.map((i) => `${i.product.name} ×${Number(i.quantity)}`).join(", ")}
+                                {s.items.map((i) => `${i.product.name}${i.variantLabel ? ` (${i.variantLabel})` : ""} ×${Number(i.quantity)}`).join(", ")}
                               </p>
                             </div>
                             <div className="text-right flex-shrink-0">
@@ -768,7 +768,7 @@ export function CustomersClient() {
                                 {" · "}#{sale.id.slice(-6).toUpperCase()}
                               </p>
                               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                                {sale.items.map((i) => `${i.product.name} ×${Number(i.quantity)}`).join(", ")}
+                                {sale.items.map((i) => `${i.product.name}${i.variantLabel ? ` (${i.variantLabel})` : ""} ×${Number(i.quantity)}`).join(", ")}
                               </p>
                               {sale.status === "PENDING_PAYMENT" && (
                                 <p className="text-xs text-destructive font-medium mt-1">

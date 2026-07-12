@@ -6,7 +6,7 @@ import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
   MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench, Infinity, Search,
-  CalendarClock, AlertTriangle, CreditCard,
+  CalendarClock, AlertTriangle, CreditCard, Shirt,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,7 @@ interface Shop {
   emailReceiptEnabled: boolean;
   cardSurchargeEnabled: boolean;
   payrollEnabled: boolean;
+  variantsEnabled: boolean;
   maintenanceBanner: boolean;
   maintenanceBannerMessage: string | null;
   branchModeEnabled: boolean;
@@ -176,6 +177,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [togglingDeviceLock, setTogglingDeviceLock] = useState<string | null>(null);
   const [togglingCardSurcharge, setTogglingCardSurcharge] = useState<string | null>(null);
   const [togglingPayroll, setTogglingPayroll] = useState<string | null>(null);
+  const [togglingVariants, setTogglingVariants] = useState<string | null>(null);
   const [testingAlert, setTestingAlert] = useState<string | null>(null);
   const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -369,6 +371,24 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       toast.error("Failed to update payroll setting");
     } finally {
       setTogglingPayroll(null);
+    }
+  }
+
+  async function toggleVariants(shop: Shop, enabled: boolean) {
+    setTogglingVariants(shop.id);
+    try {
+      const res = await fetch(`/api/admin/shops/${shop.id}/variants`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error();
+      await refresh();
+      toast.success(enabled ? "Clothing / Variants mode enabled" : "Clothing / Variants mode disabled");
+    } catch {
+      toast.error("Failed to update variants setting");
+    } finally {
+      setTogglingVariants(null);
     }
   }
 
@@ -1128,6 +1148,40 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               >
                                 <Receipt className="h-3.5 w-3.5" />
                                 Enable payroll
+                              </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* Variants / Clothing mode toggle */}
+                            {shop.variantsEnabled ? (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmAction({
+                                  title: "Disable Clothing / Variants Mode",
+                                  description: `Disable variants for ${shop.name}? The variant UI will be hidden. Existing variant data is preserved.`,
+                                  confirmLabel: "Disable",
+                                  variant: "destructive",
+                                  onConfirm: () => toggleVariants(shop, false),
+                                })}
+                                disabled={togglingVariants === shop.id}
+                                className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
+                              >
+                                <Shirt className="h-3.5 w-3.5" />
+                                Disable clothing / variants
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmAction({
+                                  title: "Enable Clothing / Variants Mode",
+                                  description: `Enable variants for ${shop.name}? The shop owner will be able to add size/colour variants to products with individual stock tracking per variant. Requires Standard or Premium plan.`,
+                                  confirmLabel: "Enable",
+                                  onConfirm: () => toggleVariants(shop, true),
+                                })}
+                                disabled={togglingVariants === shop.id}
+                                className="gap-2"
+                              >
+                                <Shirt className="h-3.5 w-3.5" />
+                                Enable clothing / variants
                               </DropdownMenuItem>
                             )}
 

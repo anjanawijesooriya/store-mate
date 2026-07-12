@@ -29,7 +29,9 @@ import {
   Bookmark,
   BookmarkCheck,
   Share2,
+  Shirt,
 } from "lucide-react";
+import { VariantPickerDialog, type PickerVariant } from "@/components/pos/variant-picker-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -76,10 +78,14 @@ interface Product {
   category: string | null;
   warrantyPeriod: string | null;
   isService: boolean;
+  _count?: { variants: number };
 }
 
 interface CartItem {
+  cartKey: string;
   productId: string;
+  variantId?: string;
+  variantLabel?: string;
   name: string;
   itemCode: string | null;
   unit: string;
@@ -141,6 +147,7 @@ interface ShopInfo {
   smsAddonEnabled: boolean;
   smsReceiptEnabled: boolean;
   emailReceiptEnabled: boolean;
+  variantsEnabled: boolean;
 }
 
 const PAYMENT_METHODS = [
@@ -207,6 +214,7 @@ function toProduct(p: CachedProduct): Product {
     category: p.category,
     warrantyPeriod: p.warrantyPeriod,
     isService: p.isService ?? false,
+    _count: { variants: p.variantCount ?? 0 },
   };
 }
 
@@ -327,6 +335,8 @@ export function POSClient({
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
   const [heldOpen, setHeldOpen] = useState(false);
 
+  const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
+
   // Persist held carts to localStorage on every change
   useEffect(() => {
     if (!shopId) return;
@@ -362,6 +372,7 @@ export function POSClient({
       category: match.category,
       warrantyPeriod: match.warrantyPeriod ?? null,
       isService: match.isService ?? false,
+      // _count not available in cached products — variant picker won't trigger for offline barcodes
     });
   // addToCart is defined below — stable because it only uses setCart + toast
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -388,6 +399,7 @@ export function POSClient({
           smsAddonEnabled:     s.shop.smsAddonEnabled     ?? false,
           smsReceiptEnabled:   s.shop.smsReceiptEnabled   ?? false,
           emailReceiptEnabled: s.shop.emailReceiptEnabled ?? true,
+          variantsEnabled:     s.shop.variantsEnabled     ?? false,
         });
       })
       .catch(() => {});
@@ -421,6 +433,7 @@ export function POSClient({
             unit: p.unit,
             sellPrice: Number(p.sellPrice),
             stockQty: p.stockQty,
+            variantCount: p._count?.variants ?? 0,
             category: p.category,
             warrantyPeriod: p.warrantyPeriod ?? null,
             isService: p.isService ?? false,
@@ -713,8 +726,14 @@ export function POSClient({
   }
 
   function addToCart(product: Product) {
+    // If this product has variants, open the picker instead
+    if (shopInfo?.variantsEnabled && (product._count?.variants ?? 0) > 0) {
+      setVariantPickerProduct(product);
+      return;
+    }
+    const cartKey = product.id;
     setCart((prev) => {
-      const existing = prev.find((i) => i.productId === product.id);
+      const existing = prev.find((i) => i.cartKey === cartKey);
       if (existing) {
         const step = qtyStep(product.unit);
         const newQty = Math.round((existing.quantity + step) * 10000) / 10000;
@@ -723,7 +742,7 @@ export function POSClient({
           return prev;
         }
         return prev.map((i) =>
-          i.productId === product.id
+          i.cartKey === cartKey
             ? { ...i, quantity: newQty, lineTotal: newQty * i.unitPrice }
             : i
         );
@@ -735,6 +754,7 @@ export function POSClient({
       return [
         ...prev,
         {
+          cartKey,
           productId: product.id,
           name: product.name,
           itemCode: product.itemCode ?? null,
@@ -754,11 +774,58 @@ export function POSClient({
     searchRef.current?.focus();
   }
 
-  function updateQty(productId: string, delta: number) {
+  function addVariantToCart(product: Product, variant: PickerVariant) {
+    const cartKey = `${product.id}:${variant.id}`;
+    const label = variant.color ? `${variant.size} / ${variant.color}` : variant.size;
+    const unitPrice = variant.sellPrice != null ? variant.sellPrice : Number(product.sellPrice);
+    setCart((prev) => {
+      const existing = prev.find((i) => i.cartKey === cartKey);
+      if (existing) {
+        const newQty = existing.quantity + 1;
+        if (newQty > variant.stockQty) {
+          toast.warning(`Only ${variant.stockQty} in stock`);
+          return prev;
+        }
+        return prev.map((i) =>
+          i.cartKey === cartKey
+            ? { ...i, quantity: newQty, lineTotal: newQty * i.unitPrice }
+            : i
+        );
+      }
+      if (variant.stockQty <= 0) {
+        toast.error(`${product.name} (${label}) is out of stock`);
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          cartKey,
+          productId: product.id,
+          variantId: variant.id,
+          variantLabel: label,
+          name: `${product.name} (${label})`,
+          itemCode: product.itemCode ?? null,
+          unit: product.unit,
+          unitPrice,
+          originalPrice: unitPrice,
+          quantity: 1,
+          lineTotal: unitPrice,
+          stockQty: variant.stockQty,
+          warrantyPeriod: product.warrantyPeriod ?? null,
+          isService: false,
+        },
+      ];
+    });
+    setSearchQuery("");
+    setSearchResults([]);
+    searchRef.current?.focus();
+  }
+
+  function updateQty(cartKey: string, delta: number) {
     setCart((prev) =>
       prev
         .map((i) => {
-          if (i.productId !== productId) return i;
+          if (i.cartKey !== cartKey) return i;
           const step = qtyStep(i.unit);
           const newQty = Math.round((i.quantity + delta * step) * 10000) / 10000;
           if (newQty <= 0) return null as unknown as CartItem;
@@ -772,11 +839,11 @@ export function POSClient({
     );
   }
 
-  function setExactQty(productId: string, qty: number) {
+  function setExactQty(cartKey: string, qty: number) {
     setCart((prev) =>
       prev
         .map((i) => {
-          if (i.productId !== productId) return i;
+          if (i.cartKey !== cartKey) return i;
           if (isNaN(qty) || qty <= 0) return null as unknown as CartItem;
           if (!i.isService && qty > i.stockQty) {
             toast.warning(`Only ${i.stockQty} ${i.unit} in stock`);
@@ -788,18 +855,18 @@ export function POSClient({
     );
   }
 
-  function updateLinePrice(productId: string, newPrice: number) {
+  function updateLinePrice(cartKey: string, newPrice: number) {
     setCart((prev) =>
       prev.map((i) =>
-        i.productId === productId
+        i.cartKey === cartKey
           ? { ...i, unitPrice: newPrice, lineTotal: i.quantity * newPrice }
           : i
       )
     );
   }
 
-  function removeFromCart(productId: string) {
-    setCart((prev) => prev.filter((i) => i.productId !== productId));
+  function removeFromCart(cartKey: string) {
+    setCart((prev) => prev.filter((i) => i.cartKey !== cartKey));
   }
 
   function clearCart() {
@@ -836,6 +903,8 @@ export function POSClient({
       : total;
     const saleItems = cart.map((i) => ({
       productId: i.productId,
+      variantId: i.variantId,
+      variantLabel: i.variantLabel,
       quantity: i.quantity,
       unitPrice: i.unitPrice,
     }));
@@ -1011,13 +1080,14 @@ export function POSClient({
   const displayProducts = searchQuery ? searchResults : recentProducts;
 
   function ProductCard({ product }: { product: Product }) {
+    const hasVariants = shopInfo?.variantsEnabled && (product._count?.variants ?? 0) > 0;
     return (
       <button
         onClick={() => addToCart(product)}
-        disabled={!product.isService && product.stockQty <= 0}
+        disabled={!product.isService && !hasVariants && product.stockQty <= 0}
         className={cn(
           "text-left rounded-xl border border-border bg-card p-3 hover:border-primary hover:shadow-sm transition-all active:scale-95",
-          !product.isService && product.stockQty <= 0 && "opacity-50 cursor-not-allowed"
+          !product.isService && !hasVariants && product.stockQty <= 0 && "opacity-50 cursor-not-allowed"
         )}
       >
         <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">
@@ -1030,10 +1100,16 @@ export function POSClient({
         {product.isService && (
           <p className="text-xs text-blue-500 font-medium mt-0.5">Service</p>
         )}
-        {!product.isService && product.stockQty <= 0 && (
+        {hasVariants && (
+          <p className="text-xs text-primary/70 font-medium mt-0.5 flex items-center gap-1">
+            <Shirt className="h-3 w-3" />
+            {product._count!.variants} size{product._count!.variants !== 1 ? "s" : ""}
+          </p>
+        )}
+        {!hasVariants && !product.isService && product.stockQty <= 0 && (
           <p className="text-xs text-destructive font-medium mt-0.5">Out of stock</p>
         )}
-        {!product.isService && product.stockQty > 0 && product.stockQty <= 5 && (
+        {!hasVariants && !product.isService && product.stockQty > 0 && product.stockQty <= 5 && (
           <p className="text-xs text-[color:var(--brand-warning)] font-medium mt-0.5">
             Only {product.stockQty} left
           </p>
@@ -1241,11 +1317,11 @@ export function POSClient({
               <div className="p-3 space-y-2">
                 {cart.map((item) => (
                   <div
-                    key={item.productId}
+                    key={item.cartKey}
                     className="flex items-start gap-2 rounded-lg border border-border bg-background p-2.5"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground line-clamp-1">
+                      <p className="text-sm font-medium text-foreground line-clamp-2">
                         {item.name}
                       </p>
                       {item.warrantyPeriod && (
@@ -1259,7 +1335,7 @@ export function POSClient({
                           step={0.01}
                           onChange={(e) =>
                             updateLinePrice(
-                              item.productId,
+                              item.cartKey,
                               parseFloat(e.target.value) || 0
                             )
                           }
@@ -1277,7 +1353,7 @@ export function POSClient({
                       </p>
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => updateQty(item.productId, -1)}
+                          onClick={() => updateQty(item.cartKey, -1)}
                           className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted transition-colors"
                         >
                           <Minus className="h-3 w-3" />
@@ -1286,24 +1362,24 @@ export function POSClient({
                           type="number"
                           min={isFractional(item.unit) ? 0.001 : 1}
                           step={qtyStep(item.unit)}
-                          value={qtyInputs[item.productId] ?? String(item.quantity)}
-                          onChange={(e) => setQtyInputs((prev) => ({ ...prev, [item.productId]: e.target.value }))}
+                          value={qtyInputs[item.cartKey] ?? String(item.quantity)}
+                          onChange={(e) => setQtyInputs((prev) => ({ ...prev, [item.cartKey]: e.target.value }))}
                           onBlur={(e) => {
                             const qty = parseFloat(e.target.value);
-                            if (!isNaN(qty) && qty > 0) setExactQty(item.productId, qty);
-                            setQtyInputs((prev) => { const n = { ...prev }; delete n[item.productId]; return n; });
+                            if (!isNaN(qty) && qty > 0) setExactQty(item.cartKey, qty);
+                            setQtyInputs((prev) => { const n = { ...prev }; delete n[item.cartKey]; return n; });
                           }}
                           className="w-16 text-sm font-mono text-center border border-border rounded px-1 py-0.5 bg-background text-foreground"
                         />
                         <span className="text-xs text-muted-foreground">{item.unit}</span>
                         <button
-                          onClick={() => updateQty(item.productId, 1)}
+                          onClick={() => updateQty(item.cartKey, 1)}
                           className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted transition-colors"
                         >
                           <Plus className="h-3 w-3" />
                         </button>
                         <button
-                          onClick={() => removeFromCart(item.productId)}
+                          onClick={() => removeFromCart(item.cartKey)}
                           className="w-6 h-6 rounded border border-border flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors ml-1"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -1614,9 +1690,22 @@ export function POSClient({
         </DialogContent>
       </Dialog>
 
+      {/* Variant Picker */}
+      <VariantPickerDialog
+        productId={variantPickerProduct?.id ?? null}
+        productName={variantPickerProduct?.name ?? ""}
+        baseSellPrice={Number(variantPickerProduct?.sellPrice ?? 0)}
+        open={!!variantPickerProduct}
+        onClose={() => setVariantPickerProduct(null)}
+        onSelect={(variant) => {
+          if (variantPickerProduct) addVariantToCart(variantPickerProduct, variant);
+          setVariantPickerProduct(null);
+        }}
+      />
+
       {/* Receipt Dialog */}
       <Dialog open={showReceipt} onOpenChange={(o) => { setShowReceipt(o); if (!o) { setWalkInPhone(""); setWalkInEmail(""); } }}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader className="print:hidden">
             <DialogTitle
               className={cn(
@@ -1657,9 +1746,9 @@ export function POSClient({
                 </div>
 
                 {/* Date & receipt number */}
-                <div className="flex justify-between text-xs text-muted-foreground pt-1">
-                  <span>{new Date(completedSale.createdAt).toLocaleString("en-LK", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                  <span>#{completedSale.id.slice(-6).toUpperCase()}</span>
+                <div className="flex justify-between items-center text-xs text-muted-foreground pt-1 gap-2">
+                  <span className="shrink-0">{new Date(completedSale.createdAt).toLocaleString("en-LK", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  <span className="shrink-0">#{completedSale.id.slice(-6).toUpperCase()}</span>
                 </div>
 
                 {selectedCustomer && (
@@ -1671,9 +1760,9 @@ export function POSClient({
                 {/* Line items */}
                 {completedSale.items.map((item, i) => (
                   <div key={i} className="space-y-0.5">
-                    <div className="flex justify-between">
-                      <span className="text-foreground truncate pr-2">{item.name}</span>
-                      <span className="font-semibold shrink-0">{formatLKR(item.lineTotal)}</span>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-foreground break-words min-w-0">{item.name}</span>
+                      <span className="font-semibold shrink-0 tabular-nums">{formatLKR(item.lineTotal)}</span>
                     </div>
                     {item.itemCode && (
                       <p className="text-xs text-muted-foreground font-mono">Code: {item.itemCode}</p>
@@ -1764,20 +1853,25 @@ export function POSClient({
                   </Button>
                 )}
 
-                {!completedSale?.isOffline && (
-                  <Button
-                    variant="outline"
-                    className="flex-1 text-green-700 border-green-300 hover:bg-green-50 dark:text-green-400 dark:border-green-700 dark:hover:bg-green-900/20"
-                    onClick={() => {
-                      const link = `${window.location.origin}/r/${completedSale!.id}`;
-                      const msg = encodeURIComponent(`Here is your receipt: ${link}`);
-                      window.open(`https://wa.me/?text=${msg}`, "_blank");
-                    }}
-                  >
-                    <Share2 className="h-4 w-4 mr-2" />
-                    WhatsApp
-                  </Button>
-                )}
+                {!completedSale?.isOffline && (() => {
+                  const receiptLink = `${typeof window !== "undefined" ? window.location.origin : ""}/r/${completedSale!.id}`;
+                  const waText = encodeURIComponent(`Here is your receipt: ${receiptLink}`);
+                  const waPhone = selectedCustomer?.phone
+                    ? selectedCustomer.phone.replace(/\D/g, "").replace(/^0/, "94")
+                    : "";
+                  const waUrl = `https://wa.me/${waPhone}?text=${waText}`;
+                  return (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-green-300 bg-transparent px-4 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-900/20"
+                    >
+                      <Share2 className="h-4 w-4" />
+                      WhatsApp
+                    </a>
+                  );
+                })()}
 
                 {!completedSale?.isOffline && shopInfo?.smsAddonEnabled && shopInfo?.smsReceiptEnabled && (
                   selectedCustomer?.phone ? (

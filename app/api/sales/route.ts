@@ -74,8 +74,8 @@ export async function POST(req: NextRequest) {
       return apiError("Invalid payment method");
     }
 
-    // Verify all products belong to this shop
-    const productIds = items.map((i: { productId: string }) => i.productId);
+    // Verify all products belong to this shop (deduplicate — multiple variants share a productId)
+    const productIds = [...new Set<string>(items.map((i: { productId: string }) => i.productId))];
     const products = await db.product.findMany({
       where: { id: { in: productIds }, shopId, isActive: true },
     });
@@ -87,13 +87,15 @@ export async function POST(req: NextRequest) {
     type ProductRecord = typeof products[0];
     const productMap = new Map<string, ProductRecord>(products.map((p: ProductRecord) => [p.id, p]));
 
-    type SaleItemInput = { productId: string; quantity: number; unitPrice?: number };
+    type SaleItemInput = { productId: string; variantId?: string; variantLabel?: string; quantity: number; unitPrice?: number };
     const saleItems = (items as SaleItemInput[]).map((item) => {
       const product = productMap.get(item.productId)!;
       const qty = parseFloat(String(item.quantity));
       const unitPrice = parseFloat(String(item.unitPrice ?? product.sellPrice));
       return {
         productId: item.productId,
+        variantId: item.variantId ?? null,
+        variantLabel: item.variantLabel ?? null,
         quantity: qty,
         unitPrice,
         lineTotal: qty * unitPrice,
@@ -120,13 +122,24 @@ export async function POST(req: NextRequest) {
       // multiple cashiers sell the same product simultaneously
       for (const item of saleItems) {
         if (item.isService) continue;
-        const fresh = await tx.product.findUnique({
-          where: { id: item.productId },
-          select: { stockQty: true },
-        });
-        const currentQty = Number(fresh?.stockQty ?? 0);
-        if (currentQty < item.quantity) {
-          throw new Error(`Insufficient stock for ${item.productName} (have ${currentQty}, need ${item.quantity})`);
+        if (item.variantId) {
+          const fresh = await tx.productVariant.findUnique({
+            where: { id: item.variantId },
+            select: { stockQty: true },
+          });
+          const currentQty = Number(fresh?.stockQty ?? 0);
+          if (currentQty < item.quantity) {
+            throw new Error(`Insufficient stock for ${item.productName} (have ${currentQty}, need ${item.quantity})`);
+          }
+        } else {
+          const fresh = await tx.product.findUnique({
+            where: { id: item.productId },
+            select: { stockQty: true },
+          });
+          const currentQty = Number(fresh?.stockQty ?? 0);
+          if (currentQty < item.quantity) {
+            throw new Error(`Insufficient stock for ${item.productName} (have ${currentQty}, need ${item.quantity})`);
+          }
         }
       }
 
@@ -146,6 +159,7 @@ export async function POST(req: NextRequest) {
           items: {
             create: saleItems.map((i) => ({
               productId: i.productId,
+              variantLabel: i.variantLabel,
               quantity: i.quantity,
               unitPrice: i.unitPrice,
               lineTotal: i.lineTotal,
@@ -161,10 +175,18 @@ export async function POST(req: NextRequest) {
       // Decrement stock and create movements — skip for services (no inventory)
       for (const item of saleItems) {
         if (item.isService) continue;
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stockQty: { decrement: item.quantity } },
-        });
+        if (item.variantId) {
+          // Variant product: deduct from variant stock only
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stockQty: { decrement: item.quantity } },
+          });
+        } else {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQty: { decrement: item.quantity } },
+          });
+        }
         await tx.stockMovement.create({
           data: {
             productId: item.productId,

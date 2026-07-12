@@ -15,6 +15,7 @@ export async function GET() {
         smsAddonEnabled: true, smsLowStock: true, smsDailySummary: true, smsReceiptEnabled: true, smsBalance: true,
         emailLowStock: true, emailDailySummary: true, emailReceiptEnabled: true, creditReminderEnabled: true,
         cardSurchargeEnabled: true, cardSurchargeRate: true,
+        variantsEnabled: true, branchModeEnabled: true, deviceLockEnabled: true,
       },
     });
     if (!shop) return apiError("Shop not found", 404);

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Upload, Download, Search, Package, Wrench, Edit, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Plus, Upload, Download, Search, Package, Wrench, Edit, Trash2, AlertTriangle, RefreshCw, Shirt } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ProductDialog } from "@/components/inventory/product-dialog";
+import { ProductDialog, SavedProduct } from "@/components/inventory/product-dialog";
 import { StockAdjustDialog } from "@/components/inventory/stock-adjust-dialog";
 import { ImportDialog } from "@/components/inventory/import-dialog";
+import { VariantManager } from "@/components/inventory/variant-manager";
 import { cn } from "@/lib/utils";
 
 interface Product {
@@ -39,12 +40,15 @@ interface Product {
   unit: string;
   costPrice: number;
   sellPrice: number;
+  variantPriceMin?: number | null;
+  variantPriceMax?: number | null;
   stockQty: number;
   lowStockAt: number;
   imageUrl: string | null;
   isActive: boolean;
   warrantyPeriod: string | null;
   isService: boolean;
+  _count?: { variants: number };
 }
 
 function formatLKR(n: number) {
@@ -90,6 +94,14 @@ export function InventoryClient() {
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [variantsEnabled, setVariantsEnabled] = useState(false);
+  const [variantProduct, setVariantProduct] = useState<{ id: string; name: string; sellPrice: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/shop").then((r) => r.json()).then((d) => {
+      setVariantsEnabled(d.shop?.variantsEnabled ?? false);
+    }).catch(() => {});
+  }, []);
 
   const fetchProducts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -149,6 +161,9 @@ export function InventoryClient() {
       );
 
       const XLSX = await import("xlsx");
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1 — Products
       const headers = [
         "Name", "Item Code", "SKU", "Category", "Unit",
         "Cost Price", "Sell Price", "Stock Qty", "Low Stock Alert", "Warranty Period",
@@ -165,18 +180,53 @@ export function InventoryClient() {
         Number(p.lowStockAt),
         p.warrantyPeriod ?? "",
       ]);
-
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
       ws["!cols"] = [
         { wch: 24 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 8 },
         { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 17 }, { wch: 16 },
       ];
-      const wb = XLSX.utils.book_new();
       const sheetName = tab === "service" ? "Services" : "Products";
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+      // Sheet 2 — Variants (only when variantsEnabled and not service tab)
+      const hasVariantProducts = !isServiceTab && variantsEnabled &&
+        allProducts.some((p) => (p._count?.variants ?? 0) > 0);
+      if (hasVariantProducts) {
+        const varRes = await fetch("/api/products/variants");
+        if (varRes.ok) {
+          const varData = await varRes.json();
+          type VRow = { variantId: string; productName: string; itemCode: string | null; size: string; color: string | null; sku: string | null; stockQty: number; lowStockAt: number; sellPrice: number | null };
+          const varHeaders = [
+            "Variant ID", "Product Name", "Item Code", "Size", "Colour", "Variant SKU",
+            "Stock Qty", "Low Stock Alert", "Price Override",
+          ];
+          const varRows = (varData.variants as VRow[]).map((v) => [
+            v.variantId,
+            v.productName,
+            v.itemCode ?? "",
+            v.size,
+            v.color ?? "",
+            v.sku ?? "",
+            v.stockQty,
+            v.lowStockAt,
+            v.sellPrice ?? "",
+          ]);
+          const ws2 = XLSX.utils.aoa_to_sheet([varHeaders, ...varRows]);
+          ws2["!cols"] = [
+            { wch: 28 }, { wch: 26 }, { wch: 13 }, { wch: 10 }, { wch: 14 }, { wch: 14 },
+            { wch: 10 }, { wch: 17 }, { wch: 14 },
+          ];
+          XLSX.utils.book_append_sheet(wb, ws2, "Variants");
+        }
+      }
+
       const date = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `estoremate-\${tab}s-${date}.xlsx`);
-      toast.success(`${allProducts.length} ${tab}s exported`);
+      XLSX.writeFile(wb, `estoremate-${tab}s-${date}.xlsx`);
+      toast.success(
+        hasVariantProducts
+          ? `${allProducts.length} products + variants exported (2 sheets)`
+          : `${allProducts.length} ${tab}s exported`
+      );
     } catch {
       toast.error("Export failed");
     } finally {
@@ -350,22 +400,70 @@ export function InventoryClient() {
                     {formatLKR(Number(product.costPrice))}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm font-semibold">
-                    {formatLKR(Number(product.sellPrice))}
+                    {(() => {
+                      const hasVariants = variantsEnabled && (product._count?.variants ?? 0) > 0;
+                      const min = product.variantPriceMin;
+                      const max = product.variantPriceMax;
+                      if (hasVariants && min !== null && min !== undefined && max !== null && max !== undefined && min !== max) {
+                        return (
+                          <span className="text-xs">
+                            {formatLKR(min)}
+                            <span className="text-muted-foreground mx-1">–</span>
+                            {formatLKR(max)}
+                          </span>
+                        );
+                      }
+                      const displayPrice = hasVariants && min !== null && min !== undefined ? min : Number(product.sellPrice);
+                      return formatLKR(displayPrice);
+                    })()}
                   </TableCell>
                   {!isServiceTab && (
                     <TableCell className="text-center">
-                      <button
-                        onClick={() => setAdjustProduct(product)}
-                        className="inline-flex"
-                        title="Adjust stock"
-                      >
-                        <StockBadge qty={Number(product.stockQty)} low={Number(product.lowStockAt)} />
-                      </button>
+                      {variantsEnabled && (product._count?.variants ?? 0) > 0 ? (
+                        <button
+                          onClick={() => setVariantProduct({ id: product.id, name: product.name, sellPrice: Number(product.sellPrice) })}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-primary border border-primary/30 rounded-full px-2 py-0.5 hover:bg-primary/5 transition-colors"
+                          title="Manage variants"
+                        >
+                          <Shirt className="h-3 w-3" />
+                          {product._count!.variants} variant{product._count!.variants !== 1 ? "s" : ""}
+                        </button>
+                      ) : variantsEnabled && Number(product.stockQty) <= 0 ? (
+                        <button
+                          onClick={() => setVariantProduct({ id: product.id, name: product.name, sellPrice: Number(product.sellPrice) })}
+                          className="inline-flex"
+                          title="Add variants to set up stock"
+                        >
+                          <Badge className="bg-muted text-muted-foreground border-border hover:bg-muted gap-1">
+                            <Shirt className="h-3 w-3" />
+                            No variants
+                          </Badge>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setAdjustProduct(product)}
+                          className="inline-flex"
+                          title="Adjust stock"
+                        >
+                          <StockBadge qty={Number(product.stockQty)} low={Number(product.lowStockAt)} />
+                        </button>
+                      )}
                     </TableCell>
                   )}
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      {!isServiceTab && (
+                      {!isServiceTab && variantsEnabled && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-primary/70 hover:text-primary"
+                          onClick={() => setVariantProduct({ id: product.id, name: product.name, sellPrice: Number(product.sellPrice) })}
+                          title="Manage variants"
+                        >
+                          <Shirt className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {!isServiceTab && (product._count?.variants ?? 0) === 0 && (!variantsEnabled || Number(product.stockQty) > 0) && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -407,19 +505,25 @@ export function InventoryClient() {
       <ProductDialog
         open={addOpen}
         isService={isServiceTab}
+        variantsEnabled={variantsEnabled}
         onClose={() => setAddOpen(false)}
-        onSave={() => {
+        onSave={(created?: SavedProduct) => {
           setAddOpen(false);
-          fetchProducts();
+          fetchProducts(true).then(() => {
+            if (created?.openVariants) {
+              setVariantProduct({ id: created.id, name: created.name, sellPrice: created.sellPrice });
+            }
+          });
         }}
       />
       <ProductDialog
         open={!!editProduct}
         product={editProduct}
+        variantsEnabled={variantsEnabled}
         onClose={() => setEditProduct(null)}
         onSave={() => {
           setEditProduct(null);
-          fetchProducts();
+          fetchProducts(true);
         }}
       />
       {!isServiceTab && (
@@ -436,9 +540,20 @@ export function InventoryClient() {
 
       <ImportDialog
         open={importOpen}
+        variantsEnabled={variantsEnabled}
         onClose={() => { setImportOpen(false); fetchProducts(true); }}
         onImported={() => fetchProducts(true)}
       />
+
+      {variantsEnabled && (
+        <VariantManager
+          productId={variantProduct?.id ?? null}
+          productName={variantProduct?.name ?? ""}
+          baseSellPrice={Number(variantProduct?.sellPrice ?? 0)}
+          open={!!variantProduct}
+          onClose={() => { setVariantProduct(null); fetchProducts(); }}
+        />
+      )}
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteProduct} onOpenChange={(o) => { if (!o && !deleting) setDeleteProduct(null); }}>

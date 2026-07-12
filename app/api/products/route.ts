@@ -45,15 +45,30 @@ export async function GET(req: NextRequest) {
       ...(category && { category }),
     };
 
-    const [products, total] = await Promise.all([
+    const [rawProducts, total] = await Promise.all([
       db.product.findMany({
         where,
         orderBy: { name: "asc" },
         skip: (page - 1) * limit,
         take: limit,
+        include: {
+          _count: { select: { variants: { where: { isActive: true } } } },
+          variants: { where: { isActive: true }, select: { sellPrice: true } },
+        },
       }),
       db.product.count({ where }),
     ]);
+
+    const products = rawProducts.map(({ variants, ...p }) => {
+      if (variants.length === 0) return { ...p, variantPriceMin: null, variantPriceMax: null };
+      // Treat null override as base sell price so range reflects all actual prices
+      const prices = variants.map((v) => v.sellPrice !== null ? Number(v.sellPrice) : Number(p.sellPrice));
+      return {
+        ...p,
+        variantPriceMin: Math.min(...prices),
+        variantPriceMax: Math.max(...prices),
+      };
+    });
 
     return Response.json({ products, total, page, limit });
   } catch (err) {

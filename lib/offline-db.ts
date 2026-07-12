@@ -41,6 +41,7 @@ export interface CachedProduct {
   unit: string;
   sellPrice: number;
   stockQty: number;
+  variantCount: number;
   category: string | null;
   warrantyPeriod: string | null;
   isService: boolean;

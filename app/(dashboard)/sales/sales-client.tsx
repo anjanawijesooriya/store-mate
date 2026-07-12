@@ -44,6 +44,7 @@ interface SaleItem {
   unitPrice: number;
   lineTotal: number;
   returned: boolean;
+  variantLabel: string | null;
   product: { name: string; unit: string };
 }
 
@@ -536,6 +537,9 @@ export function SalesClient() {
                                 <tr key={item.id} className={cn("border-b last:border-0", item.returned && "opacity-40")}>
                                   <td className="px-3 py-2 font-medium">
                                     {item.product.name}
+                                    {item.variantLabel && (
+                                      <span className="text-muted-foreground font-normal"> ({item.variantLabel})</span>
+                                    )}
                                     {item.returned && (
                                       <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">Returned</span>
                                     )}
@@ -828,7 +832,12 @@ export function SalesClient() {
                               {selected && <span className="text-white text-[10px] font-bold">✓</span>}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-foreground">{item.product.name}</p>
+                              <p className="text-sm font-medium text-foreground">
+                                {item.product.name}
+                                {item.variantLabel && (
+                                  <span className="font-normal text-muted-foreground"> ({item.variantLabel})</span>
+                                )}
+                              </p>
                               <p className="text-xs text-muted-foreground">{item.quantity} {item.product.unit} · {formatLKR(item.unitPrice)} each</p>
                             </div>
                             <p className="text-sm font-mono font-semibold text-foreground flex-shrink-0">{formatLKR(item.lineTotal)}</p>
@@ -855,7 +864,11 @@ export function SalesClient() {
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Returning</p>
                         {returnedItems.map((item) => (
                           <div key={item.id} className="flex justify-between text-sm">
-                            <span className="text-foreground">{item.product.name} <span className="text-muted-foreground">×{item.quantity}</span></span>
+                            <span className="text-foreground">
+                              {item.product.name}
+                              {item.variantLabel && <span className="text-muted-foreground"> ({item.variantLabel})</span>}
+                              {" "}<span className="text-muted-foreground">×{item.quantity}</span>
+                            </span>
                             <span className="font-mono text-[color:var(--brand-success)]">+{formatLKR(item.lineTotal)}</span>
                           </div>
                         ))}
