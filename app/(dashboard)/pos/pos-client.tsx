@@ -56,6 +56,7 @@ import {
   removePendingSale,
   markSaleFailed,
   type CachedProduct,
+  type CachedVariant,
 } from "@/lib/offline-db";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 
@@ -78,6 +79,8 @@ interface Product {
   category: string | null;
   warrantyPeriod: string | null;
   isService: boolean;
+  isWeighted?: boolean;
+  pluCode?: string | null;
   _count?: { variants: number };
 }
 
@@ -96,6 +99,7 @@ interface CartItem {
   stockQty: number;
   warrantyPeriod: string | null;
   isService: boolean;
+  isWeighted?: boolean;
 }
 
 const FRACTIONAL_UNITS = new Set(["kg", "g", "l", "L", "ml", "mL", "liter", "litre", "gram", "kilo", "oz", "lb"]);
@@ -214,6 +218,8 @@ function toProduct(p: CachedProduct): Product {
     category: p.category,
     warrantyPeriod: p.warrantyPeriod,
     isService: p.isService ?? false,
+    isWeighted: p.isWeighted ?? false,
+    pluCode: p.pluCode ?? null,
     _count: { variants: p.variantCount ?? 0 },
   };
 }
@@ -347,13 +353,121 @@ export function POSClient({
 
   // Barcode scanner — look up product by SKU from the in-memory cache and add to cart
   const handleBarcodeScan = useCallback((barcode: string) => {
+    // Scale barcode: EAN-13 starting with "2" (variable-weight label from electronic scale)
+    // Format: 2 PPPPP WWWWW C  (prefix=1, PLU=5, weight-grams=5, check=1)
+    if (/^2\d{12}$/.test(barcode)) {
+      const plu = barcode.slice(1, 6);
+      const weightGrams = parseInt(barcode.slice(6, 11), 10);
+      const weightKg = Math.round((weightGrams / 1000) * 1000) / 1000; // 3 decimal places
+      const match = allCached.find((p) => p.isWeighted && p.pluCode === plu);
+      if (!match) {
+        toast.error(`No weighted product found for PLU: ${plu}`, { duration: 3000 });
+        setSearchQuery("");
+        setSearchResults([]);
+        return;
+      }
+      setSearchQuery("");
+      setSearchResults([]);
+      // Add to cart — accumulate weight across multiple packages of the same product
+      const cartKey = match.id;
+      setCart((prev) => {
+        const existing = prev.find((i) => i.cartKey === cartKey);
+        if (existing) {
+          const newQty = Math.round((existing.quantity + weightKg) * 1000) / 1000;
+          return prev.map((i) =>
+            i.cartKey === cartKey
+              ? { ...i, quantity: newQty, lineTotal: newQty * i.unitPrice }
+              : i
+          );
+        }
+        return [
+          ...prev,
+          {
+            cartKey,
+            productId: match.id,
+            name: match.name,
+            itemCode: match.itemCode ?? null,
+            unit: "kg",
+            unitPrice: match.sellPrice,
+            originalPrice: match.sellPrice,
+            quantity: weightKg,
+            lineTotal: match.sellPrice * weightKg,
+            stockQty: match.stockQty,
+            warrantyPeriod: match.warrantyPeriod ?? null,
+            isService: false,
+            isWeighted: true,
+          },
+        ];
+      });
+      toast.success(`${match.name} — ${weightKg} kg added`, { duration: 2000 });
+      return;
+    }
+
     const barcodeLower = barcode.toLowerCase();
+
+    // Check variant SKUs first (each variant has its own barcode)
+    for (const product of allCached) {
+      if (!product.variants?.length) continue;
+      const matchedVariant = product.variants.find(
+        (v) => v.sku && v.sku.toLowerCase() === barcodeLower
+      );
+      if (matchedVariant) {
+        setSearchQuery("");
+        setSearchResults([]);
+        const cartKey = `${product.id}:${matchedVariant.id}`;
+        const label = matchedVariant.color
+          ? `${matchedVariant.size} / ${matchedVariant.color}`
+          : matchedVariant.size;
+        const unitPrice = matchedVariant.sellPrice ?? product.sellPrice;
+        setCart((prev) => {
+          const existing = prev.find((i) => i.cartKey === cartKey);
+          if (existing) {
+            const newQty = existing.quantity + 1;
+            if (newQty > matchedVariant.stockQty) {
+              toast.warning(`Only ${matchedVariant.stockQty} in stock`);
+              return prev;
+            }
+            return prev.map((i) =>
+              i.cartKey === cartKey
+                ? { ...i, quantity: newQty, lineTotal: newQty * i.unitPrice }
+                : i
+            );
+          }
+          if (matchedVariant.stockQty <= 0) {
+            toast.error(`${product.name} (${label}) is out of stock`);
+            return prev;
+          }
+          return [
+            ...prev,
+            {
+              cartKey,
+              productId: product.id,
+              variantId: matchedVariant.id,
+              variantLabel: label,
+              name: product.name,
+              itemCode: product.itemCode ?? null,
+              unit: product.unit,
+              unitPrice,
+              originalPrice: unitPrice,
+              quantity: 1,
+              lineTotal: unitPrice,
+              stockQty: matchedVariant.stockQty,
+              warrantyPeriod: product.warrantyPeriod ?? null,
+              isService: false,
+            },
+          ];
+        });
+        toast.success(`${product.name} (${label}) added`, { duration: 2000 });
+        return;
+      }
+    }
+
+    // Fall back to base product SKU lookup
     const match = allCached.find(
       (p) => p.sku && p.sku.toLowerCase() === barcodeLower
     );
     if (!match) {
       toast.error(`No product found for barcode: ${barcode}`, { duration: 3000 });
-      // Clear whatever the scanner typed into the search box
       setSearchQuery("");
       setSearchResults([]);
       return;
@@ -372,7 +486,6 @@ export function POSClient({
       category: match.category,
       warrantyPeriod: match.warrantyPeriod ?? null,
       isService: match.isService ?? false,
-      // _count not available in cached products — variant picker won't trigger for offline barcodes
     });
   // addToCart is defined below — stable because it only uses setCart + toast
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -409,10 +522,11 @@ export function POSClient({
   const refreshProducts = useCallback(async (silent = false) => {
     if (!silent) setProductsLoading(true);
     try {
-      const [displayRes, servicesRes, allRes] = await Promise.all([
+      const [displayRes, servicesRes, allRes, variantsRes] = await Promise.all([
         fetch("/api/products?type=product&limit=50&page=1"),
         fetch("/api/products?type=service&limit=100"),
         fetch("/api/products?limit=500&page=1"),
+        fetch("/api/products/variants"),
       ]);
       if (!displayRes.ok) throw new Error("offline");
       const display = await displayRes.json();
@@ -425,10 +539,32 @@ export function POSClient({
 
       if (allRes.ok && shopId) {
         const all = await allRes.json();
+
+        // Build a map of productId → cached variants (for barcode scan lookup)
+        type RawVariant = { id: string; productId: string; size: string; color: string | null; sku: string | null; stockQty: number; lowStockAt: number; sellPrice: number | null };
+        const variantsByProduct = new Map<string, CachedVariant[]>();
+        if (variantsRes.ok) {
+          const vd = await variantsRes.json();
+          for (const v of (vd.variants ?? []) as RawVariant[]) {
+            if (!variantsByProduct.has(v.productId)) variantsByProduct.set(v.productId, []);
+            variantsByProduct.get(v.productId)!.push({
+              id: v.id,
+              productId: v.productId,
+              size: v.size,
+              color: v.color,
+              sku: v.sku,
+              stockQty: v.stockQty,
+              lowStockAt: v.lowStockAt,
+              sellPrice: v.sellPrice,
+            });
+          }
+        }
+
         const products: CachedProduct[] = (all.products ?? []).map(
           (p: Product) => ({
             id: p.id,
             name: p.name,
+            itemCode: p.itemCode ?? null,
             sku: p.sku,
             unit: p.unit,
             sellPrice: Number(p.sellPrice),
@@ -437,6 +573,9 @@ export function POSClient({
             category: p.category,
             warrantyPeriod: p.warrantyPeriod ?? null,
             isService: p.isService ?? false,
+            isWeighted: p.isWeighted ?? false,
+            pluCode: p.pluCode ?? null,
+            variants: variantsByProduct.get(p.id),
           })
         );
         setAllCached(products);
@@ -737,7 +876,7 @@ export function POSClient({
       if (existing) {
         const step = qtyStep(product.unit);
         const newQty = Math.round((existing.quantity + step) * 10000) / 10000;
-        if (!product.isService && newQty > product.stockQty) {
+        if (!product.isService && !product.isWeighted && newQty > product.stockQty) {
           toast.warning(`Only ${product.stockQty} ${product.unit} in stock`);
           return prev;
         }
@@ -747,7 +886,7 @@ export function POSClient({
             : i
         );
       }
-      if (!product.isService && product.stockQty <= 0) {
+      if (!product.isService && !product.isWeighted && product.stockQty <= 0) {
         toast.error(`${product.name} is out of stock`);
         return prev;
       }
@@ -766,6 +905,7 @@ export function POSClient({
           stockQty: product.stockQty,
           warrantyPeriod: product.warrantyPeriod ?? null,
           isService: product.isService,
+          isWeighted: product.isWeighted ?? false,
         },
       ];
     });
@@ -829,7 +969,7 @@ export function POSClient({
           const step = qtyStep(i.unit);
           const newQty = Math.round((i.quantity + delta * step) * 10000) / 10000;
           if (newQty <= 0) return null as unknown as CartItem;
-          if (!i.isService && newQty > i.stockQty) {
+          if (!i.isService && !i.isWeighted && newQty > i.stockQty) {
             toast.warning(`Only ${i.stockQty} ${i.unit} in stock`);
             return i;
           }
@@ -845,7 +985,7 @@ export function POSClient({
         .map((i) => {
           if (i.cartKey !== cartKey) return i;
           if (isNaN(qty) || qty <= 0) return null as unknown as CartItem;
-          if (!i.isService && qty > i.stockQty) {
+          if (!i.isService && !i.isWeighted && qty > i.stockQty) {
             toast.warning(`Only ${i.stockQty} ${i.unit} in stock`);
             return { ...i, quantity: i.stockQty, lineTotal: i.stockQty * i.unitPrice };
           }
@@ -1084,10 +1224,10 @@ export function POSClient({
     return (
       <button
         onClick={() => addToCart(product)}
-        disabled={!product.isService && !hasVariants && product.stockQty <= 0}
+        disabled={!product.isService && !hasVariants && !product.isWeighted && product.stockQty <= 0}
         className={cn(
           "text-left rounded-xl border border-border bg-card p-3 hover:border-primary hover:shadow-sm transition-all active:scale-95",
-          !product.isService && !hasVariants && product.stockQty <= 0 && "opacity-50 cursor-not-allowed"
+          !product.isService && !hasVariants && !product.isWeighted && product.stockQty <= 0 && "opacity-50 cursor-not-allowed"
         )}
       >
         <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">
@@ -1100,16 +1240,19 @@ export function POSClient({
         {product.isService && (
           <p className="text-xs text-blue-500 font-medium mt-0.5">Service</p>
         )}
+        {product.isWeighted && (
+          <p className="text-xs text-sky-500 font-medium mt-0.5">Scan scale label</p>
+        )}
         {hasVariants && (
           <p className="text-xs text-primary/70 font-medium mt-0.5 flex items-center gap-1">
             <Shirt className="h-3 w-3" />
             {product._count!.variants} size{product._count!.variants !== 1 ? "s" : ""}
           </p>
         )}
-        {!hasVariants && !product.isService && product.stockQty <= 0 && (
+        {!hasVariants && !product.isService && !product.isWeighted && product.stockQty <= 0 && (
           <p className="text-xs text-destructive font-medium mt-0.5">Out of stock</p>
         )}
-        {!hasVariants && !product.isService && product.stockQty > 0 && product.stockQty <= 5 && (
+        {!hasVariants && !product.isService && !product.isWeighted && product.stockQty > 0 && product.stockQty <= 5 && (
           <p className="text-xs text-[color:var(--brand-warning)] font-medium mt-0.5">
             Only {product.stockQty} left
           </p>

@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
         stockQty: Number(product.stockQty),
         productName: product.name,
         isService: product.isService,
+        isWeighted: product.isWeighted,
       };
     });
 
@@ -121,7 +122,7 @@ export async function POST(req: NextRequest) {
       // Re-read stock inside the transaction to prevent race conditions when
       // multiple cashiers sell the same product simultaneously
       for (const item of saleItems) {
-        if (item.isService) continue;
+        if (item.isService || item.isWeighted) continue;
         if (item.variantId) {
           const fresh = await tx.productVariant.findUnique({
             where: { id: item.variantId },
@@ -172,9 +173,9 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Decrement stock and create movements — skip for services (no inventory)
+      // Decrement stock and create movements — skip for services and weighted products
       for (const item of saleItems) {
-        if (item.isService) continue;
+        if (item.isService || item.isWeighted) continue;
         if (item.variantId) {
           // Variant product: deduct from variant stock only
           await tx.productVariant.update({

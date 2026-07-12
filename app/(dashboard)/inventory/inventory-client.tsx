@@ -48,6 +48,7 @@ interface Product {
   isActive: boolean;
   warrantyPeriod: string | null;
   isService: boolean;
+  isWeighted?: boolean;
   _count?: { variants: number };
 }
 
@@ -56,7 +57,13 @@ function formatLKR(n: number) {
   return `LKR ${int.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${dec}`;
 }
 
-function StockBadge({ qty, low }: { qty: number; low: number }) {
+function StockBadge({ qty, low, isWeighted }: { qty: number; low: number; isWeighted?: boolean }) {
+  if (isWeighted)
+    return (
+      <Badge className="bg-sky-50 text-sky-600 border-sky-200 hover:bg-sky-50 dark:bg-sky-950/30 dark:border-sky-800 dark:text-sky-400">
+        by weight
+      </Badge>
+    );
   if (qty <= 0)
     return (
       <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15">
@@ -95,11 +102,13 @@ export function InventoryClient() {
   const [importOpen, setImportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [variantsEnabled, setVariantsEnabled] = useState(false);
+  const [weightedProductsEnabled, setWeightedProductsEnabled] = useState(false);
   const [variantProduct, setVariantProduct] = useState<{ id: string; name: string; sellPrice: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/shop").then((r) => r.json()).then((d) => {
       setVariantsEnabled(d.shop?.variantsEnabled ?? false);
+      setWeightedProductsEnabled(d.shop?.weightedProductsEnabled ?? false);
     }).catch(() => {});
   }, []);
 
@@ -445,7 +454,7 @@ export function InventoryClient() {
                           className="inline-flex"
                           title="Adjust stock"
                         >
-                          <StockBadge qty={Number(product.stockQty)} low={Number(product.lowStockAt)} />
+                          <StockBadge qty={Number(product.stockQty)} low={Number(product.lowStockAt)} isWeighted={product.isWeighted} />
                         </button>
                       )}
                     </TableCell>
@@ -506,6 +515,7 @@ export function InventoryClient() {
         open={addOpen}
         isService={isServiceTab}
         variantsEnabled={variantsEnabled}
+        weightedProductsEnabled={weightedProductsEnabled}
         onClose={() => setAddOpen(false)}
         onSave={(created?: SavedProduct) => {
           setAddOpen(false);
@@ -520,6 +530,7 @@ export function InventoryClient() {
         open={!!editProduct}
         product={editProduct}
         variantsEnabled={variantsEnabled}
+        weightedProductsEnabled={weightedProductsEnabled}
         onClose={() => setEditProduct(null)}
         onSave={() => {
           setEditProduct(null);
@@ -541,6 +552,7 @@ export function InventoryClient() {
       <ImportDialog
         open={importOpen}
         variantsEnabled={variantsEnabled}
+        weightedProductsEnabled={weightedProductsEnabled}
         onClose={() => { setImportOpen(false); fetchProducts(true); }}
         onImported={() => fetchProducts(true)}
       />

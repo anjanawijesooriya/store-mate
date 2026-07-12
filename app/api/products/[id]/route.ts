@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const existing = await db.product.findFirst({ where: { id, shopId } });
     if (!existing) return apiError("Product not found", 404);
 
-    const { name, itemCode, sku, category, unit, costPrice, sellPrice, lowStockAt, imageUrl, warrantyPeriod, isService } = body;
+    const { name, itemCode, sku, category, unit, costPrice, sellPrice, lowStockAt, imageUrl, warrantyPeriod, isService, isWeighted, pluCode } = body;
 
     const product = await db.product.update({
       where: { id },
@@ -50,6 +50,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(imageUrl !== undefined && { imageUrl }),
         ...(warrantyPeriod !== undefined && { warrantyPeriod: warrantyPeriod?.trim() || null }),
         ...(isService !== undefined && { isService: !!isService }),
+        ...(isWeighted !== undefined && { isWeighted: !!isWeighted }),
+        ...(pluCode !== undefined && { pluCode: pluCode?.trim() || null }),
       },
     });
 

@@ -24,6 +24,7 @@ import {
   Share2,
   Banknote,
   CreditCard,
+  Scale,
 } from "lucide-react";
 
 export default async function HomePage() {
@@ -87,8 +88,9 @@ export default async function HomePage() {
 
             <p className="text-lg text-white/60 leading-relaxed mb-10 max-w-lg">
               Point of sale, inventory, reports, and customer management — all in
-              one app. Works even when the internet is down. Designed for grocery
-              shops, pharmacies, clothing stores, and hardware shops across Sri Lanka.
+              one app. Works even when the internet is down. Scale-ready for weighed
+              items. Designed for grocery shops, pharmacies, clothing stores, and
+              hardware shops across Sri Lanka.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 mb-10">
@@ -287,6 +289,14 @@ export default async function HomePage() {
                 bg: "rgba(251,146,60,0.1)",
                 title: "Payroll Management",
                 desc: "Manage employee records, track attendance, and calculate monthly salaries including EPF/ETF. Generate payslips you can print or share via WhatsApp.",
+                highlight: false,
+              },
+              {
+                icon: Scale,
+                color: "#38BDF8",
+                bg: "rgba(56,189,248,0.1)",
+                title: "Scale-Ready POS",
+                desc: "Works with any electronic weighing scale (CAS, Mettler Toledo, Digi). Cashier scans the printed label — weight is read automatically and the price is calculated instantly. No extra hardware from us.",
                 highlight: false,
               },
             ].map((f) => {

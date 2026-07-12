@@ -83,6 +83,8 @@ interface Product {
   lowStockAt: number;
   imageUrl: string | null;
   warrantyPeriod: string | null;
+  isWeighted?: boolean;
+  pluCode?: string | null;
   isService?: boolean;
   _count?: { variants: number };
 }
@@ -98,12 +100,13 @@ interface ProductDialogProps {
   open: boolean;
   product?: Product | null;
   variantsEnabled?: boolean;
+  weightedProductsEnabled?: boolean;
   onClose: () => void;
   onSave: (created?: SavedProduct) => void;
   isService?: boolean;
 }
 
-export function ProductDialog({ open, product, variantsEnabled, onClose, onSave, isService: forceService }: ProductDialogProps) {
+export function ProductDialog({ open, product, variantsEnabled, weightedProductsEnabled, onClose, onSave, isService: forceService }: ProductDialogProps) {
   const isEdit = !!product;
   const serviceMode = forceService ?? product?.isService ?? false;
   const [loading, setLoading] = useState(false);
@@ -114,6 +117,7 @@ export function ProductDialog({ open, product, variantsEnabled, onClose, onSave,
   // true when editing a product that already has variants — locked, cannot turn off
   const lockedVariants = isEdit && (product?._count?.variants ?? 0) > 0;
   const [hasVariants, setHasVariants] = useState(false);
+  const [isWeighted, setIsWeighted] = useState(false);
 
   const handleBarcodeScan = useCallback((barcode: string) => {
     update("sku", barcode);
@@ -137,6 +141,7 @@ export function ProductDialog({ open, product, variantsEnabled, onClose, onSave,
     stockQty: "",
     lowStockAt: "5",
     warrantyPeriod: "",
+    pluCode: "",
   });
 
   useEffect(() => {
@@ -152,8 +157,10 @@ export function ProductDialog({ open, product, variantsEnabled, onClose, onSave,
         stockQty: String(product.stockQty),
         lowStockAt: String(product.lowStockAt),
         warrantyPeriod: product.warrantyPeriod ?? "",
+        pluCode: product.pluCode ?? "",
       });
       setHasVariants((product._count?.variants ?? 0) > 0);
+      setIsWeighted(product.isWeighted ?? false);
     } else {
       setForm({
         name: "",
@@ -166,8 +173,10 @@ export function ProductDialog({ open, product, variantsEnabled, onClose, onSave,
         stockQty: "",
         lowStockAt: "5",
         warrantyPeriod: "",
+        pluCode: "",
       });
       setHasVariants(false);
+      setIsWeighted(false);
     }
   }, [product, open, serviceMode]);
 
@@ -214,6 +223,8 @@ export function ProductDialog({ open, product, variantsEnabled, onClose, onSave,
           body.lowStockAt = parseFloat(form.lowStockAt || "5");
         }
         body.warrantyPeriod = form.warrantyPeriod.trim() || null;
+        body.isWeighted = isWeighted;
+        body.pluCode = isWeighted ? (form.pluCode.trim() || null) : null;
       }
 
       const res = await fetch(url, {
@@ -459,6 +470,43 @@ export function ProductDialog({ open, product, variantsEnabled, onClose, onSave,
                   onChange={(e) => update("warrantyPeriod", e.target.value)}
                 />
               </div>
+
+              {/* Sold by weight (scale barcode) — only shown when enabled by admin */}
+              {weightedProductsEnabled && <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Sold by weight</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">For items weighed on an electronic scale with a label printer</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isWeighted}
+                    onClick={() => {
+                      const next = !isWeighted;
+                      setIsWeighted(next);
+                      if (next) update("unit", "kg");
+                    }}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${isWeighted ? "bg-primary" : "bg-input"}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg transform transition-transform ${isWeighted ? "translate-x-4" : "translate-x-0"}`} />
+                  </button>
+                </div>
+                {isWeighted && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pluCode" className="text-xs">PLU Code <span className="text-muted-foreground font-normal">(5-digit code programmed on the scale)</span></Label>
+                    <Input
+                      id="pluCode"
+                      placeholder="e.g. 00123"
+                      maxLength={5}
+                      value={form.pluCode}
+                      onChange={(e) => update("pluCode", e.target.value.replace(/\D/g, "").slice(0, 5))}
+                      className="font-mono w-36"
+                    />
+                    <p className="text-xs text-muted-foreground">Set the same 5-digit PLU on your weighing scale to match this product.</p>
+                  </div>
+                )}
+              </div>}
             </>
           )}
 

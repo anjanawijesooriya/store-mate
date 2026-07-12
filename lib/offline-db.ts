@@ -33,6 +33,17 @@ function storeOp<T>(
   });
 }
 
+export interface CachedVariant {
+  id: string;
+  productId: string;
+  size: string;
+  color: string | null;
+  sku: string | null;
+  stockQty: number;
+  lowStockAt: number;
+  sellPrice: number | null;
+}
+
 export interface CachedProduct {
   id: string;
   name: string;
@@ -45,6 +56,9 @@ export interface CachedProduct {
   category: string | null;
   warrantyPeriod: string | null;
   isService: boolean;
+  isWeighted: boolean;
+  pluCode: string | null;
+  variants?: CachedVariant[];
 }
 
 export interface PendingSale {

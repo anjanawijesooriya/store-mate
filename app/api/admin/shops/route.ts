@@ -29,6 +29,7 @@ export async function GET() {
       cardSurchargeEnabled: true,
       payrollEnabled: true,
       variantsEnabled: true,
+      weightedProductsEnabled: true,
       isLifetime: true,
       maintenanceDueDate: true,
       maintenancePaidUntil: true,

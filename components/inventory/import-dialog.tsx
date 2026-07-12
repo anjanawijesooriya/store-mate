@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import {
   Upload, Download, FileSpreadsheet, CheckCircle2,
-  XCircle, AlertCircle, RotateCcw, Loader2, X, PlusCircle, RefreshCw, Shirt,
+  XCircle, AlertCircle, RotateCcw, Loader2, X, PlusCircle, RefreshCw, Shirt, Scale,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import type { ImportRow, ImportError } from "@/app/api/products/import/route";
 import type { UpdateRow, UpdateError } from "@/app/api/products/update/route";
 import type { ImportVariantRow, ImportVariantError } from "@/app/api/products/import-variants/route";
+import type { ImportWeightedRow, ImportWeightedError } from "@/app/api/products/import-weighted/route";
 
 // ── Column header normalisation ────────────────────────────────────────────────
 
@@ -65,11 +66,28 @@ const VARIANT_ALIASES: Record<string, VariantColKey> = {
   "variant price": "sellPrice",
 };
 
+type WeightedColKey = keyof ImportWeightedRow | "_ignore";
+const WEIGHTED_ALIASES: Record<string, WeightedColKey> = {
+  "name": "name", "product name": "name", "item name": "name", "product": "name",
+  "item code": "itemCode", "itemcode": "itemCode", "product code": "itemCode", "code": "itemCode",
+  "plu": "pluCode", "plu code": "pluCode", "plucode": "pluCode", "plu no": "pluCode",
+  "plu number": "pluCode", "scale code": "pluCode",
+  "category": "category", "cat": "category", "group": "category",
+  "cost price": "costPrice", "cost": "costPrice", "buying price": "costPrice", "cp": "costPrice",
+  "sell price": "sellPrice", "price": "sellPrice", "selling price": "sellPrice",
+  "price per kg": "sellPrice", "rate per kg": "sellPrice", "rate": "sellPrice",
+  "sell price kg": "sellPrice", "sell price per kg": "sellPrice",
+  "low stock": "lowStockAt", "low stock alert": "lowStockAt", "min stock": "lowStockAt",
+  "low stock at": "lowStockAt", "low stock alert (kg)": "lowStockAt",
+  "low stock (kg)": "lowStockAt", "min stock (kg)": "lowStockAt",
+};
+
 // ── Parsed row types ───────────────────────────────────────────────────────────
 
 interface PreviewRow { rowNum: number; raw: ImportRow; errors: string[] }
 interface UpdatePreviewRow { rowNum: number; raw: UpdateRow; errors: string[] }
 interface VariantPreviewRow { rowNum: number; raw: ImportVariantRow; errors: string[] }
+interface WeightedPreviewRow { rowNum: number; raw: ImportWeightedRow; errors: string[] }
 
 function toNum(v: unknown): number | undefined {
   if (v === null || v === undefined || v === "") return undefined;
@@ -185,9 +203,43 @@ function parseSheetForVariants(data: unknown[][]): VariantPreviewRow[] {
   return rows;
 }
 
+function parseSheetForWeighted(data: unknown[][]): WeightedPreviewRow[] {
+  if (data.length < 2) return [];
+  const headerRow = data[0];
+  const colMap: Record<number, WeightedColKey> = {};
+  headerRow.forEach((h, idx) => {
+    const key = WEIGHTED_ALIASES[normalizeHeader(h)];
+    if (key) colMap[idx] = key;
+  });
+  const rows: WeightedPreviewRow[] = [];
+  for (let i = 1; i < data.length; i++) {
+    const cells = data[i] as unknown[];
+    if (cells.every((c) => c === "" || c === null || c === undefined)) continue;
+    const raw: Partial<ImportWeightedRow> = {};
+    Object.entries(colMap).forEach(([idxStr, field]) => {
+      if (field === "_ignore") return;
+      const val = cells[Number(idxStr)];
+      if (["name", "itemCode", "pluCode", "category"].includes(field as string)) {
+        if (val !== undefined && val !== "") (raw as Record<string, unknown>)[field] = String(val).trim();
+      } else {
+        const n = toNum(val);
+        if (n !== undefined) (raw as Record<string, unknown>)[field] = n;
+      }
+    });
+    const errors: string[] = [];
+    if (!raw.name?.trim()) errors.push("Name is required");
+    if (raw.sellPrice === undefined) errors.push("Sell Price (per kg) is required");
+    else if ((raw.sellPrice as number) < 0) errors.push("Sell Price must be ≥ 0");
+    if (raw.pluCode && !/^\d{1,5}$/.test(raw.pluCode.trim())) errors.push("PLU Code must be 1–5 digits");
+    if (raw.lowStockAt !== undefined && (raw.lowStockAt as number) < 0) errors.push("Low Stock Alert must be ≥ 0");
+    rows.push({ rowNum: i + 1, raw: raw as ImportWeightedRow, errors });
+  }
+  return rows;
+}
+
 // ── Template ───────────────────────────────────────────────────────────────────
 
-async function downloadTemplate(includeVariants: boolean) {
+async function downloadTemplate(includeVariants: boolean, weightedMode = false) {
   const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
 
@@ -259,13 +311,57 @@ async function downloadTemplate(includeVariants: boolean) {
     XLSX.utils.book_append_sheet(wb, ws2, "Variants");
   }
 
+  // Weighted products sheet — separate template when in weighted mode
+  if (weightedMode) {
+    const wHeaders = ["Name", "Item Code", "PLU Code", "Category", "Cost Price", "Sell Price/kg", "Low Stock Alert (kg)"];
+
+    type WRow = { name: string; itemCode: string | null; pluCode: string | null; category: string | null; costPrice: number; sellPrice: number; lowStockAt: number };
+    let wRows: unknown[][] = [];
+    try {
+      const res = await fetch("/api/products/weighted");
+      if (res.ok) {
+        const d = await res.json();
+        const live = d.products as WRow[];
+        if (live.length > 0) {
+          wRows = live.map((p) => [
+            p.name,
+            p.itemCode ?? "",
+            p.pluCode ?? "",
+            p.category ?? "",
+            Number(p.costPrice),
+            Number(p.sellPrice),
+            Number(p.lowStockAt),
+          ]);
+        }
+      }
+    } catch { /* fall through */ }
+
+    if (wRows.length === 0) {
+      wRows = [
+        ["Chicken Breast",  "WP-001", "00001", "Meat & Seafood", 600,  850, 0],
+        ["Beef",            "WP-002", "00002", "Meat & Seafood", 900, 1200, 0],
+        ["Red Rice",        "WP-003", "00003", "Groceries",      150,  220, 0],
+        ["Dhal",            "WP-004", "00004", "Groceries",      280,  380, 0],
+        ["Coconut (grated)","WP-005", "00005", "Groceries",      200,  280, 0],
+      ];
+    }
+
+    const wsW = XLSX.utils.aoa_to_sheet([wHeaders, ...wRows]);
+    wsW["!cols"] = [
+      { wch: 22 }, { wch: 12 }, { wch: 11 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 22 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsW, "Weighted Products");
+    XLSX.writeFile(wb, "estoremate-weighted-products.xlsx");
+    return;
+  }
+
   XLSX.writeFile(wb, "estoremate-products-template.xlsx");
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
 type Stage = "idle" | "preview" | "importing" | "done";
-type Mode = "create" | "update" | "variants";
+type Mode = "create" | "update" | "variants" | "weighted";
 
 interface DoneResult {
   mode: Mode;
@@ -276,6 +372,7 @@ interface DoneResult {
 interface ImportDialogProps {
   open: boolean;
   variantsEnabled?: boolean;
+  weightedProductsEnabled?: boolean;
   onClose: () => void;
   onImported: () => void;
 }
@@ -284,7 +381,7 @@ function formatLKR(n: number) {
   return `LKR ${Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
 }
 
-export function ImportDialog({ open, variantsEnabled = false, onClose, onImported }: ImportDialogProps) {
+export function ImportDialog({ open, variantsEnabled = false, weightedProductsEnabled = false, onClose, onImported }: ImportDialogProps) {
   const [mode, setMode] = useState<Mode>("create");
   const [stage, setStage] = useState<Stage>("idle");
   const [dragging, setDragging] = useState(false);
@@ -292,15 +389,17 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
   const [rows, setRows] = useState<PreviewRow[]>([]);
   const [updateRows, setUpdateRows] = useState<UpdatePreviewRow[]>([]);
   const [variantRows, setVariantRows] = useState<VariantPreviewRow[]>([]);
+  const [weightedRows, setWeightedRows] = useState<WeightedPreviewRow[]>([]);
   const [progress, setProgress] = useState(0);
   const [progressTotal, setProgressTotal] = useState(0);
   const [result, setResult] = useState<DoneResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const activeRows =
-    mode === "create" ? rows :
-    mode === "update" ? updateRows :
-    variantRows;
+    mode === "create"   ? rows :
+    mode === "update"   ? updateRows :
+    mode === "variants" ? variantRows :
+    weightedRows;
   const validRows = activeRows.filter((r) => r.errors.length === 0);
   const invalidRows = activeRows.filter((r) => r.errors.length > 0);
 
@@ -309,6 +408,7 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
     setRows([]);
     setUpdateRows([]);
     setVariantRows([]);
+    setWeightedRows([]);
     setFileName("");
     setProgress(0);
     setProgressTotal(0);
@@ -334,10 +434,12 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(buffer, { type: "array" });
 
-      // For variant mode, prefer the "Variants" sheet if uploading the 2-sheet template
+      // For variant/weighted mode, prefer the named sheet if uploading the multi-sheet template
       let sheetName = wb.SheetNames[0];
       if (mode === "variants" && wb.SheetNames.includes("Variants")) {
         sheetName = "Variants";
+      } else if (mode === "weighted" && wb.SheetNames.includes("Weighted Products")) {
+        sheetName = "Weighted Products";
       }
 
       const ws = wb.Sheets[sheetName];
@@ -351,13 +453,21 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
         const parsed = parseSheetForUpdate(data);
         if (parsed.length === 0) { toast.error("No data rows found"); return; }
         setUpdateRows(parsed);
+      } else if (mode === "weighted") {
+        const parsed = parseSheetForWeighted(data);
+        if (parsed.length === 0) { toast.error("No data rows found"); return; }
+        setWeightedRows(parsed);
       } else {
         const parsed = parseSheetForVariants(data);
         if (parsed.length === 0) { toast.error("No data rows found"); return; }
         setVariantRows(parsed);
       }
 
-      setFileName(file.name + (mode === "variants" && wb.SheetNames.includes("Variants") ? " (Variants sheet)" : ""));
+      const sheetSuffix =
+        mode === "variants" && wb.SheetNames.includes("Variants") ? " (Variants sheet)" :
+        mode === "weighted" && wb.SheetNames.includes("Weighted Products") ? " (Weighted Products sheet)" :
+        "";
+      setFileName(file.name + sheetSuffix);
       setStage("preview");
     } catch {
       toast.error("Failed to parse file. Make sure it is a valid Excel or CSV file.");
@@ -389,6 +499,7 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
     const endpoint =
       mode === "create"   ? "/api/products/import" :
       mode === "update"   ? "/api/products/update" :
+      mode === "weighted" ? "/api/products/import-weighted" :
       "/api/products/import-variants";
 
     for (let offset = 0; offset < validRows.length; offset += BATCH) {
@@ -417,6 +528,9 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
         } else if (mode === "update") {
           count += data.updated as number;
           for (const e of (data.errors as UpdateError[])) apiErrors.push({ row: e.row, label: e.identifier, reason: e.reason });
+        } else if (mode === "weighted") {
+          count += data.upserted as number;
+          for (const e of (data.errors as ImportWeightedError[])) apiErrors.push({ row: e.row, label: e.name, reason: e.reason });
         } else {
           count += data.upserted as number;
           for (const e of (data.errors as ImportVariantError[])) apiErrors.push({ row: e.row, label: `${e.product} — ${e.size}`, reason: e.reason });
@@ -436,9 +550,11 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
 
   const isUpdate   = mode === "update";
   const isVariants = mode === "variants";
+  const isWeighted = mode === "weighted";
 
   const actionLabel =
     isVariants ? "Import Variants" :
+    isWeighted ? "Import Weighted" :
     isUpdate   ? "Update" :
     "Import";
 
@@ -446,12 +562,14 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
     create:   <>Upload an Excel (.xlsx, .xls) or CSV file to bulk-import new products. Required columns: <span className="font-semibold text-foreground">Name</span>, <span className="font-semibold text-foreground">Sell Price</span>.</>,
     update:   <>Upload a file to bulk-update existing products. Identify each product by <span className="font-semibold text-foreground">Item Code</span>, <span className="font-semibold text-foreground">SKU</span>, or <span className="font-semibold text-foreground">Name</span>. Only columns you include will be updated — blank cells are left unchanged.</>,
     variants: <>Upload a file to bulk-import or update variant stock. Identify the parent product by <span className="font-semibold text-foreground">Name</span>, <span className="font-semibold text-foreground">Item Code</span>, or <span className="font-semibold text-foreground">SKU</span>. Each row is one size/colour combination. Existing variants are updated; new ones are created.</>,
+    weighted: <>Upload a weighted products file to bulk-import or update scale items. Required columns: <span className="font-semibold text-foreground">Name</span>, <span className="font-semibold text-foreground">Sell Price/kg</span>. Include <span className="font-semibold text-foreground">PLU Code</span> (1–5 digits) to link with your label-printing scale. Existing products are matched by Item Code or Name and updated.</>,
   };
 
   const successLabel = {
     create:   "products imported",
     update:   "products updated",
     variants: "variants imported / updated",
+    weighted: "weighted products imported / updated",
   };
 
   return (
@@ -465,7 +583,7 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
         <DialogHeader className="flex-shrink-0 px-6 py-4 border-b border-border">
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
-            {isVariants ? "Import Variants from Excel" : isUpdate ? "Update Products from Excel" : "Import Products from Excel"}
+            {isVariants ? "Import Variants from Excel" : isWeighted ? "Import Weighted Products from Excel" : isUpdate ? "Update Products from Excel" : "Import Products from Excel"}
           </DialogTitle>
         </DialogHeader>
 
@@ -515,13 +633,33 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
                   <span className="sm:hidden">Variants</span>
                 </button>
               )}
+              {weightedProductsEnabled && (
+                <button
+                  onClick={() => setMode("weighted")}
+                  className={cn(
+                    "flex items-center justify-center gap-2 flex-1 px-3 py-3 text-sm font-medium transition-colors border-b-2 -mb-px",
+                    mode === "weighted"
+                      ? "border-sky-500 text-sky-600"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
+                  )}
+                >
+                  <Scale className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Weighted Products</span>
+                  <span className="sm:hidden">Weighted</span>
+                </button>
+              )}
             </div>
 
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
               <p className="text-sm text-muted-foreground">{modeDescription[mode]}</p>
 
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => downloadTemplate(variantsEnabled)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => downloadTemplate(variantsEnabled, isWeighted)}
+              >
                 <Download className="h-4 w-4" />
                 Download Template
               </Button>
@@ -535,6 +673,17 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
                     <li>Colour, Variant SKU, Stock Qty, Low Stock Alert, Price Override — optional</li>
                   </ul>
                   <p className="text-muted-foreground mt-1">Tip: export your inventory first — the exported file already has a Variants sheet in the right format.</p>
+                </div>
+              )}
+              {isWeighted && (
+                <div className="rounded-lg bg-sky-50 border border-sky-200 px-4 py-3 text-xs text-foreground space-y-1.5 dark:bg-sky-950/30 dark:border-sky-800">
+                  <p className="font-semibold text-sm">Required columns:</p>
+                  <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
+                    <li><span className="font-medium text-foreground">Name</span> — product name (used to match existing)</li>
+                    <li><span className="font-medium text-foreground">Sell Price/kg</span> — price per kilogram</li>
+                    <li>Item Code, PLU Code (1–5 digits), Category, Cost Price, Low Stock Alert — optional</li>
+                  </ul>
+                  <p className="text-muted-foreground mt-1">Existing products are matched by Item Code first, then Name. PLU Code links your digital scale labels to the POS.</p>
                 </div>
               )}
 
@@ -598,6 +747,18 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
                       <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Price Override</th>
                       <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Status</th>
                     </tr>
+                  ) : isWeighted ? (
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground w-12">#</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Name</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Item Code</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">PLU Code</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Category</th>
+                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Cost/kg</th>
+                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Price/kg</th>
+                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Low Stock</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Status</th>
+                    </tr>
                   ) : (
                     <tr>
                       <th className="px-3 py-2 text-left font-semibold text-muted-foreground w-12">#</th>
@@ -637,6 +798,43 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
                           <td className="px-3 py-1.5 text-right font-mono">
                             {r.sellPrice !== undefined && r.sellPrice !== null ? formatLKR(r.sellPrice) : "—"}
                           </td>
+                          <td className="px-3 py-1.5">
+                            {isValid ? (
+                              <span className="flex items-center gap-1 text-[color:var(--brand-success)]">
+                                <CheckCircle2 className="h-3.5 w-3.5" />Upsert
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-destructive" title={row.errors.join("; ")}>
+                                <XCircle className="h-3.5 w-3.5" />
+                                <span className="truncate max-w-[140px]">{row.errors[0]}</span>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    if (isWeighted) {
+                      const r = row.raw as ImportWeightedRow;
+                      return (
+                        <tr key={row.rowNum} className={cn("border-t border-border", isValid ? "bg-background" : "bg-destructive/5")}>
+                          <td className="px-3 py-1.5 text-muted-foreground">{row.rowNum}</td>
+                          <td className="px-3 py-1.5 font-medium max-w-[180px] truncate">
+                            {r.name || <span className="text-destructive italic">missing</span>}
+                          </td>
+                          <td className="px-3 py-1.5 text-muted-foreground font-mono">{r.itemCode || "—"}</td>
+                          <td className="px-3 py-1.5 text-center font-mono font-semibold text-sky-600">
+                            {r.pluCode ? r.pluCode.trim().padStart(5, "0") : "—"}
+                          </td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{r.category || "—"}</td>
+                          <td className="px-3 py-1.5 text-right font-mono">
+                            {r.costPrice !== undefined ? formatLKR(r.costPrice) : "—"}
+                          </td>
+                          <td className="px-3 py-1.5 text-right font-mono font-semibold">
+                            {r.sellPrice !== undefined
+                              ? formatLKR(r.sellPrice)
+                              : <span className="text-destructive">—</span>}
+                          </td>
+                          <td className="px-3 py-1.5 text-right">{r.lowStockAt ?? 0}</td>
                           <td className="px-3 py-1.5">
                             {isValid ? (
                               <span className="flex items-center gap-1 text-[color:var(--brand-success)]">
@@ -705,7 +903,7 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
                 Change File
               </Button>
               <Button onClick={handleImport} disabled={validRows.length === 0} className="gap-2">
-                {`${actionLabel} ${validRows.length} ${isVariants ? "variant" : (isUpdate ? "product" : "product")}${validRows.length !== 1 ? "s" : ""}`}
+                {`${actionLabel} ${validRows.length} ${isVariants ? "variant" : isWeighted ? "product" : isUpdate ? "product" : "product"}${validRows.length !== 1 ? "s" : ""}`}
               </Button>
             </div>
           </div>
@@ -717,7 +915,7 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
             <Loader2 className="h-10 w-10 text-primary animate-spin" />
             <div className="text-center">
               <p className="text-sm font-medium">
-                {isVariants ? "Importing variants…" : isUpdate ? "Updating products…" : "Importing products…"}
+                {isVariants ? "Importing variants…" : isWeighted ? "Importing weighted products…" : isUpdate ? "Updating products…" : "Importing products…"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">{progress} of {progressTotal} processed</p>
             </div>
@@ -783,7 +981,7 @@ export function ImportDialog({ open, variantsEnabled = false, onClose, onImporte
               <div className="flex justify-between gap-3">
                 <Button variant="outline" onClick={reset} className="gap-2">
                   <RotateCcw className="h-4 w-4" />
-                  {isVariants ? "Import Another File" : isUpdate ? "Update Another File" : "Import Another File"}
+                  {isVariants ? "Import Another File" : isWeighted ? "Import Another File" : isUpdate ? "Update Another File" : "Import Another File"}
                 </Button>
                 <Button onClick={handleClose} className="gap-2">
                   <X className="h-4 w-4" />

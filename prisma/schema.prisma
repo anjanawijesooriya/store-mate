@@ -123,6 +123,7 @@ model Shop {
   emailReceiptEnabled  Boolean      @default(true)
   creditReminderEnabled Boolean     @default(false)
   variantsEnabled       Boolean     @default(false)
+  weightedProductsEnabled Boolean   @default(false)
   smsBalance        Decimal      @default(0) @db.Decimal(10, 2)
   billingStatus          BillingStatus @default(TRIAL)
   gracePeriodEndsAt      DateTime?
@@ -226,6 +227,8 @@ model Product {
   lowStockAt Decimal         @db.Decimal(10, 2) @default(5)
   imageUrl        String?
   warrantyPeriod  String?
+  isWeighted      Boolean         @default(false)
+  pluCode         String?
   isService       Boolean         @default(false)
   isActive        Boolean         @default(true)
   createdAt  DateTime        @default(now())

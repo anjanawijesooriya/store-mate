@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
         address: address || null,
         trialEndsAt,
         variantsEnabled: category === ShopCategory.CLOTHING,
+        weightedProductsEnabled: category === ShopCategory.GROCERY || category === ShopCategory.SUPERMARKET,
         users: {
           create: {
             name: ownerName,

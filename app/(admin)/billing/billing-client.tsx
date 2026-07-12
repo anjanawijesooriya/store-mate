@@ -6,7 +6,7 @@ import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
   MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench, Infinity, Search,
-  CalendarClock, AlertTriangle, CreditCard, Shirt,
+  CalendarClock, AlertTriangle, CreditCard, Shirt, Scale,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ interface Shop {
   cardSurchargeEnabled: boolean;
   payrollEnabled: boolean;
   variantsEnabled: boolean;
+  weightedProductsEnabled: boolean;
   maintenanceBanner: boolean;
   maintenanceBannerMessage: string | null;
   branchModeEnabled: boolean;
@@ -178,6 +179,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [togglingCardSurcharge, setTogglingCardSurcharge] = useState<string | null>(null);
   const [togglingPayroll, setTogglingPayroll] = useState<string | null>(null);
   const [togglingVariants, setTogglingVariants] = useState<string | null>(null);
+  const [togglingWeighted, setTogglingWeighted] = useState<string | null>(null);
   const [testingAlert, setTestingAlert] = useState<string | null>(null);
   const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -389,6 +391,24 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       toast.error("Failed to update variants setting");
     } finally {
       setTogglingVariants(null);
+    }
+  }
+
+  async function toggleWeighted(shop: Shop, enabled: boolean) {
+    setTogglingWeighted(shop.id);
+    try {
+      const res = await fetch(`/api/admin/shops/${shop.id}/weighted`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error();
+      await refresh();
+      toast.success(enabled ? "Weighted products enabled" : "Weighted products disabled");
+    } catch {
+      toast.error("Failed to update weighted products setting");
+    } finally {
+      setTogglingWeighted(null);
     }
   }
 
@@ -1182,6 +1202,40 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               >
                                 <Shirt className="h-3.5 w-3.5" />
                                 Enable clothing / variants
+                              </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* Weighted products (scale barcode) toggle */}
+                            {shop.weightedProductsEnabled ? (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmAction({
+                                  title: "Disable Weighted Products",
+                                  description: `Disable scale barcode support for ${shop.name}? The "Sold by weight" toggle will be hidden from products. Existing PLU data is preserved.`,
+                                  confirmLabel: "Disable",
+                                  variant: "destructive",
+                                  onConfirm: () => toggleWeighted(shop, false),
+                                })}
+                                disabled={togglingWeighted === shop.id}
+                                className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
+                              >
+                                <Scale className="h-3.5 w-3.5" />
+                                Disable weighted products
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmAction({
+                                  title: "Enable Weighted Products",
+                                  description: `Enable scale barcode support for ${shop.name}? The shop owner will be able to mark products as "Sold by weight" and assign a 5-digit PLU code that matches their electronic scale.`,
+                                  confirmLabel: "Enable",
+                                  onConfirm: () => toggleWeighted(shop, true),
+                                })}
+                                disabled={togglingWeighted === shop.id}
+                                className="gap-2"
+                              >
+                                <Scale className="h-3.5 w-3.5" />
+                                Enable weighted products
                               </DropdownMenuItem>
                             )}
 

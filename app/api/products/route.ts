@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
         "isService": boolean; "createdAt": Date; "updatedAt": Date;
       }>>`
         SELECT * FROM "Product"
-        WHERE "shopId" = ${shopId} AND "isActive" = true AND "isService" = false AND "stockQty" <= "lowStockAt"
+        WHERE "shopId" = ${shopId} AND "isActive" = true AND "isService" = false AND "isWeighted" = false AND "stockQty" <= "lowStockAt"
         ORDER BY LOWER(name) ASC
         LIMIT ${limit} OFFSET ${(page - 1) * limit}
       `;
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, itemCode, sku, category, unit, costPrice, sellPrice, stockQty, lowStockAt, imageUrl, warrantyPeriod, isService } = body;
+    const { name, itemCode, sku, category, unit, costPrice, sellPrice, stockQty, lowStockAt, imageUrl, warrantyPeriod, isService, isWeighted, pluCode } = body;
 
     if (!name || sellPrice === undefined) {
       return apiError("Name and sell price are required");
@@ -127,6 +127,8 @@ export async function POST(req: NextRequest) {
           lowStockAt: serviceMode ? 0 : parseFloat(lowStockAt ?? 5),
           imageUrl: imageUrl || null,
           warrantyPeriod: serviceMode ? null : (warrantyPeriod?.trim() || null),
+          isWeighted: !serviceMode && !!isWeighted,
+          pluCode: !serviceMode && isWeighted ? (pluCode?.trim() || null) : null,
           isService: serviceMode,
         },
       });
