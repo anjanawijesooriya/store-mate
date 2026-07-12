@@ -145,19 +145,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user) {
-        token.id       = user.id;
-        token.name     = user.name;
-        token.phone    = user.phone;
-        token.shopId   = user.shopId;
-        token.shopName = user.shopName;
-        token.role     = user.role;
-        token.deviceId = user.deviceId;
-        token.planTier = user.planTier;
+        token.id             = user.id;
+        token.name           = user.name;
+        token.phone          = user.phone;
+        token.shopId         = user.shopId;
+        token.shopName       = user.shopName;
+        token.role           = user.role;
+        token.deviceId       = user.deviceId;
+        token.planTier       = user.planTier;
+        token.planTierSyncAt = Date.now();
       }
       // Called when useSession().update() is triggered from the client
       if (trigger === "update" && session) {
         if (session.name)     token.name     = session.name;
         if (session.shopName) token.shopName = session.shopName;
+      }
+      // Re-read planTier from DB if the cached value is older than 2 minutes.
+      // This ensures plan upgrades/downgrades by admin propagate without re-login.
+      const syncAt = (token.planTierSyncAt as number | undefined) ?? 0;
+      if (!user && token.shopId && Date.now() - syncAt > 2 * 60 * 1000) {
+        const shop = await db.shop.findUnique({
+          where:  { id: token.shopId as string },
+          select: { planTier: true },
+        });
+        if (shop) token.planTier = shop.planTier;
+        token.planTierSyncAt = Date.now();
       }
       return token;
     },
