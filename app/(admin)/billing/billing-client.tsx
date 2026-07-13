@@ -6,7 +6,7 @@ import {
   CheckCircle, Lock, Unlock, RefreshCcw, Loader2,
   Users, TrendingUp, Clock, ShieldAlert, MessageSquare,
   MoreVertical, Trash2, Plus, WifiOff, Play, Receipt, Mail, Wrench, Infinity, Search,
-  CalendarClock, AlertTriangle, CreditCard, Shirt, Scale,
+  CalendarClock, AlertTriangle, CreditCard, Shirt, Scale, ClipboardCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ interface Shop {
   cardSurchargeEnabled: boolean;
   payrollEnabled: boolean;
   variantsEnabled: boolean;
+  grnEnabled: boolean;
   weightedProductsEnabled: boolean;
   maintenanceBanner: boolean;
   maintenanceBannerMessage: string | null;
@@ -179,6 +180,7 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
   const [togglingCardSurcharge, setTogglingCardSurcharge] = useState<string | null>(null);
   const [togglingPayroll, setTogglingPayroll] = useState<string | null>(null);
   const [togglingVariants, setTogglingVariants] = useState<string | null>(null);
+  const [togglingGrn, setTogglingGrn] = useState<string | null>(null);
   const [togglingWeighted, setTogglingWeighted] = useState<string | null>(null);
   const [testingAlert, setTestingAlert] = useState<string | null>(null);
   const [togglingLifetime, setTogglingLifetime] = useState<string | null>(null);
@@ -373,6 +375,24 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
       toast.error("Failed to update payroll setting");
     } finally {
       setTogglingPayroll(null);
+    }
+  }
+
+  async function toggleGrn(shop: Shop, enabled: boolean) {
+    setTogglingGrn(shop.id);
+    try {
+      const res = await fetch(`/api/admin/shops/${shop.id}/grn`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(enabled ? "GRN module enabled" : "GRN module disabled");
+      setShops((prev) => prev.map((s) => s.id === shop.id ? { ...s, grnEnabled: enabled } : s));
+    } catch {
+      toast.error("Failed to update GRN setting");
+    } finally {
+      setTogglingGrn(null);
     }
   }
 
@@ -1202,6 +1222,40 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                               >
                                 <Shirt className="h-3.5 w-3.5" />
                                 Enable clothing / variants
+                              </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            {/* GRN module toggle */}
+                            {shop.grnEnabled ? (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmAction({
+                                  title: "Disable GRN Module",
+                                  description: `Disable Goods Received Notes for ${shop.name}? The GRN section will be hidden. Existing GRN data is preserved.`,
+                                  confirmLabel: "Disable",
+                                  variant: "destructive",
+                                  onConfirm: () => toggleGrn(shop, false),
+                                })}
+                                disabled={togglingGrn === shop.id}
+                                className="gap-2 text-amber-600 dark:text-amber-400 focus:text-amber-600"
+                              >
+                                <ClipboardCheck className="h-3.5 w-3.5" />
+                                Disable GRN module
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmAction({
+                                  title: "Enable GRN Module",
+                                  description: `Enable Goods Received Notes for ${shop.name}? The shop owner will be able to record incoming stock from suppliers and optionally create new products inline.`,
+                                  confirmLabel: "Enable",
+                                  onConfirm: () => toggleGrn(shop, true),
+                                })}
+                                disabled={togglingGrn === shop.id}
+                                className="gap-2"
+                              >
+                                <ClipboardCheck className="h-3.5 w-3.5" />
+                                Enable GRN module
                               </DropdownMenuItem>
                             )}
 

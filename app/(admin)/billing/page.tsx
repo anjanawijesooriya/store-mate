@@ -27,6 +27,7 @@ export default async function AdminBillingPage() {
       cardSurchargeEnabled: true,
       payrollEnabled: true,
       variantsEnabled: true,
+      grnEnabled: true,
       weightedProductsEnabled: true,
       isLifetime: true,
       maintenanceDueDate: true,

@@ -41,6 +41,13 @@ enum MovementType {
   ADJUSTMENT
   RETURN
   DAMAGE
+  PURCHASE
+}
+
+enum GRNStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
 }
 
 enum PaymentMethod {
@@ -138,6 +145,7 @@ model Shop {
   maintenanceDueDate     DateTime?
   maintenancePaidUntil   DateTime?
   payrollEnabled         Boolean       @default(false)
+  grnEnabled             Boolean       @default(false)
   // Branch Mode — null means standalone shop, set when owner links branches
   shopGroupId       String?
   shopGroup         ShopGroup?   @relation(fields: [shopGroupId], references: [id])
@@ -153,6 +161,7 @@ model Shop {
   devices              DeviceSession[]
   employees            Employee[]
   payrollRecords       PayrollRecord[]
+  grns                 GRN[]
 
   @@index([shopGroupId])
 }
@@ -237,6 +246,7 @@ model Product {
   movements  StockMovement[]
   saleItems  SaleItem[]
   variants   ProductVariant[]
+  grnItems   GRNItem[]
 
   @@index([shopId])
   @@unique([shopId, sku])
@@ -270,6 +280,43 @@ model StockMovement {
   quantity  Decimal      @db.Decimal(10, 2)
   note      String?
   createdAt DateTime     @default(now())
+}
+
+model GRN {
+  id           String    @id @default(cuid())
+  shopId       String
+  shop         Shop      @relation(fields: [shopId], references: [id])
+  supplierName String?
+  referenceNo  String?
+  note         String?
+  status       GRNStatus @default(DRAFT)
+  confirmedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  items        GRNItem[]
+
+  @@index([shopId])
+}
+
+model GRNItem {
+  id          String   @id @default(cuid())
+  grnId       String
+  grn         GRN      @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+
+  // Fields for inline new-product creation (used when productId is null)
+  newName      String?
+  newCategory  String?
+  newUnit      String?
+  newSellPrice Decimal? @db.Decimal(10, 2)
+  newItemCode  String?
+
+  quantity   Decimal @db.Decimal(10, 2)
+  unitCost   Decimal @db.Decimal(10, 2)
+  updateCost Boolean @default(true)
+
+  @@index([grnId])
 }
 
 model Customer {

@@ -16,6 +16,7 @@ import {
   Zap,
   Lock,
   Briefcase,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
   const pathname = usePathname();
   const [isOnline, setIsOnline] = useState(true);
   const [payrollEnabled, setPayrollEnabled] = useState(false);
+  const [grnEnabled, setGrnEnabled]         = useState(false);
   const isBasic = !planTier || planTier === "BASIC";
 
   useEffect(() => {
@@ -64,8 +66,11 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
   useEffect(() => {
     function checkFeatures() {
       fetch("/api/shop/features")
-        .then((r) => r.ok ? r.json() : { payrollEnabled: false })
-        .then((d) => setPayrollEnabled(d.payrollEnabled ?? false))
+        .then((r) => r.ok ? r.json() : { payrollEnabled: false, grnEnabled: false })
+        .then((d) => {
+          setPayrollEnabled(d.payrollEnabled ?? false);
+          setGrnEnabled(d.grnEnabled ?? false);
+        })
         .catch(() => {});
     }
 
@@ -207,6 +212,27 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
             </Link>
           );
         })}
+
+        {/* GRN — admin-enabled add-on */}
+        {grnEnabled && (() => {
+          const active = pathname === "/grn" || pathname.startsWith("/grn/");
+          return (
+            <Link
+              href="/grn"
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                active
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+              )}
+            >
+              <ClipboardCheck className={cn("h-[18px] w-[18px] flex-shrink-0", active ? "text-primary" : "")} />
+              Receive Stock
+              {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+            </Link>
+          );
+        })()}
 
         {/* Payroll — admin-enabled add-on */}
         {payrollEnabled && (

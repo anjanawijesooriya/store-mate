@@ -7,9 +7,12 @@ export async function GET(_req: NextRequest) {
     const shopId = await getShopId();
     const shop = await db.shop.findUnique({
       where: { id: shopId },
-      select: { payrollEnabled: true },
+      select: { payrollEnabled: true, grnEnabled: true },
     });
-    return Response.json({ payrollEnabled: shop?.payrollEnabled ?? false });
+    return Response.json({
+      payrollEnabled: shop?.payrollEnabled ?? false,
+      grnEnabled:     shop?.grnEnabled     ?? false,
+    });
   } catch (err) {
     if (err instanceof UnauthorizedError) return apiUnauthorized();
     return apiError("Failed to fetch features", 500);
