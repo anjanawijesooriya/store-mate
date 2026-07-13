@@ -19,6 +19,8 @@ import {
   Mail,
   Link,
   Share2,
+  Printer,
+  ExternalLink,
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -204,6 +206,96 @@ export function SalesClient() {
       .catch(() => {
         window.open(`/r/${saleId}`, "_blank");
       });
+  }
+
+  const [printingSaleId, setPrintingSaleId] = useState<string | null>(null);
+
+  async function handlePrintSale(saleId: string) {
+    setPrintingSaleId(saleId);
+    try {
+      const res = await fetch(`/api/receipt/${saleId}`);
+      if (!res.ok) { toast.error("Failed to load receipt"); return; }
+      const r = await res.json();
+
+      const payLabel: Record<string, string> = { CASH: "Cash", CARD: "Card", ONLINE: "Online", CREDIT: "Credit" };
+
+      const itemsHtml = r.items.map((it: { name: string; itemCode?: string | null; quantity: number; unit: string; unitPrice: number; lineTotal: number }) => `
+        <div style="display:flex;justify-content:space-between;margin-top:6px;">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:6px;">${it.name}</span>
+          <span style="flex-shrink:0;font-weight:600;">${formatLKR(it.lineTotal)}</span>
+        </div>
+        ${it.itemCode ? `<div style="font-size:11px;color:#555;">Code: ${it.itemCode}</div>` : ""}
+        <div style="font-size:11px;color:#555;">${it.quantity} ${it.unit} × ${formatLKR(it.unitPrice)}</div>
+      `).join("");
+
+      const discountHtml = r.discount > 0 ? `
+        <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
+          <span>Subtotal</span><span>${formatLKR(r.subtotal)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;color:#16a34a;font-size:12px;">
+          <span>Discount</span><span>- ${formatLKR(r.discount)}</span>
+        </div>` : "";
+
+      const cashHtml = r.paymentMethod === "CASH" && r.amountPaid >= r.total ? `
+        <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
+          <span>Tendered</span><span>${formatLKR(r.amountPaid)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
+          <span>Change</span><span>${formatLKR(r.amountPaid - r.total)}</span>
+        </div>` : "";
+
+      const creditHtml = r.paymentMethod === "CREDIT" ? `
+        <div style="display:flex;justify-content:space-between;color:#dc2626;font-weight:500;font-size:12px;">
+          <span>Amount Due (on credit)</span><span>${formatLKR(r.total)}</span>
+        </div>` : "";
+
+      const html = `<!DOCTYPE html><html><head>
+<meta charset="utf-8"><title>Receipt</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Courier New',monospace;font-size:12px;color:#111;background:white;padding:12px;max-width:320px;margin:0 auto;}
+  .divider{border:none;border-top:1px dashed #999;margin:8px 0;}
+  @media print{body{padding:0;}}
+</style>
+</head><body>
+  <div style="text-align:center;">
+    <div style="font-size:15px;font-weight:bold;margin-bottom:2px;">${r.shopName}</div>
+    ${r.shopAddress ? `<div style="font-size:11px;color:#555;">${r.shopAddress}</div>` : ""}
+    ${r.shopPhone   ? `<div style="font-size:11px;color:#555;">Tel: ${r.shopPhone}</div>` : ""}
+  </div>
+  <hr class="divider">
+  <div style="display:flex;justify-content:space-between;font-size:11px;color:#555;">
+    <span>${new Date(r.createdAt).toLocaleString("en-LK",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+    <span>#${r.id.slice(-6).toUpperCase()}</span>
+  </div>
+  ${r.customerName ? `<div style="font-size:11px;color:#555;margin-top:4px;">Customer: ${r.customerName}</div>` : ""}
+  <hr class="divider">
+  ${itemsHtml}
+  <hr class="divider">
+  ${discountHtml}
+  <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin:4px 0;">
+    <span>Total</span><span style="color:#16a34a;">${formatLKR(r.total)}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
+    <span>Payment</span><span style="color:#111;font-weight:500;">${payLabel[r.paymentMethod] ?? r.paymentMethod}</span>
+  </div>
+  ${cashHtml}${creditHtml}
+  <hr class="divider">
+  <div style="text-align:center;font-weight:bold;margin-top:4px;">Thank you — Come again!</div>
+  <div style="text-align:center;font-size:11px;color:#555;">Please keep this receipt for your records.</div>
+</body></html>`;
+
+      const w = window.open("", "_blank", "width=380,height=600");
+      if (!w) { toast.error("Pop-up blocked — allow pop-ups to print"); return; }
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => { w.print(); w.close(); }, 300);
+    } catch {
+      toast.error("Failed to print receipt");
+    } finally {
+      setPrintingSaleId(null);
+    }
   }
 
   // Void / Refund
@@ -587,6 +679,22 @@ export function SalesClient() {
                           <div className="flex flex-col gap-2 items-end">
                             {/* Receipt actions — available for all sales */}
                             <div className="flex gap-2 flex-wrap justify-end">
+                              <Button size="sm" variant="outline"
+                                className="text-xs h-8"
+                                onClick={() => window.open(`/r/${sale.id}`, "_blank")}
+                              >
+                                <ExternalLink className="h-3 w-3 mr-1" /> View
+                              </Button>
+                              <Button size="sm" variant="outline"
+                                className="text-xs h-8"
+                                onClick={() => handlePrintSale(sale.id)}
+                                disabled={printingSaleId === sale.id}
+                              >
+                                {printingSaleId === sale.id
+                                  ? <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                  : <Printer className="h-3 w-3 mr-1" />}
+                                Print
+                              </Button>
                               {emailReceiptEnabled && (
                                 sale.customer?.email ? (
                                   <Button size="sm" variant="outline"
