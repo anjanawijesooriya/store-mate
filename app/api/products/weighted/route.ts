@@ -15,6 +15,7 @@ export async function GET() {
         category: true,
         costPrice: true,
         sellPrice: true,
+        stockQty: true,
         lowStockAt: true,
       },
       orderBy: { name: "asc" },

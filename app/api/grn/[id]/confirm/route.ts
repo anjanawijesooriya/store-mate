@@ -22,8 +22,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     // Validate new-product items before entering the transaction
     for (const item of grn.items) {
       if (!item.productId) {
-        if (!item.newName?.trim())          return apiError("New product item is missing a name", 400);
-        if (item.newSellPrice == null)      return apiError(`New product "${item.newName}" is missing a sell price`, 400);
+        if (!item.newName?.trim()) return apiError("New product item is missing a name", 400);
+        // Sell price required for plain new products; optional per variant (variant overrides product price)
+        if (!item.newVariantSize && item.newSellPrice == null)
+          return apiError(`New product "${item.newName}" is missing a sell price`, 400);
+        if (item.newVariantSize && !item.newVariantSize.trim())
+          return apiError(`Variant size cannot be empty for "${item.newName}"`, 400);
       }
     }
 
@@ -35,62 +39,107 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       });
       if (locked.count === 0) throw new Error("GRN has already been confirmed or cancelled");
 
+      // Track new products created in this GRN by name so we create each only once
+      const newProductMap = new Map<string, string>(); // newName → productId
+
+      const grnNote = `GRN #${grn.id.slice(-6).toUpperCase()}${grn.supplierName ? ` — ${grn.supplierName}` : ""}`;
+
       for (const item of grn.items) {
-        let productId = item.productId;
-
-        // ── Create new product if this is an inline new-product line ──
-        if (!productId) {
-          let newProduct: { id: string };
-          try {
-            newProduct = await tx.product.create({
-              data: {
-                shopId,
-                name:      item.newName!,
-                category:  item.newCategory ?? null,
-                unit:      item.newUnit     ?? "pcs",
-                sellPrice: item.newSellPrice!,
-                costPrice: Number(item.unitCost),
-                itemCode:  item.newItemCode ?? null,
-                stockQty:  0,
-              },
-              select: { id: true },
-            });
-          } catch (e: unknown) {
-            const pe = e as { code?: string };
-            if (pe.code === "P2002") throw new Error(`Item code "${item.newItemCode}" is already in use by another product`);
-            throw e;
-          }
-          productId = newProduct.id;
-
-          // Link the GRNItem to the newly created product
-          await tx.gRNItem.update({ where: { id: item.id }, data: { productId } });
-        }
-
+        let productId = item.productId ?? null;
         const qty  = Number(item.quantity);
         const cost = Number(item.unitCost);
 
-        // ── Increment product stock ───────────────────────────
-        await tx.product.update({
-          where: { id: productId },
-          data: { stockQty: { increment: qty } },
-        });
+        // ── Create / reuse new product ────────────────────────
+        if (!productId) {
+          const name = item.newName!;
 
-        // ── Optionally update costPrice ───────────────────────
-        if (item.updateCost) {
+          if (newProductMap.has(name)) {
+            productId = newProductMap.get(name)!;
+          } else {
+            // For variant-based new products, derive product sell price from first variant's price or 0
+            const productSellPrice = item.newVariantSize
+              ? (item.newSellPrice != null ? Number(item.newSellPrice) : 0)
+              : Number(item.newSellPrice!);
+
+            let newProduct: { id: string };
+            try {
+              newProduct = await tx.product.create({
+                data: {
+                  shopId,
+                  name,
+                  category:   item.newCategory  ?? null,
+                  unit:       item.newUnit       ?? "pcs",
+                  sellPrice:  productSellPrice,
+                  costPrice:  cost,
+                  itemCode:   item.newItemCode   ?? null,
+                  stockQty:   0,
+                  isWeighted: item.newIsWeighted ?? false,
+                  pluCode:    item.newPluCode    ?? null,
+                },
+                select: { id: true },
+              });
+            } catch (e: unknown) {
+              const pe = e as { code?: string };
+              if (pe.code === "P2002") throw new Error(`Item code "${item.newItemCode}" is already in use by another product`);
+              throw e;
+            }
+            productId = newProduct.id;
+            newProductMap.set(name, productId);
+          }
+
+          await tx.gRNItem.update({ where: { id: item.id }, data: { productId } });
+        }
+
+        const noteWithVariant = item.variantLabel
+          ? `${grnNote} [${item.variantLabel}]`
+          : item.newVariantSize
+            ? `${grnNote} [${item.newVariantSize}${item.newVariantColor ? " / " + item.newVariantColor : ""}]`
+            : grnNote;
+
+        if (item.variantId) {
+          // ── Existing product, specific variant ────────────────
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data:  { stockQty: { increment: qty } },
+          });
+        } else if (item.newVariantSize) {
+          // ── New product with inline variant ───────────────────
+          try {
+            await tx.productVariant.create({
+              data: {
+                productId: productId!,
+                size:      item.newVariantSize.trim(),
+                color:     item.newVariantColor?.trim() || null,
+                stockQty:  qty,
+                sellPrice: item.newSellPrice != null ? Number(item.newSellPrice) : null,
+              },
+            });
+          } catch (e: unknown) {
+            const pe = e as { code?: string };
+            if (pe.code === "P2002") throw new Error(
+              `Variant "${item.newVariantSize}${item.newVariantColor ? " / " + item.newVariantColor : ""}" already exists for "${item.newName}"`
+            );
+            throw e;
+          }
+        } else {
+          // ── Regular product (no variants) ─────────────────────
           await tx.product.update({
-            where: { id: productId },
-            data: { costPrice: cost },
+            where: { id: productId! },
+            data:  { stockQty: { increment: qty } },
+          });
+        }
+
+        // ── Optionally update costPrice (always at product level) ─
+        if (item.updateCost && !item.newVariantSize) {
+          await tx.product.update({
+            where: { id: productId! },
+            data:  { costPrice: cost },
           });
         }
 
         // ── Record PURCHASE stock movement ────────────────────
         await tx.stockMovement.create({
-          data: {
-            productId,
-            type:     "PURCHASE",
-            quantity: qty,
-            note:     `GRN #${grn.id.slice(-6).toUpperCase()}${grn.supplierName ? ` — ${grn.supplierName}` : ""}`,
-          },
+          data: { productId: productId!, type: "PURCHASE", quantity: qty, note: noteWithVariant },
         });
       }
 

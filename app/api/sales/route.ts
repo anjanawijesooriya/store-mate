@@ -176,9 +176,9 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Decrement stock and create movements — skip for services and weighted products
+      // Decrement stock and create movements — skip for services
       for (const item of saleItems) {
-        if (item.isService || item.isWeighted) continue;
+        if (item.isService) continue;
         if (item.variantId) {
           // Variant product: deduct from variant stock only
           await tx.productVariant.update({

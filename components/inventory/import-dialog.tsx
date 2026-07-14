@@ -82,6 +82,9 @@ const WEIGHTED_ALIASES: Record<string, WeightedColKey> = {
   "sell price l": "sellPrice", "price per l": "sellPrice",
   "sell price ml": "sellPrice", "price per ml": "sellPrice",
   "sell price g": "sellPrice", "price per g": "sellPrice",
+  "stock": "stockQty", "stock qty": "stockQty", "stock quantity": "stockQty",
+  "quantity": "stockQty", "qty": "stockQty", "opening stock": "stockQty",
+  "initial stock": "stockQty", "on hand": "stockQty",
   "low stock": "lowStockAt", "low stock alert": "lowStockAt", "min stock": "lowStockAt",
   "low stock at": "lowStockAt", "low stock alert (kg)": "lowStockAt",
   "low stock (kg)": "lowStockAt", "min stock (kg)": "lowStockAt",
@@ -237,6 +240,7 @@ function parseSheetForWeighted(data: unknown[][]): WeightedPreviewRow[] {
     if (raw.sellPrice === undefined) errors.push("Sell Price (per kg) is required");
     else if ((raw.sellPrice as number) < 0) errors.push("Sell Price must be ≥ 0");
     if (raw.pluCode && !/^\d{1,5}$/.test(raw.pluCode.trim())) errors.push("PLU Code must be 1–5 digits");
+    if (raw.stockQty !== undefined && (raw.stockQty as number) < 0) errors.push("Stock Qty must be ≥ 0");
     if (raw.lowStockAt !== undefined && (raw.lowStockAt as number) < 0) errors.push("Low Stock Alert must be ≥ 0");
     rows.push({ rowNum: i + 1, raw: raw as ImportWeightedRow, errors });
   }
@@ -319,9 +323,9 @@ async function downloadTemplate(includeVariants: boolean, weightedMode = false) 
 
   // Weighted products sheet — separate template when in weighted mode
   if (weightedMode) {
-    const wHeaders = ["Name", "Item Code", "Unit (kg/g/L/ml)", "PLU Code", "Category", "Cost Price", "Price/unit", "Low Stock Alert"];
+    const wHeaders = ["Name", "Item Code", "Unit (kg/g/L/ml)", "PLU Code", "Category", "Cost Price", "Price/unit", "Stock Qty", "Low Stock Alert"];
 
-    type WRow = { name: string; itemCode: string | null; unit: string; pluCode: string | null; category: string | null; costPrice: number; sellPrice: number; lowStockAt: number };
+    type WRow = { name: string; itemCode: string | null; unit: string; pluCode: string | null; category: string | null; costPrice: unknown; sellPrice: unknown; stockQty: unknown; lowStockAt: unknown };
     let wRows: unknown[][] = [];
     try {
       const res = await fetch("/api/products/weighted");
@@ -335,9 +339,10 @@ async function downloadTemplate(includeVariants: boolean, weightedMode = false) 
             p.unit ?? "kg",
             p.pluCode ?? "",
             p.category ?? "",
-            Number(p.costPrice),
-            Number(p.sellPrice),
-            Number(p.lowStockAt),
+            Number(p.costPrice) || 0,
+            Number(p.sellPrice) || 0,
+            Number(p.stockQty)  || 0,
+            Number(p.lowStockAt) || 0,
           ]);
         }
       }
@@ -345,17 +350,17 @@ async function downloadTemplate(includeVariants: boolean, weightedMode = false) 
 
     if (wRows.length === 0) {
       wRows = [
-        ["Chicken Breast",   "WP-001", "kg", "00001", "Meat & Seafood", 600,   850,  0],
-        ["Beef",             "WP-002", "kg", "00002", "Meat & Seafood", 900,  1200,  0],
-        ["Red Rice",         "WP-003", "kg", "00003", "Groceries",      150,   220,  0],
-        ["Coconut Oil (bulk)","WP-004", "l",  "",     "Groceries",      400,   550,  0],
-        ["Vanilla Extract",  "WP-005", "ml", "",      "Groceries",      1200, 1800,  0],
+        ["Chicken Breast",    "WP-001", "kg", "00001", "Meat & Seafood", 600,   850,  0, 0],
+        ["Beef",              "WP-002", "kg", "00002", "Meat & Seafood", 900,  1200,  0, 0],
+        ["Red Rice",          "WP-003", "kg", "00003", "Groceries",      150,   220,  0, 0],
+        ["Coconut Oil (bulk)","WP-004", "l",  "",      "Groceries",      400,   550,  0, 0],
+        ["Vanilla Extract",   "WP-005", "ml", "",      "Groceries",      1200, 1800,  0, 0],
       ];
     }
 
     const wsW = XLSX.utils.aoa_to_sheet([wHeaders, ...wRows]);
     wsW["!cols"] = [
-      { wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 11 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
+      { wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 11 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 18 },
     ];
     XLSX.utils.book_append_sheet(wb, wsW, "Weighted Products");
     XLSX.writeFile(wb, "estoremate-weighted-products.xlsx");
@@ -765,6 +770,7 @@ export function ImportDialog({ open, variantsEnabled = false, weightedProductsEn
                       <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Category</th>
                       <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Cost</th>
                       <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Price/unit</th>
+                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Stock</th>
                       <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Low Stock</th>
                       <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Status</th>
                     </tr>
@@ -846,6 +852,7 @@ export function ImportDialog({ open, variantsEnabled = false, weightedProductsEn
                               ? formatLKR(r.sellPrice)
                               : <span className="text-destructive">—</span>}
                           </td>
+                          <td className="px-3 py-1.5 text-right">{r.stockQty ?? 0}</td>
                           <td className="px-3 py-1.5 text-right">{r.lowStockAt ?? 0}</td>
                           <td className="px-3 py-1.5">
                             {isValid ? (

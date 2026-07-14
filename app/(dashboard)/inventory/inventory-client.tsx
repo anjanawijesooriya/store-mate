@@ -49,6 +49,7 @@ interface Product {
   warrantyPeriod: string | null;
   isService: boolean;
   isWeighted?: boolean;
+  pluCode?: string | null;
   _count?: { variants: number };
 }
 
@@ -58,12 +59,26 @@ function formatLKR(n: number) {
 }
 
 function StockBadge({ qty, low, isWeighted, unit }: { qty: number; low: number; isWeighted?: boolean; unit?: string }) {
-  if (isWeighted)
+  if (isWeighted) {
+    if (qty <= 0)
+      return (
+        <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15">
+          Out of stock
+        </Badge>
+      );
+    if (qty <= low)
+      return (
+        <Badge className="bg-[color:var(--brand-warning)]/15 text-[color:var(--brand-warning)] border-[color:var(--brand-warning)]/30 hover:bg-[color:var(--brand-warning)]/15">
+          <AlertTriangle className="h-3 w-3 mr-1" />
+          Low ({qty} {unit || "unit"})
+        </Badge>
+      );
     return (
       <Badge className="bg-sky-50 text-sky-600 border-sky-200 hover:bg-sky-50 dark:bg-sky-950/30 dark:border-sky-800 dark:text-sky-400">
-        per {unit || "unit"}
+        {qty} {unit || "unit"}
       </Badge>
     );
+  }
   if (qty <= 0)
     return (
       <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15">
@@ -232,6 +247,7 @@ export function InventoryClient() {
       const headers = [
         "Name", "Item Code", "SKU", "Category", "Unit",
         "Cost Price", "Sell Price", "Stock Qty", "Low Stock Alert", "Warranty Period",
+        "Weighted (YES/NO)", "PLU Code",
       ];
       const rows = allProducts.map((p) => [
         p.name,
@@ -244,11 +260,14 @@ export function InventoryClient() {
         Number(p.stockQty),
         Number(p.lowStockAt),
         p.warrantyPeriod ?? "",
+        p.isWeighted ? "YES" : "NO",
+        p.pluCode ?? "",
       ]);
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
       ws["!cols"] = [
         { wch: 24 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 8 },
         { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 17 }, { wch: 16 },
+        { wch: 18 }, { wch: 10 },
       ];
       const sheetName = tab === "service" ? "Services" : "Products";
       XLSX.utils.book_append_sheet(wb, ws, sheetName);

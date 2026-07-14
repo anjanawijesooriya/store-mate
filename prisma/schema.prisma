@@ -258,6 +258,7 @@ model ProductVariant {
   productId  String
   product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
   saleItems  SaleItem[]
+  grnItems   GRNItem[]
   size       String
   color      String?
   sku        String?
@@ -303,20 +304,28 @@ model GRNItem {
   grnId       String
   grn         GRN      @relation(fields: [grnId], references: [id], onDelete: Cascade)
   productId   String?
-  product     Product? @relation(fields: [productId], references: [id])
+  product     Product?        @relation(fields: [productId], references: [id])
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantLabel String?
 
   // Fields for inline new-product creation (used when productId is null)
-  newName      String?
-  newCategory  String?
-  newUnit      String?
-  newSellPrice Decimal? @db.Decimal(10, 2)
-  newItemCode  String?
+  newName         String?
+  newCategory     String?
+  newUnit         String?
+  newSellPrice    Decimal? @db.Decimal(10, 2)
+  newItemCode     String?
+  newVariantSize  String?
+  newVariantColor String?
+  newIsWeighted   Boolean @default(false)
+  newPluCode      String?
 
   quantity   Decimal @db.Decimal(10, 2)
   unitCost   Decimal @db.Decimal(10, 2)
   updateCost Boolean @default(true)
 
   @@index([grnId])
+  @@index([variantId])
 }
 
 model Customer {

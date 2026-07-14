@@ -57,11 +57,16 @@ interface GRNItem {
   id: string;
   productId: string | null;
   product: { id: string; name: string; unit: string; costPrice: number; itemCode: string | null } | null;
+  variantId: string | null;
+  variantLabel: string | null;
+  variant: { id: string; size: string; color: string | null; stockQty: number } | null;
   newName: string | null;
   newCategory: string | null;
   newUnit: string | null;
   newSellPrice: number | null;
   newItemCode: string | null;
+  newVariantSize: string | null;
+  newVariantColor: string | null;
   quantity: number;
   unitCost: number;
   updateCost: boolean;
@@ -85,6 +90,15 @@ interface ProductHit {
   costPrice: number;
   stockQty: number;
   itemCode: string | null;
+  hasVariants: boolean;
+}
+
+interface VariantHit {
+  id: string;
+  size: string;
+  color: string | null;
+  stockQty: number;
+  sku: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,7 +125,7 @@ function itemUnit(item: GRNItem): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function GrnDetailClient({ id }: { id: string }) {
+export function GrnDetailClient({ id, variantsEnabled = false, weightedProductsEnabled = false }: { id: string; variantsEnabled?: boolean; weightedProductsEnabled?: boolean }) {
   const router = useRouter();
 
   const [grn, setGrn]         = useState<GRN | null>(null);
@@ -137,6 +151,11 @@ export function GrnDetailClient({ id }: { id: string }) {
   const [addUpdateCost, setAddUpdateCost]     = useState(true);
   const [addingItem, setAddingItem]           = useState(false);
 
+  // Variant picker
+  const [variants, setVariants]               = useState<VariantHit[]>([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState("");
+
   // New-product mode
   const [newProductMode, setNewProductMode]   = useState(false);
   const [npName, setNpName]                   = useState("");
@@ -146,6 +165,13 @@ export function GrnDetailClient({ id }: { id: string }) {
   const [npItemCode, setNpItemCode]           = useState("");
   const [npQty, setNpQty]                     = useState("");
   const [npCost, setNpCost]                   = useState("");
+  // Variant toggle for new products
+  const [npHasVariants, setNpHasVariants]     = useState(false);
+  const [npIsWeighted, setNpIsWeighted]       = useState(false);
+  const [npPluCode, setNpPluCode]             = useState("");
+  const [npVariantRows, setNpVariantRows]     = useState<{ _id: string; size: string; color: string; qty: string; cost: string; sellPrice: string }[]>([
+    { _id: "1", size: "", color: "", qty: "", cost: "", sellPrice: "" },
+  ]);
 
   // Remove item
   const [removingItemId, setRemovingItemId]   = useState<string | null>(null);
@@ -188,10 +214,11 @@ export function GrnDetailClient({ id }: { id: string }) {
         const res = await fetch(`/api/products?search=${encodeURIComponent(search.trim())}&limit=8`);
         const data = await res.json();
         setSearchResults(
-          (data.products ?? []).map((p: ProductHit & { costPrice: string | number; stockQty: string | number }) => ({
+          (data.products ?? []).map((p: ProductHit & { costPrice: string | number; stockQty: string | number; _count?: { variants: number } }) => ({
             ...p,
-            costPrice: Number(p.costPrice),
-            stockQty:  Number(p.stockQty),
+            costPrice:   Number(p.costPrice),
+            stockQty:    Number(p.stockQty),
+            hasVariants: (p._count?.variants ?? 0) > 0,
           }))
         );
       } catch { /* silent */ } finally { setSearching(false); }
@@ -205,7 +232,19 @@ export function GrnDetailClient({ id }: { id: string }) {
     setAddQty("");
     setSearch("");
     setSearchResults([]);
+    setSelectedVariantId("");
     setNewProductMode(false);
+
+    if (p.hasVariants) {
+      setLoadingVariants(true);
+      fetch(`/api/products/${p.id}/variants`)
+        .then((r) => r.ok ? r.json() : { variants: [] })
+        .then((d) => setVariants(d.variants ?? []))
+        .catch(() => setVariants([]))
+        .finally(() => setLoadingVariants(false));
+    } else {
+      setVariants([]);
+    }
   }
 
   function clearAddForm() {
@@ -215,8 +254,14 @@ export function GrnDetailClient({ id }: { id: string }) {
     setAddUpdateCost(true);
     setSearch("");
     setSearchResults([]);
+    setVariants([]);
+    setSelectedVariantId("");
     setNpName(""); setNpCategory(""); setNpUnit("pcs");
     setNpSellPrice(""); setNpItemCode(""); setNpQty(""); setNpCost("");
+    setNpHasVariants(false);
+    setNpIsWeighted(false);
+    setNpPluCode("");
+    setNpVariantRows([{ _id: "1", size: "", color: "", qty: "", cost: "", sellPrice: "" }]);
   }
 
   // ── Save header ───────────────────────────────────────────────
@@ -247,33 +292,15 @@ export function GrnDetailClient({ id }: { id: string }) {
     const cost = parseFloat(addCost);
     if (!selectedProduct || isNaN(qty) || qty <= 0 || isNaN(cost) || cost < 0) return;
 
-    setAddingItem(true);
-    try {
-      const res = await fetch(`/api/grn/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add_item", productId: selectedProduct.id, quantity: qty, unitCost: cost, updateCost: addUpdateCost }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Failed to add item"); return; }
-      setGrn((g) => g ? { ...g, items: [...g.items, data.item] } : g);
-      clearAddForm();
-      toast.success(`${selectedProduct.name} added`);
-    } catch {
-      toast.error("Failed to add item");
-    } finally {
-      setAddingItem(false);
-    }
-  }
-
-  async function handleAddNewProduct() {
-    const qty  = parseFloat(npQty);
-    const cost = parseFloat(npCost);
-    const sellP = npSellPrice ? parseFloat(npSellPrice) : null;
-    if (!npName.trim() || isNaN(qty) || qty <= 0 || isNaN(cost) || cost < 0) {
-      toast.error("Product name, quantity, and cost price are required");
+    if (selectedProduct.hasVariants && !selectedVariantId) {
+      toast.error("Please select a variant before adding");
       return;
     }
+
+    const selectedVariant = variants.find((v) => v.id === selectedVariantId);
+    const variantLabel = selectedVariant
+      ? `${selectedVariant.size}${selectedVariant.color ? " / " + selectedVariant.color : ""}`
+      : null;
 
     setAddingItem(true);
     try {
@@ -282,20 +309,99 @@ export function GrnDetailClient({ id }: { id: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "add_item",
-          newName: npName, newCategory: npCategory, newUnit: npUnit || "pcs",
-          newSellPrice: sellP, newItemCode: npItemCode,
-          quantity: qty, unitCost: cost,
+          productId:    selectedProduct.id,
+          variantId:    selectedVariantId || null,
+          variantLabel: variantLabel,
+          quantity: qty, unitCost: cost, updateCost: addUpdateCost,
         }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Failed to add item"); return; }
       setGrn((g) => g ? { ...g, items: [...g.items, data.item] } : g);
       clearAddForm();
-      toast.success(`New product "${npName}" queued — will be created on confirm`);
+      toast.success(`${selectedProduct.name}${variantLabel ? ` (${variantLabel})` : ""} added`);
     } catch {
       toast.error("Failed to add item");
     } finally {
       setAddingItem(false);
+    }
+  }
+
+  async function handleAddNewProduct() {
+    if (!npName.trim()) { toast.error("Product name is required"); return; }
+    const sellP = npSellPrice ? parseFloat(npSellPrice) : null;
+
+    if (npHasVariants) {
+      // ── Variant mode: add one GRN line per variant row ────────
+      const validRows = npVariantRows.filter((r) => r.size.trim() && r.qty && r.cost);
+      if (validRows.length === 0) {
+        toast.error("Add at least one variant with size, quantity and cost");
+        return;
+      }
+      const badRow = npVariantRows.find((r) => r.size.trim() && (isNaN(parseFloat(r.qty)) || parseFloat(r.qty) <= 0 || isNaN(parseFloat(r.cost)) || parseFloat(r.cost) < 0));
+      if (badRow) { toast.error("Invalid quantity or cost in a variant row"); return; }
+
+      setAddingItem(true);
+      const addedItems: GRNItem[] = [];
+      try {
+        for (const row of validRows) {
+          const rowSellP = row.sellPrice ? parseFloat(row.sellPrice) : null;
+          const res = await fetch(`/api/grn/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "add_item",
+              newName: npName.trim(), newCategory: npCategory, newUnit: npUnit || "pcs",
+              newSellPrice: rowSellP ?? sellP, newItemCode: npItemCode,
+              newVariantSize:  row.size.trim(),
+              newVariantColor: row.color.trim() || null,
+              quantity: parseFloat(row.qty), unitCost: parseFloat(row.cost),
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) { toast.error(data.error || `Failed to add variant ${row.size}`); return; }
+          addedItems.push(data.item);
+        }
+        setGrn((g) => g ? { ...g, items: [...g.items, ...addedItems] } : g);
+        clearAddForm();
+        toast.success(`"${npName}" with ${addedItems.length} variant${addedItems.length !== 1 ? "s" : ""} queued`);
+      } catch {
+        toast.error("Failed to add items");
+      } finally {
+        setAddingItem(false);
+      }
+    } else {
+      // ── Simple mode: single line ──────────────────────────────
+      const qty  = parseFloat(npQty);
+      const cost = parseFloat(npCost);
+      if (isNaN(qty) || qty <= 0 || isNaN(cost) || cost < 0) {
+        toast.error("Quantity and cost price are required");
+        return;
+      }
+      setAddingItem(true);
+      try {
+        const res = await fetch(`/api/grn/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "add_item",
+            newName: npName.trim(), newCategory: npCategory, newUnit: npUnit || "pcs",
+            newSellPrice: sellP, newItemCode: npItemCode,
+            newIsWeighted: npIsWeighted,
+            newPluCode: npIsWeighted ? npPluCode.trim() || null : null,
+            quantity: qty, unitCost: cost,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) { toast.error(data.error || "Failed to add item"); return; }
+        setGrn((g) => g ? { ...g, items: [...g.items, data.item] } : g);
+        clearAddForm();
+        toast.success(`New product "${npName}" queued — will be created on confirm`);
+      } catch {
+        toast.error("Failed to add item");
+      } finally {
+        setAddingItem(false);
+      }
     }
   }
 
@@ -519,6 +625,14 @@ export function GrnDetailClient({ id }: { id: string }) {
                         <tr key={item.id} className="border-b last:border-0">
                           <td className="px-3 py-2.5">
                             <p className="font-medium">{itemDisplayName(item)}</p>
+                            {item.variantLabel && (
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 px-1.5 py-0.5 rounded">{item.variantLabel}</span>
+                            )}
+                            {item.newVariantSize && (
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 px-1.5 py-0.5 rounded">
+                                {item.newVariantSize}{item.newVariantColor ? ` / ${item.newVariantColor}` : ""}
+                              </span>
+                            )}
                             {!item.productId && (
                               <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded">New product</span>
                             )}
@@ -616,8 +730,15 @@ export function GrnDetailClient({ id }: { id: string }) {
                                 className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-muted/40 transition-colors"
                               >
                                 <div>
-                                  <p className="text-sm font-medium">{p.name}</p>
-                                  <p className="text-xs text-muted-foreground">Stock: {p.stockQty} {p.unit}{p.itemCode ? ` · ${p.itemCode}` : ""}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium">{p.name}</p>
+                                    {p.hasVariants && (
+                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 px-1.5 py-0.5 rounded">Variants</span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    {p.hasVariants ? "Select to pick variant" : `Stock: ${p.stockQty} ${p.unit}`}{p.itemCode ? ` · ${p.itemCode}` : ""}
+                                  </p>
                                 </div>
                                 <p className="text-xs text-muted-foreground font-mono">Cost: {formatLKR(p.costPrice)}</p>
                               </button>
@@ -630,12 +751,46 @@ export function GrnDetailClient({ id }: { id: string }) {
                         <div className="flex items-center justify-between rounded-lg bg-muted/40 border border-border px-3 py-2.5">
                           <div>
                             <p className="text-sm font-medium">{selectedProduct.name}</p>
-                            <p className="text-xs text-muted-foreground">Current stock: {selectedProduct.stockQty} {selectedProduct.unit}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedProduct.hasVariants
+                                ? "Variant product — select size/colour below"
+                                : `Current stock: ${selectedProduct.stockQty} ${selectedProduct.unit}`}
+                            </p>
                           </div>
                           <button onClick={clearAddForm} className="text-muted-foreground hover:text-foreground">
                             <X className="h-4 w-4" />
                           </button>
                         </div>
+
+                        {/* Variant picker */}
+                        {selectedProduct.hasVariants && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Variant (Size / Colour) <span className="text-destructive">*</span></Label>
+                            {loadingVariants ? (
+                              <div className="flex items-center gap-2 h-9 px-3 rounded-md border text-sm text-muted-foreground">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading variants…
+                              </div>
+                            ) : (
+                              <Select value={selectedVariantId} onValueChange={(v) => v && setSelectedVariantId(v)}>
+                                <SelectTrigger className="h-9 text-sm">
+                                  <SelectValue placeholder="Select a variant…" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {variants.map((v) => {
+                                    const label = `${v.size}${v.color ? " / " + v.color : ""}`;
+                                    return (
+                                      <SelectItem key={v.id} value={v.id}>
+                                        <span>{label}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">stock: {Number(v.stockQty)}</span>
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1.5">
                             <Label className="text-xs">Quantity Received</Label>
@@ -673,7 +828,7 @@ export function GrnDetailClient({ id }: { id: string }) {
                         <Button
                           size="sm"
                           onClick={handleAddItem}
-                          disabled={addingItem || !addQty || !addCost}
+                          disabled={addingItem || !addQty || !addCost || (selectedProduct?.hasVariants && !selectedVariantId)}
                           className="gap-1.5"
                         >
                           {addingItem ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
@@ -690,10 +845,11 @@ export function GrnDetailClient({ id }: { id: string }) {
                     <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-3 py-2">
                       This product will be created in your inventory when you confirm the GRN.
                     </p>
+                    {/* Product header fields */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="col-span-2 space-y-1.5">
                         <Label className="text-xs">Product Name <span className="text-destructive">*</span></Label>
-                        <Input value={npName} onChange={(e) => setNpName(e.target.value)} placeholder="e.g. Basmati Rice 1kg" className="h-9" />
+                        <Input value={npName} onChange={(e) => setNpName(e.target.value)} placeholder="e.g. Blouse" className="h-9" />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Category</Label>
@@ -715,12 +871,15 @@ export function GrnDetailClient({ id }: { id: string }) {
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Unit</Label>
-                        <Select value={npUnit} onValueChange={(v) => v && setNpUnit(v)}>
+                        <Select
+                          value={npUnit}
+                          onValueChange={(v) => v && setNpUnit(v)}
+                        >
                           <SelectTrigger className="h-9 text-sm">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {PRODUCT_UNITS.map((u) => (
+                            {(npIsWeighted ? ["kg", "g", "l", "ml"] : PRODUCT_UNITS).map((u) => (
                               <SelectItem key={u} value={u}>{u}</SelectItem>
                             ))}
                           </SelectContent>
@@ -730,32 +889,173 @@ export function GrnDetailClient({ id }: { id: string }) {
                         <Label className="text-xs">Item Code</Label>
                         <Input value={npItemCode} onChange={(e) => setNpItemCode(e.target.value)} placeholder="Optional" className="h-9 font-mono" />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Selling Price (LKR)</Label>
-                        <Input type="number" min="0" step="0.01" value={npSellPrice} onChange={(e) => setNpSellPrice(e.target.value)} placeholder="0.00" className="h-9 font-mono" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Quantity Received <span className="text-destructive">*</span></Label>
-                        <Input type="number" min="0.01" step="0.01" value={npQty} onChange={(e) => setNpQty(e.target.value)} placeholder="e.g. 50" className="h-9 font-mono" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Unit Cost (LKR) <span className="text-destructive">*</span></Label>
-                        <Input type="number" min="0" step="0.01" value={npCost} onChange={(e) => setNpCost(e.target.value)} placeholder="0.00" className="h-9 font-mono" />
-                      </div>
+                      {!npHasVariants && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Selling Price (LKR)</Label>
+                          <Input type="number" min="0" step="0.01" value={npSellPrice} onChange={(e) => setNpSellPrice(e.target.value)} placeholder="0.00" className="h-9 font-mono" />
+                        </div>
+                      )}
                     </div>
-                    {npQty && npCost && (
-                      <p className="text-xs text-muted-foreground font-mono">
-                        Subtotal: {formatLKR((parseFloat(npQty) || 0) * (parseFloat(npCost) || 0))}
-                      </p>
+
+                    {/* Has variants toggle — only shown when shop has variants enabled */}
+                    {variantsEnabled && !npIsWeighted && <label className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2.5 cursor-pointer select-none">
+                      <div>
+                        <p className="text-sm font-medium">This product has variants</p>
+                        <p className="text-xs text-muted-foreground">e.g. different sizes or colours (S / M / L, Blue / Red)</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={npHasVariants}
+                        onClick={() => setNpHasVariants((v) => !v)}
+                        className={cn(
+                          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none",
+                          npHasVariants ? "bg-primary" : "bg-input"
+                        )}
+                      >
+                        <span className={cn("pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg transform transition-transform", npHasVariants ? "translate-x-4" : "translate-x-0")} />
+                      </button>
+                    </label>}
+
+                    {/* Weighted toggle — only shown when shop has weighted products enabled */}
+                    {weightedProductsEnabled && !npHasVariants && <label className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2.5 cursor-pointer select-none">
+                      <div>
+                        <p className="text-sm font-medium">Sold by weight / volume</p>
+                        <p className="text-xs text-muted-foreground">e.g. kg, g, L, ml — stock tracked by quantity</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={npIsWeighted}
+                        onClick={() => {
+                          setNpIsWeighted((v) => {
+                            const next = !v;
+                            if (next && !["kg", "g", "l", "ml"].includes(npUnit)) setNpUnit("kg");
+                            return next;
+                          });
+                        }}
+                        className={cn(
+                          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none",
+                          npIsWeighted ? "bg-sky-500" : "bg-input"
+                        )}
+                      >
+                        <span className={cn("pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg transform transition-transform", npIsWeighted ? "translate-x-4" : "translate-x-0")} />
+                      </button>
+                    </label>}
+
+                    {/* PLU code field — shown when weighted is on */}
+                    {npIsWeighted && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">PLU Code <span className="text-muted-foreground font-normal">(1–5 digits, optional — for kg/g products on a scale)</span></Label>
+                        <Input
+                          value={npPluCode}
+                          onChange={(e) => setNpPluCode(e.target.value)}
+                          placeholder="e.g. 00001"
+                          className="h-9 font-mono"
+                          maxLength={5}
+                        />
+                      </div>
                     )}
+
+                    {!npHasVariants ? (
+                      /* ── Simple mode ── */
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Quantity Received <span className="text-destructive">*</span></Label>
+                            <Input type="number" min="0.01" step="0.01" value={npQty} onChange={(e) => setNpQty(e.target.value)} placeholder="e.g. 50" className="h-9 font-mono" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Unit Cost (LKR) <span className="text-destructive">*</span></Label>
+                            <Input type="number" min="0" step="0.01" value={npCost} onChange={(e) => setNpCost(e.target.value)} placeholder="0.00" className="h-9 font-mono" />
+                          </div>
+                        </div>
+                        {npQty && npCost && (
+                          <p className="text-xs text-muted-foreground font-mono">
+                            Subtotal: {formatLKR((parseFloat(npQty) || 0) * (parseFloat(npCost) || 0))}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      /* ── Variant rows ── */
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-[1fr_1fr_70px_80px_80px_28px] gap-1.5 px-1">
+                          <span className="text-[11px] font-medium text-muted-foreground">Size <span className="text-destructive">*</span></span>
+                          <span className="text-[11px] font-medium text-muted-foreground">Colour</span>
+                          <span className="text-[11px] font-medium text-muted-foreground">Qty <span className="text-destructive">*</span></span>
+                          <span className="text-[11px] font-medium text-muted-foreground">Cost <span className="text-destructive">*</span></span>
+                          <span className="text-[11px] font-medium text-muted-foreground">Sell Price</span>
+                          <span />
+                        </div>
+                        {npVariantRows.map((row) => (
+                          <div key={row._id} className="grid grid-cols-[1fr_1fr_70px_80px_80px_28px] gap-1.5">
+                            <Input
+                              value={row.size}
+                              onChange={(e) => setNpVariantRows((rows) => rows.map((r) => r._id === row._id ? { ...r, size: e.target.value } : r))}
+                              placeholder="S / M / L"
+                              className="h-8 text-sm"
+                            />
+                            <Input
+                              value={row.color}
+                              onChange={(e) => setNpVariantRows((rows) => rows.map((r) => r._id === row._id ? { ...r, color: e.target.value } : r))}
+                              placeholder="Blue"
+                              className="h-8 text-sm"
+                            />
+                            <Input
+                              type="number" min="0.01" step="0.01"
+                              value={row.qty}
+                              onChange={(e) => setNpVariantRows((rows) => rows.map((r) => r._id === row._id ? { ...r, qty: e.target.value } : r))}
+                              placeholder="0"
+                              className="h-8 text-sm font-mono"
+                            />
+                            <Input
+                              type="number" min="0" step="0.01"
+                              value={row.cost}
+                              onChange={(e) => setNpVariantRows((rows) => rows.map((r) => r._id === row._id ? { ...r, cost: e.target.value } : r))}
+                              placeholder="0.00"
+                              className="h-8 text-sm font-mono"
+                            />
+                            <Input
+                              type="number" min="0" step="0.01"
+                              value={row.sellPrice}
+                              onChange={(e) => setNpVariantRows((rows) => rows.map((r) => r._id === row._id ? { ...r, sellPrice: e.target.value } : r))}
+                              placeholder="0.00"
+                              className="h-8 text-sm font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setNpVariantRows((rows) => rows.length > 1 ? rows.filter((r) => r._id !== row._id) : rows)}
+                              className="flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
+                              title="Remove row"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setNpVariantRows((rows) => [...rows, { _id: String(Date.now()), size: "", color: "", qty: "", cost: "", sellPrice: "" }])}
+                          className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium py-1"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Add variant row
+                        </button>
+                        {npVariantRows.some((r) => r.size && r.qty && r.cost) && (
+                          <p className="text-xs text-muted-foreground font-mono">
+                            Total: {formatLKR(npVariantRows.reduce((s, r) => s + (parseFloat(r.qty) || 0) * (parseFloat(r.cost) || 0), 0))}
+                            {" · "}{npVariantRows.filter((r) => r.size).length} variant{npVariantRows.filter((r) => r.size).length !== 1 ? "s" : ""}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <Button
                       size="sm"
                       onClick={handleAddNewProduct}
-                      disabled={addingItem || !npName.trim() || !npQty || !npCost}
+                      disabled={addingItem || !npName.trim() || (!npHasVariants && (!npQty || !npCost)) || (npHasVariants && npVariantRows.filter((r) => r.size.trim() && r.qty && r.cost).length === 0)}
                       className="gap-1.5"
                     >
                       {addingItem ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PackagePlus className="h-3.5 w-3.5" />}
-                      Add New Product to GRN
+                      {npHasVariants ? `Add "${npName || "Product"}" with Variants to GRN` : "Add New Product to GRN"}
                     </Button>
                   </div>
                 )}
@@ -785,11 +1085,17 @@ export function GrnDetailClient({ id }: { id: string }) {
                 <span className="font-mono text-foreground">{formatLKR(totalValue)}</span>
               </div>
 
-              {grn.items.some((i) => !i.productId) && (
-                <div className="text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-3 py-2">
-                  {grn.items.filter((i) => !i.productId).length} new product{grn.items.filter((i) => !i.productId).length !== 1 ? "s" : ""} will be created on confirm.
-                </div>
-              )}
+              {grn.items.some((i) => !i.productId) && (() => {
+                const newProductNames = new Set(grn.items.filter((i) => !i.productId).map((i) => i.newName));
+                const variantLines    = grn.items.filter((i) => !i.productId && i.newVariantSize).length;
+                const count           = newProductNames.size;
+                return (
+                  <div className="text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-3 py-2">
+                    {count} new product{count !== 1 ? "s" : ""} will be created on confirm
+                    {variantLines > 0 ? ` (${variantLines} variant line${variantLines !== 1 ? "s" : ""}).` : "."}
+                  </div>
+                );
+              })()}
 
               {isDraft && grn.items.length > 0 && (
                 <Button
@@ -832,11 +1138,16 @@ export function GrnDetailClient({ id }: { id: string }) {
                 <span>Total value</span>
                 <span className="font-mono">{formatLKR(totalValue)}</span>
               </div>
-              {grn.items.some((i) => !i.productId) && (
-                <p className="text-xs text-blue-700 dark:text-blue-400 pt-1 border-t border-border">
-                  {grn.items.filter((i) => !i.productId).length} new product{grn.items.filter((i) => !i.productId).length !== 1 ? "s" : ""} will be created.
-                </p>
-              )}
+              {grn.items.some((i) => !i.productId) && (() => {
+                const names        = new Set(grn.items.filter((i) => !i.productId).map((i) => i.newName));
+                const variantLines = grn.items.filter((i) => !i.productId && i.newVariantSize).length;
+                return (
+                  <p className="text-xs text-blue-700 dark:text-blue-400 pt-1 border-t border-border">
+                    {names.size} new product{names.size !== 1 ? "s" : ""} will be created
+                    {variantLines > 0 ? ` (${variantLines} variant line${variantLines !== 1 ? "s" : ""}).` : "."}
+                  </p>
+                );
+              })()}
             </div>
           </div>
           <Separator />

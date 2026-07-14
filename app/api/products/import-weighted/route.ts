@@ -14,6 +14,7 @@ export interface ImportWeightedRow {
   category?: string | null;
   costPrice?: number;
   sellPrice: number;
+  stockQty?: number;
   lowStockAt?: number;
 }
 
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (existing) {
-          // Update existing product — mark as weighted, update unit + PLU + prices
+          // Update existing product — mark as weighted, update unit + PLU + prices + stock
           await db.product.update({
             where: { id: existing.id },
             data: {
@@ -99,8 +100,19 @@ export async function POST(req: NextRequest) {
               ...(row.sellPrice !== undefined && { sellPrice: row.sellPrice }),
               ...(row.costPrice !== undefined && { costPrice: row.costPrice }),
               ...(row.lowStockAt !== undefined && { lowStockAt: row.lowStockAt }),
+              ...(row.stockQty !== undefined && { stockQty: row.stockQty }),
             },
           });
+          if (row.stockQty !== undefined) {
+            await db.stockMovement.create({
+              data: {
+                productId: existing.id as string,
+                type: MovementType.ADJUSTMENT,
+                quantity: row.stockQty,
+                note: "Stock set via weighted import",
+              },
+            });
+          }
         } else {
           // Create new weighted product
           if (shop.planTier === "BASIC") {
@@ -110,7 +122,8 @@ export async function POST(req: NextRequest) {
               continue;
             }
           }
-          await db.product.create({
+          const initialQty = row.stockQty ?? 0;
+          const created = await db.product.create({
             data: {
               shopId,
               name: nameKey,
@@ -120,13 +133,24 @@ export async function POST(req: NextRequest) {
               unit,
               costPrice: row.costPrice ?? 0,
               sellPrice: row.sellPrice,
-              stockQty: 0,
+              stockQty: initialQty,
               lowStockAt: row.lowStockAt ?? 0,
               isWeighted: true,
               pluCode,
               isService: false,
             },
+            select: { id: true },
           });
+          if (initialQty > 0) {
+            await db.stockMovement.create({
+              data: {
+                productId: created.id,
+                type: MovementType.RESTOCK,
+                quantity: initialQty,
+                note: "Initial stock (imported)",
+              },
+            });
+          }
         }
 
         upserted++;

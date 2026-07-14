@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
         "isService": boolean; "createdAt": Date; "updatedAt": Date;
       }>>`
         SELECT * FROM "Product"
-        WHERE "shopId" = ${shopId} AND "isActive" = true AND "isService" = false AND "isWeighted" = false AND "stockQty" <= "lowStockAt"
+        WHERE "shopId" = ${shopId} AND "isActive" = true AND "isService" = false AND "stockQty" <= "lowStockAt"
         ORDER BY LOWER(name) ASC
         LIMIT ${limit} OFFSET ${(page - 1) * limit}
       `;
