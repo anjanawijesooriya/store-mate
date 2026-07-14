@@ -414,10 +414,14 @@ function RecordDialog({
           <div className="space-y-2">
             <Label>Employee *</Label>
             <Select value={form.employeeId} onValueChange={(v) => v && handleEmployeeChange(v)} disabled={!!editRecord}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select employee" />
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select employee">
+                  {form.employeeId
+                    ? (activeEmployees.find((e) => e.id === form.employeeId)?.name ?? "Select employee")
+                    : "Select employee"}
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="w-[var(--radix-select-trigger-width)]">
                 {activeEmployees.map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
                     {emp.name}
