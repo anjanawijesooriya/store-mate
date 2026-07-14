@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { after } from "next/server";
 import { db } from "@/lib/db";
 
 export class UnauthorizedError extends Error {
@@ -57,11 +58,14 @@ export async function getSession() {
     });
     if (!device) throw new UnauthorizedError("device_revoked");
 
-    // Update lastSeenAt async — don't block the request
-    db.deviceSession.update({
-      where: { shopId_deviceId: { shopId, deviceId } },
-      data:  { lastSeenAt: new Date() },
-    }).catch(() => {});
+    // Update lastSeenAt after the response is sent — `after()` keeps the work alive
+    // past Vercel's serverless function teardown so the floating promise isn't killed.
+    after(async () => {
+      await db.deviceSession.update({
+        where: { shopId_deviceId: { shopId, deviceId } },
+        data:  { lastSeenAt: new Date() },
+      }).catch(() => {});
+    });
   }
 
   return session;

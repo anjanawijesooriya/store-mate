@@ -14,4 +14,6 @@ const globalForPrisma = globalThis as unknown as {
 
 export const db = globalForPrisma.prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+// Assign unconditionally so warm Lambda invocations reuse the same client
+// and don't open a new Neon connection on every request.
+globalForPrisma.prisma = db;

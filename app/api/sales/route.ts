@@ -179,11 +179,11 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Decrement stock and create movements — skip for services
+      // Decrement stock and batch-create movements — skip for services
+      const movementData: { productId: string; type: "SALE"; quantity: number; note: string }[] = [];
       for (const item of saleItems) {
         if (item.isService) continue;
         if (item.variantId) {
-          // Variant product: deduct from variant stock only
           await tx.productVariant.update({
             where: { id: item.variantId },
             data: { stockQty: { decrement: item.quantity } },
@@ -194,14 +194,10 @@ export async function POST(req: NextRequest) {
             data: { stockQty: { decrement: item.quantity } },
           });
         }
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            type: "SALE",
-            quantity: -item.quantity,
-            note: `Sale ${s.id}`,
-          },
-        });
+        movementData.push({ productId: item.productId, type: "SALE", quantity: -item.quantity, note: `Sale ${s.id}` });
+      }
+      if (movementData.length > 0) {
+        await tx.stockMovement.createMany({ data: movementData });
       }
 
       // Update customer totals and credit balance if credit sale

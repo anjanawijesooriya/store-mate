@@ -51,113 +51,115 @@ export async function GET(req: NextRequest) {
       ({ from, to } = getDateRange(period));
     }
 
-    const [salesRaw, hourlyData, payrollAgg, expensesAgg] = await Promise.all([
-      db.sale.findMany({
-        where: { shopId, createdAt: { gte: from, lte: to }, status: "COMPLETED" },
-        include: {
-          items: {
-            include: {
-              product: { select: { name: true, costPrice: true } },
-            },
-          },
-        },
-        orderBy: { createdAt: "asc" },
-      }),
-      db.$queryRaw<Array<{ hour: number; revenue: number; count: number }>>`
-        SELECT
-          EXTRACT(HOUR FROM "createdAt")::int as hour,
-          COALESCE(SUM(total), 0)::float as revenue,
-          COUNT(id)::int as count
-        FROM "Sale"
-        WHERE "shopId" = ${shopId}
-          AND "createdAt" >= ${from}
-          AND "createdAt" <= ${to}
-          AND status = 'COMPLETED'
-        GROUP BY EXTRACT(HOUR FROM "createdAt")
-        ORDER BY hour ASC
-      `,
-      db.payrollRecord.aggregate({
-        where: { shopId, periodStart: { gte: from, lte: to } },
-        _sum: { netAmount: true },
-      }),
-      db.expense.aggregate({
-        where: { shopId, expenseDate: { gte: from, lte: to } },
-        _sum: { amount: true },
-      }),
-    ]);
+    const [summaryAgg, cogsAgg, topProductsRaw, salesByDayRaw, salesByPaymentRaw, hourlyData, payrollAgg, expensesAgg] =
+      await Promise.all([
+        db.sale.aggregate({
+          where: { shopId, createdAt: { gte: from, lte: to }, status: "COMPLETED" },
+          _sum: { total: true, cardFee: true },
+          _count: { id: true },
+        }),
+        // Unbounded COGS — sums ALL products sold, not just the top 10
+        db.$queryRaw<[{ totalCogs: number }]>`
+          SELECT COALESCE(SUM(si.quantity * p."costPrice"), 0)::float AS "totalCogs"
+          FROM "SaleItem" si
+          JOIN "Sale"    s ON si."saleId"    = s.id
+          JOIN "Product" p ON si."productId" = p.id
+          WHERE s."shopId"    = ${shopId}
+            AND s."createdAt" >= ${from}
+            AND s."createdAt" <= ${to}
+            AND s.status = 'COMPLETED'
+        `,
+        // Top 10 by revenue — display only, no cogs column needed here
+        db.$queryRaw<Array<{ productId: string; name: string; qty: number; revenue: number }>>`
+          SELECT
+            si."productId",
+            p.name,
+            COALESCE(SUM(si.quantity), 0)::float    AS qty,
+            COALESCE(SUM(si."lineTotal"), 0)::float AS revenue
+          FROM "SaleItem" si
+          JOIN "Sale"    s ON si."saleId"    = s.id
+          JOIN "Product" p ON si."productId" = p.id
+          WHERE s."shopId"    = ${shopId}
+            AND s."createdAt" >= ${from}
+            AND s."createdAt" <= ${to}
+            AND s.status = 'COMPLETED'
+          GROUP BY si."productId", p.name
+          ORDER BY revenue DESC
+          LIMIT 10
+        `,
+        // salesByDay uses Asia/Colombo local date — matches dashboard bucketing
+        db.$queryRaw<Array<{ date: string; revenue: number; count: number }>>`
+          SELECT
+            DATE(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')::text AS date,
+            COALESCE(SUM(total), 0)::float                                           AS revenue,
+            COUNT(id)::int                                                           AS count
+          FROM "Sale"
+          WHERE "shopId"    = ${shopId}
+            AND "createdAt" >= ${from}
+            AND "createdAt" <= ${to}
+            AND status = 'COMPLETED'
+          GROUP BY DATE(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')
+          ORDER BY date ASC
+        `,
+        db.sale.groupBy({
+          by: ["paymentMethod"],
+          where: { shopId, createdAt: { gte: from, lte: to }, status: "COMPLETED" },
+          _sum: { total: true },
+          _count: { id: true },
+        }),
+        // hourlyData uses Asia/Colombo local hours — avoids 5.5h shift on the chart
+        db.$queryRaw<Array<{ hour: number; revenue: number; count: number }>>`
+          SELECT
+            EXTRACT(HOUR FROM ("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')::int AS hour,
+            COALESCE(SUM(total), 0)::float AS revenue,
+            COUNT(id)::int                 AS count
+          FROM "Sale"
+          WHERE "shopId" = ${shopId}
+            AND "createdAt" >= ${from}
+            AND "createdAt" <= ${to}
+            AND status = 'COMPLETED'
+          GROUP BY EXTRACT(HOUR FROM ("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')
+          ORDER BY hour ASC
+        `,
+        db.payrollRecord.aggregate({
+          where: { shopId, periodStart: { gte: from, lte: to } },
+          _sum: { netAmount: true },
+        }),
+        db.expense.aggregate({
+          where: { shopId, expenseDate: { gte: from, lte: to } },
+          _sum: { amount: true },
+        }),
+      ]);
 
-    // Revenue and card fees
-    const totalRevenue = salesRaw.reduce((s, sale) => s + Number(sale.total), 0);
-    const totalCardFees = salesRaw.reduce((s, sale) => s + Number(sale.cardFee), 0);
-    const totalSales = salesRaw.length;
-    const avgOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
+    const totalRevenue   = Number(summaryAgg._sum.total   ?? 0);
+    const totalCardFees  = Number(summaryAgg._sum.cardFee ?? 0);
+    const totalSales     = summaryAgg._count.id;
+    const avgOrderValue  = totalSales > 0 ? totalRevenue / totalSales : 0;
 
-    // COGS and top products
-    let totalCOGS = 0;
-    const productRevMap = new Map<string, { name: string; qty: number; revenue: number }>();
+    const totalCOGS = Number(cogsAgg[0]?.totalCogs ?? 0);
+    const topProducts = topProductsRaw.map((r) => ({
+      name:    r.name,
+      qty:     Number(r.qty),
+      revenue: Number(r.revenue),
+    }));
 
-    for (const sale of salesRaw) {
-      for (const item of sale.items) {
-        totalCOGS += Number(item.product.costPrice) * Number(item.quantity);
-        const existing = productRevMap.get(item.productId);
-        if (existing) {
-          existing.qty += Number(item.quantity);
-          existing.revenue += Number(item.lineTotal);
-        } else {
-          productRevMap.set(item.productId, {
-            name: item.product.name,
-            qty: Number(item.quantity),
-            revenue: Number(item.lineTotal),
-          });
-        }
-      }
-    }
-
-    // Expenses
     const totalExpenses = Number(expensesAgg._sum.amount ?? 0);
+    const totalPayroll  = Number(payrollAgg._sum.netAmount ?? 0);
 
-    // Payroll
-    const totalPayroll = Number(payrollAgg._sum.netAmount ?? 0);
-
-    // P&L
     const totalGrossProfit = totalRevenue - totalCOGS;
-    const totalProfit = totalGrossProfit - totalCardFees - totalExpenses - totalPayroll;
+    const totalProfit      = totalGrossProfit - totalCardFees - totalExpenses - totalPayroll;
 
-    // Sales by day
-    const dayMap = new Map<string, { date: string; revenue: number; count: number }>();
-    for (const sale of salesRaw) {
-      const dateStr = sale.createdAt.toISOString().split("T")[0];
-      const existing = dayMap.get(dateStr);
-      if (existing) {
-        existing.revenue += Number(sale.total);
-        existing.count += 1;
-      } else {
-        dayMap.set(dateStr, { date: dateStr, revenue: Number(sale.total), count: 1 });
-      }
-    }
-    const salesByDay = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+    const salesByDay = salesByDayRaw.map((r) => ({
+      date:    r.date,
+      revenue: Number(r.revenue),
+      count:   Number(r.count),
+    }));
 
-    // Sales by payment method
-    const paymentMap = new Map<string, { method: string; total: number; count: number }>();
-    for (const sale of salesRaw) {
-      const existing = paymentMap.get(sale.paymentMethod);
-      if (existing) {
-        existing.total += Number(sale.total);
-        existing.count += 1;
-      } else {
-        paymentMap.set(sale.paymentMethod, {
-          method: sale.paymentMethod,
-          total: Number(sale.total),
-          count: 1,
-        });
-      }
-    }
-    const salesByPayment = Array.from(paymentMap.values());
-
-    // Top products
-    const topProducts = Array.from(productRevMap.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10);
+    const salesByPayment = salesByPaymentRaw.map((r) => ({
+      method: r.paymentMethod,
+      total:  Number(r._sum.total ?? 0),
+      count:  r._count.id,
+    }));
 
     return Response.json({
       summary: {
@@ -173,15 +175,15 @@ export async function GET(req: NextRequest) {
       },
       salesByDay,
       salesByPayment,
-      salesByHour: (hourlyData as Array<{ hour: number; revenue: number; count: number }>).map((r) => ({
-        hour: Number(r.hour),
+      salesByHour: hourlyData.map((r) => ({
+        hour:    Number(r.hour),
         revenue: Number(r.revenue),
-        count: Number(r.count),
+        count:   Number(r.count),
       })),
       topProducts,
     });
   } catch (err) {
-    if (err instanceof UnauthorizedError) return apiUnauthorized();
+    if (err instanceof UnauthorizedError) return apiUnauthorized(err.reason);
     console.error(err);
     return apiError("Failed to generate report", 500);
   }

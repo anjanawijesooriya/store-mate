@@ -70,11 +70,18 @@ export async function PATCH(
 
         await tx.customer.update({
           where: { id: sale.customerId },
-          data: {
-            totalSpent: { decrement: sale.total },
-            ...(creditToRestore > 0 && { creditBalance: { decrement: creditToRestore } }),
-          },
+          data: { totalSpent: { decrement: sale.total } },
         });
+
+        // Use a floor-at-zero raw decrement to avoid driving creditBalance negative
+        // under concurrent requests (read-then-decrement race under READ COMMITTED).
+        if (creditToRestore > 0) {
+          await tx.$executeRaw`
+            UPDATE "Customer"
+            SET "creditBalance" = GREATEST(0::numeric, "creditBalance" - ${creditToRestore}::numeric)
+            WHERE id = ${sale.customerId}
+          `;
+        }
       }
     });
 

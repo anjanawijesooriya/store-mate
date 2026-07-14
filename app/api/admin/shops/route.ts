@@ -40,10 +40,12 @@ export async function GET() {
       createdAt: true,
       payments: {
         orderBy: { paidAt: "desc" },
+        take: 24,
         select: { paidAt: true, amount: true, billingMonth: true, planTier: true, reference: true, note: true },
       },
       maintenancePayments: {
         orderBy: { paidAt: "desc" },
+        take: 24,
         select: { id: true, amount: true, method: true, reference: true, note: true, periodStart: true, periodEnd: true, paidAt: true },
       },
       _count: { select: { sales: true } },

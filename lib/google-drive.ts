@@ -1,4 +1,3 @@
-import { google } from "googleapis";
 import { Readable } from "stream";
 import zlib from "zlib";
 
@@ -11,11 +10,14 @@ export function isDriveConfigured(): boolean {
   );
 }
 
-function getDriveClient() {
+// Lazy-loaded — googleapis (~50 MB) is only imported when a backup actually runs,
+// not on every cold start of unrelated routes.
+async function getDriveClient() {
   const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN } = process.env;
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REFRESH_TOKEN) {
     throw new Error("Google Drive credentials not configured (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN)");
   }
+  const { google } = await import("googleapis");
   const auth = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
   auth.setCredentials({ refresh_token: GOOGLE_REFRESH_TOKEN });
   return google.drive({ version: "v3", auth });
@@ -61,7 +63,7 @@ export async function uploadToDrive(
   jsonContent: string,
   subfolder: "daily" | "weekly" | "manual",
 ): Promise<{ fileId: string; driveUrl: string; compressedSize: number }> {
-  const drive = getDriveClient();
+  const drive = await getDriveClient();
   const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID!;
 
   const subFolderId = await getOrCreateSubfolder(drive, rootFolderId, subfolder);

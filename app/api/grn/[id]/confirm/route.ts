@@ -41,8 +41,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
       // Track new products created in this GRN by name so we create each only once
       const newProductMap = new Map<string, string>(); // newName → productId
+      // Track which products have had their costPrice updated — prevents a later GRN item with
+      // a different cost from silently overwriting the cost that was already written this run.
+      const costUpdatedProducts = new Set<string>();
 
       const grnNote = `GRN #${grn.id.slice(-6).toUpperCase()}${grn.supplierName ? ` — ${grn.supplierName}` : ""}`;
+
+      const movements: { productId: string; type: "PURCHASE"; quantity: number; note: string }[] = [];
 
       for (const item of grn.items) {
         let productId = item.productId ?? null;
@@ -130,20 +135,23 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         }
 
         // ── Optionally update costPrice (always at product level) ─
-        if (item.updateCost && !item.newVariantSize) {
+        if (item.updateCost && !item.newVariantSize && !costUpdatedProducts.has(productId!)) {
+          costUpdatedProducts.add(productId!);
           await tx.product.update({
             where: { id: productId! },
             data:  { costPrice: cost },
           });
         }
 
-        // ── Record PURCHASE stock movement ────────────────────
-        await tx.stockMovement.create({
-          data: { productId: productId!, type: "PURCHASE", quantity: qty, note: noteWithVariant },
-        });
+        movements.push({ productId: productId!, type: "PURCHASE", quantity: qty, note: noteWithVariant });
       }
 
-    }, { timeout: 30_000 });
+      // Batch-insert all stock movements in one round-trip
+      if (movements.length > 0) {
+        await tx.stockMovement.createMany({ data: movements });
+      }
+
+    }, { timeout: 15_000 });
 
     return Response.json({ success: true });
   } catch (err) {

@@ -207,6 +207,9 @@ model User {
   createdAt    DateTime @default(now())
 
   passwordResetTokens PasswordResetToken[]
+
+  @@index([shopId])
+  @@index([shopId, role])
 }
 
 model PasswordResetToken {
@@ -281,6 +284,8 @@ model StockMovement {
   quantity  Decimal      @db.Decimal(10, 2)
   note      String?
   createdAt DateTime     @default(now())
+
+  @@index([productId, createdAt])
 }
 
 model GRN {
@@ -326,6 +331,7 @@ model GRNItem {
 
   @@index([grnId])
   @@index([variantId])
+  @@index([productId])
 }
 
 model Customer {
@@ -366,6 +372,8 @@ model Sale {
   createdAt      DateTime      @default(now())
 
   @@index([shopId, createdAt])
+  @@index([shopId, status, createdAt])
+  @@index([customerId])
   @@index([originalSaleId])
 }
 
@@ -382,6 +390,9 @@ model SaleItem {
   unitPrice    Decimal         @db.Decimal(10, 2)
   lineTotal    Decimal         @db.Decimal(10, 2)
   returned     Boolean         @default(false)
+
+  @@index([saleId])
+  @@index([productId])
 }
 
 model Expense {
@@ -494,4 +505,6 @@ model PayrollDeduction {
   type            DeductionType
   label           String
   amount          Decimal       @db.Decimal(10, 2)
+
+  @@index([payrollRecordId])
 }

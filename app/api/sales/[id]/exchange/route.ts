@@ -84,6 +84,23 @@ export async function POST(
       }
     }
 
+    // Validate that any supplied variantIds belong to their stated productId and to this shop,
+    // preventing a cross-shop stock manipulation via a guessed variant UUID.
+    const variantItemInputs = newItems.filter((i) => i.variantId);
+    if (variantItemInputs.length) {
+      const variants = await db.productVariant.findMany({
+        where: { id: { in: variantItemInputs.map((i) => i.variantId!) } },
+        select: { id: true, productId: true, product: { select: { shopId: true } } },
+      });
+      const variantMap = new Map(variants.map((v) => [v.id, v]));
+      for (const item of variantItemInputs) {
+        const v = variantMap.get(item.variantId!);
+        if (!v || v.productId !== item.productId || v.product.shopId !== shopId) {
+          return apiError("Invalid variant — does not belong to this product or shop");
+        }
+      }
+    }
+
     // Value calculations
     const returnedValue = returnItems.reduce((s, i) => s + Number(i.lineTotal), 0);
     const newItemsSubtotal = newItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
