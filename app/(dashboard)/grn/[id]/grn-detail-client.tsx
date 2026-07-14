@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,24 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const PRODUCT_UNITS = ["pcs", "kg", "g", "l", "ml", "box", "pack", "dozen", "pair", "set", "sqft"];
+
+const CATEGORY_GROUPS: { label: string; items: string[] }[] = [
+  { label: "Food & Beverages",   items: ["Groceries", "Beverages", "Dairy & Eggs", "Bakery & Bread", "Meat & Seafood", "Vegetables", "Fruits", "Snacks & Confectionery", "Spices & Condiments", "Frozen Foods"] },
+  { label: "Health & Beauty",    items: ["Makeup & Cosmetics", "Skincare", "Hair Care", "Salon & Spa Products", "Perfumes & Fragrances", "Personal Care", "Medicine & Supplements", "Baby Products"] },
+  { label: "Electronics & Tech", items: ["Mobile Phones", "Mobile Accessories", "Computers & Laptops", "Computer Accessories", "Audio & Visual", "Cameras & Photography", "Batteries & Chargers", "Electronics"] },
+  { label: "Home & Living",      items: ["Household Items", "Kitchen & Cookware", "Furniture & Home Decor", "Cleaning Products", "Bedding & Linens", "Garden & Outdoor"] },
+  { label: "Clothing & Fashion", items: ["Clothing", "Footwear", "Fashion Accessories", "Jewellery & Watches", "Bags & Luggage", "Kids Clothing"] },
+  { label: "Automotive",         items: ["Vehicle Spare Parts", "Vehicle Accessories", "Lubricants & Oils", "Tyres & Wheels"] },
+  { label: "Hardware & Tools",   items: ["Hardware", "Tools & Equipment", "Electrical Supplies", "Plumbing Supplies", "Building Materials"] },
+  { label: "Stationery & Office",items: ["Stationery", "Books & Magazines", "Office Supplies", "Art & Craft"] },
+  { label: "Sports & Leisure",   items: ["Sports Equipment", "Toys & Games"] },
+  { label: "Services",           items: ["Repair & Maintenance", "Installation", "Consultation", "Delivery", "Cleaning", "Tailoring", "Other Services"] },
+  { label: "Other",              items: ["Pet Supplies", "Agriculture & Farming", "Other"] },
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -678,11 +697,34 @@ export function GrnDetailClient({ id }: { id: string }) {
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Category</Label>
-                        <Input value={npCategory} onChange={(e) => setNpCategory(e.target.value)} placeholder="e.g. Rice & Grains" className="h-9" />
+                        <Select value={npCategory} onValueChange={(v) => v && setNpCategory(v)}>
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72 min-w-[260px]">
+                            {CATEGORY_GROUPS.map((group) => (
+                              <SelectGroup key={group.label}>
+                                <SelectLabel>{group.label}</SelectLabel>
+                                {group.items.map((c) => (
+                                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                                ))}
+                              </SelectGroup>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Unit</Label>
-                        <Input value={npUnit} onChange={(e) => setNpUnit(e.target.value)} placeholder="pcs / kg / L" className="h-9" />
+                        <Select value={npUnit} onValueChange={(v) => v && setNpUnit(v)}>
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PRODUCT_UNITS.map((u) => (
+                              <SelectItem key={u} value={u}>{u}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Item Code</Label>
