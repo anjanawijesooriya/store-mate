@@ -214,25 +214,38 @@ export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: 
         })}
 
         {/* GRN — admin-enabled add-on */}
-        {grnEnabled && (() => {
-          const active = pathname === "/grn" || pathname.startsWith("/grn/");
-          return (
-            <Link
-              href="/grn"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
-              )}
+        {grnEnabled && (
+          isNonPrimary ? (
+            <div
+              title="Primary device only"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/25 cursor-not-allowed select-none"
             >
-              <ClipboardCheck className={cn("h-[18px] w-[18px] flex-shrink-0", active ? "text-primary" : "")} />
+              <ClipboardCheck className="h-[18px] w-[18px] flex-shrink-0" />
               Receive Stock
-              {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
-            </Link>
-          );
-        })()}
+              <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
+                <Lock className="h-3 w-3" /> Primary
+              </span>
+            </div>
+          ) : (() => {
+            const active = pathname === "/grn" || pathname.startsWith("/grn/");
+            return (
+              <Link
+                href="/grn"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                  active
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+                )}
+              >
+                <ClipboardCheck className={cn("h-[18px] w-[18px] flex-shrink-0", active ? "text-primary" : "")} />
+                Receive Stock
+                {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+              </Link>
+            );
+          })()
+        )}
 
         {/* Payroll — admin-enabled add-on */}
         {payrollEnabled && (

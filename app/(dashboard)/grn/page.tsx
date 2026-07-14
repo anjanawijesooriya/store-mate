@@ -1,5 +1,6 @@
+import { BranchGuard } from "@/components/dashboard/branch-guard";
 import { GrnListClient } from "./grn-list-client";
 
 export default function GrnPage() {
-  return <GrnListClient />;
+  return <BranchGuard><GrnListClient /></BranchGuard>;
 }
