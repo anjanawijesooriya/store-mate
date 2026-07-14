@@ -9,6 +9,46 @@ export const maxDuration = 120;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
 
+// Explicit allowlist for Shop fields restored from backup.
+// Billing-control fields (planTier, billingStatus, isLifetime, trial/grace dates)
+// are deliberately included so a legitimate disaster-recovery restore is complete,
+// but the function prevents any unknown/attacker-injected field from reaching Prisma
+// via the `r as any` bypass that the raw upsert previously used.
+function pickShopFields(r: AnyRecord) {
+  return {
+    id:                      r.id,
+    name:                    r.name,
+    ownerName:               r.ownerName ?? null,
+    phone:                   r.phone ?? null,
+    address:                 r.address ?? null,
+    category:                r.category ?? null,
+    planTier:                r.planTier ?? "BASIC",
+    billingStatus:           r.billingStatus ?? "TRIAL",
+    trialEndsAt:             r.trialEndsAt   ? new Date(r.trialEndsAt)   : null,
+    gracePeriodEndsAt:       r.gracePeriodEndsAt ? new Date(r.gracePeriodEndsAt) : null,
+    nextBillingDate:         r.nextBillingDate    ? new Date(r.nextBillingDate)   : null,
+    isLifetime:              r.isLifetime ?? false,
+    maintenanceDueDate:      r.maintenanceDueDate  ? new Date(r.maintenanceDueDate)  : null,
+    maintenancePaidUntil:    r.maintenancePaidUntil ? new Date(r.maintenancePaidUntil) : null,
+    smsAddonEnabled:         r.smsAddonEnabled ?? false,
+    smsBalance:              r.smsBalance ?? 0,
+    emailLowStock:           r.emailLowStock ?? false,
+    emailDailySummary:       r.emailDailySummary ?? false,
+    emailReceiptEnabled:     r.emailReceiptEnabled ?? false,
+    maintenanceBanner:       r.maintenanceBanner ?? false,
+    maintenanceBannerMessage: r.maintenanceBannerMessage ?? null,
+    branchModeEnabled:       r.branchModeEnabled ?? false,
+    deviceLockEnabled:       r.deviceLockEnabled ?? false,
+    cardSurchargeEnabled:    r.cardSurchargeEnabled ?? false,
+    cardSurchargeRate:       r.cardSurchargeRate ?? 0,
+    payrollEnabled:          r.payrollEnabled ?? false,
+    variantsEnabled:         r.variantsEnabled ?? false,
+    grnEnabled:              r.grnEnabled ?? false,
+    weightedProductsEnabled: r.weightedProductsEnabled ?? false,
+    createdAt:               r.createdAt ? new Date(r.createdAt) : undefined,
+  };
+}
+
 // Safe user fields — never restore role or passwordHash from untrusted backup data
 // unless the backup explicitly includes a valid hash (v2.0+).
 function pickUserFields(r: AnyRecord, includeHash: boolean) {
@@ -74,11 +114,11 @@ export async function POST(req: NextRequest) {
         errors
       );
 
-      // ── 2. Shops ───────────────────────────────────────────────────────────
-      counts.shops = await upsertAll("shops", backup.shops, (r) =>
-        tx.shop.upsert({ where: { id: r.id }, update: r as any, create: r as any }),
-        errors
-      );
+      // ── 2. Shops — explicit allowlist prevents billing-field injection ────────
+      counts.shops = await upsertAll("shops", backup.shops, (r) => {
+        const data = pickShopFields(r);
+        return tx.shop.upsert({ where: { id: r.id }, update: data, create: data as any });
+      }, errors);
 
       // ── 3. Users — explicit allowlist prevents role/hash injection ──────────
       counts.users = await upsertAll("users", backup.users, (r) => {

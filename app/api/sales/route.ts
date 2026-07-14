@@ -84,6 +84,12 @@ export async function POST(req: NextRequest) {
       return apiError("One or more products not found");
     }
 
+    // Verify customerId belongs to this shop — prevents cross-tenant customer record pollution
+    if (customerId) {
+      const customer = await db.customer.findFirst({ where: { id: customerId, shopId } });
+      if (!customer) return apiError("Customer not found", 404);
+    }
+
     type ProductRecord = typeof products[0];
     const productMap = new Map<string, ProductRecord>(products.map((p: ProductRecord) => [p.id, p]));
 
@@ -129,11 +135,14 @@ export async function POST(req: NextRequest) {
       for (const item of saleItems) {
         if (item.isService || item.isWeighted) continue;
         if (item.variantId) {
-          const fresh = await tx.productVariant.findUnique({
-            where: { id: item.variantId },
+          // Constrain by productId to ensure the variant belongs to the verified product —
+          // prevents cross-tenant stock manipulation via a foreign variantId.
+          const fresh = await tx.productVariant.findFirst({
+            where: { id: item.variantId, productId: item.productId },
             select: { stockQty: true },
           });
-          const currentQty = Number(fresh?.stockQty ?? 0);
+          if (!fresh) throw new Error(`Variant not found for ${item.productName}`);
+          const currentQty = Number(fresh.stockQty ?? 0);
           if (currentQty < item.quantity) {
             throw new Error(`Insufficient stock for ${item.productName} (have ${currentQty}, need ${item.quantity})`);
           }
