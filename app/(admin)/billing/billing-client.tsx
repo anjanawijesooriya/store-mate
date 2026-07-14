@@ -873,6 +873,24 @@ export function AdminBillingClient({ shops: initial }: { shops: Shop[] }) {
                             Payroll
                           </span>
                         )}
+                        {shop.variantsEnabled && (
+                          <span className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                            <Shirt className="h-3 w-3" />
+                            Variants
+                          </span>
+                        )}
+                        {shop.grnEnabled && (
+                          <span className="inline-flex items-center gap-1 text-xs text-cyan-600 dark:text-cyan-400 font-medium">
+                            <ClipboardCheck className="h-3 w-3" />
+                            GRN
+                          </span>
+                        )}
+                        {shop.weightedProductsEnabled && (
+                          <span className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-medium">
+                            <Scale className="h-3 w-3" />
+                            Weighted
+                          </span>
+                        )}
                       </div>
                     </td>
 
