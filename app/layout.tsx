@@ -21,6 +21,10 @@ export const metadata: Metadata = {
     template: "%s | eStoreMate",
   },
   description: "Smart shop management for Sri Lankan small businesses — POS, inventory, sales reports and more. Powered by Nexora Technologies.",
+  icons: {
+    icon: "/estoremate-favicon.png",
+    apple: "/estoremate-favicon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
