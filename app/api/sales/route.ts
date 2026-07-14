@@ -122,7 +122,10 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sale = await db.$transaction(async (tx: any) => {
       // Re-read stock inside the transaction to prevent race conditions when
-      // multiple cashiers sell the same product simultaneously
+      // multiple cashiers sell the same product simultaneously.
+      // Weighted products skip the hard-block check: the cashier/scale is the
+      // authority on quantity sold, so we never refuse the sale — but stock IS
+      // decremented below so the inventory level stays accurate.
       for (const item of saleItems) {
         if (item.isService || item.isWeighted) continue;
         if (item.variantId) {

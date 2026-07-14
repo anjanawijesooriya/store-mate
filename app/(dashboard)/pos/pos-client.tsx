@@ -47,7 +47,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { cn, toWhatsAppPhone } from "@/lib/utils";
 import {
   cacheProducts,
   getCachedProducts,
@@ -2212,20 +2212,21 @@ export function POSClient({
                 {!completedSale?.isOffline && (() => {
                   const receiptLink = `${typeof window !== "undefined" ? window.location.origin : ""}/r/${completedSale!.id}`;
                   const waText = encodeURIComponent(`Here is your receipt: ${receiptLink}`);
-                  const waPhone = selectedCustomer?.phone
-                    ? selectedCustomer.phone.replace(/\D/g, "").replace(/^0/, "94")
-                    : "";
+                  const rawPhone = selectedCustomer?.phone ?? "";
+                  const waPhone = rawPhone ? toWhatsAppPhone(rawPhone) : "";
                   const waUrl = `https://wa.me/${waPhone}?text=${waText}`;
+                  const hasPhone = !!waPhone;
                   return (
                     <a
                       data-receipt-btn
                       href={waUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-green-300 bg-transparent px-4 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-900/20"
+                      title={hasPhone ? `Send to ${rawPhone}` : "Opens WhatsApp — select or type the customer's number"}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border bg-transparent px-4 py-2 text-sm font-medium transition-colors border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-900/20"
                     >
                       <Share2 className="h-4 w-4" />
-                      WhatsApp
+                      {hasPhone ? `WhatsApp ${rawPhone}` : "WhatsApp"}
                     </a>
                   );
                 })()}

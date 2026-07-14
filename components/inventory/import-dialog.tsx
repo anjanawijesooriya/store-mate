@@ -82,9 +82,9 @@ const WEIGHTED_ALIASES: Record<string, WeightedColKey> = {
   "sell price l": "sellPrice", "price per l": "sellPrice",
   "sell price ml": "sellPrice", "price per ml": "sellPrice",
   "sell price g": "sellPrice", "price per g": "sellPrice",
-  "stock": "stockQty", "stock qty": "stockQty", "stock quantity": "stockQty",
-  "quantity": "stockQty", "qty": "stockQty", "opening stock": "stockQty",
-  "initial stock": "stockQty", "on hand": "stockQty",
+  "stock": "stockQty", "stock qty": "stockQty", "stock qty (set)": "stockQty",
+  "stock quantity": "stockQty", "quantity": "stockQty", "qty": "stockQty",
+  "opening stock": "stockQty", "initial stock": "stockQty", "on hand": "stockQty",
   "low stock": "lowStockAt", "low stock alert": "lowStockAt", "min stock": "lowStockAt",
   "low stock at": "lowStockAt", "low stock alert (kg)": "lowStockAt",
   "low stock (kg)": "lowStockAt", "min stock (kg)": "lowStockAt",
@@ -323,7 +323,9 @@ async function downloadTemplate(includeVariants: boolean, weightedMode = false) 
 
   // Weighted products sheet — separate template when in weighted mode
   if (weightedMode) {
-    const wHeaders = ["Name", "Item Code", "Unit (kg/g/L/ml)", "PLU Code", "Category", "Cost Price", "Price/unit", "Stock Qty", "Low Stock Alert"];
+    // "Stock Qty (SET)" header makes clear this is an overwrite, not an increment.
+    // Leave the cell blank when downloading to update prices — blank = keep current stock.
+    const wHeaders = ["Name", "Item Code", "Unit (kg/g/L/ml)", "PLU Code", "Category", "Cost Price", "Price/unit", "Stock Qty (SET)", "Low Stock Alert"];
 
     type WRow = { name: string; itemCode: string | null; unit: string; pluCode: string | null; category: string | null; costPrice: unknown; sellPrice: unknown; stockQty: unknown; lowStockAt: unknown };
     let wRows: unknown[][] = [];
@@ -339,9 +341,12 @@ async function downloadTemplate(includeVariants: boolean, weightedMode = false) 
             p.unit ?? "kg",
             p.pluCode ?? "",
             p.category ?? "",
-            Number(p.costPrice) || 0,
+            // Use "" for null cost so re-import doesn't overwrite null with 0
+            p.costPrice != null ? Number(p.costPrice) : "",
             Number(p.sellPrice) || 0,
-            Number(p.stockQty)  || 0,
+            // Leave stock blank — blank cells are treated as "no change" on import.
+            // Fill in a value only when doing a deliberate stock-take.
+            "",
             Number(p.lowStockAt) || 0,
           ]);
         }

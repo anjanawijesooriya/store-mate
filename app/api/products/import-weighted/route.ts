@@ -24,6 +24,8 @@ export interface ImportWeightedError {
   reason: string;
 }
 
+const BASIC_LIMIT = 500;
+
 export async function POST(req: NextRequest) {
   try {
     const shopId = await getShopId();
@@ -40,6 +42,12 @@ export async function POST(req: NextRequest) {
 
     if (!Array.isArray(rows) || rows.length === 0) return apiError("No rows provided");
     if (rows.length > 5000) return apiError("Maximum 5,000 rows per import");
+
+    // Read count once — tracked with a local counter to avoid N extra queries
+    const currentCount = shop.planTier === "BASIC"
+      ? await db.product.count({ where: { shopId, isActive: true, isService: false } })
+      : 0;
+    let newlyCreated = 0;
 
     let upserted = 0;
     const errors: ImportWeightedError[] = [];
@@ -88,69 +96,79 @@ export async function POST(req: NextRequest) {
         }
 
         if (existing) {
-          // Update existing product — mark as weighted, update unit + PLU + prices + stock
-          await db.product.update({
-            where: { id: existing.id },
-            data: {
-              isWeighted: true,
-              unit,
-              pluCode,
-              ...(row.itemCode?.trim() && { itemCode: row.itemCode.trim() }),
-              ...(row.category?.trim() && { category: row.category.trim() }),
-              ...(row.sellPrice !== undefined && { sellPrice: row.sellPrice }),
-              ...(row.costPrice !== undefined && { costPrice: row.costPrice }),
-              ...(row.lowStockAt !== undefined && { lowStockAt: row.lowStockAt }),
-              ...(row.stockQty !== undefined && { stockQty: row.stockQty }),
-            },
-          });
-          if (row.stockQty !== undefined) {
-            await db.stockMovement.create({
+          const prevQty = Number(existing.stockQty);
+          // Wrap update + movement in a transaction so they succeed or fail together
+          await db.$transaction(async (tx) => {
+            await tx.product.update({
+              where: { id: existing!.id },
               data: {
-                productId: existing.id as string,
-                type: MovementType.ADJUSTMENT,
-                quantity: row.stockQty,
-                note: "Stock set via weighted import",
+                isWeighted: true,
+                unit,
+                pluCode,
+                ...(row.itemCode?.trim() && { itemCode: row.itemCode.trim() }),
+                ...(row.category?.trim() && { category: row.category.trim() }),
+                ...(row.sellPrice !== undefined && { sellPrice: row.sellPrice }),
+                ...(row.costPrice !== undefined && { costPrice: row.costPrice }),
+                ...(row.lowStockAt !== undefined && { lowStockAt: row.lowStockAt }),
+                ...(row.stockQty !== undefined && { stockQty: row.stockQty }),
               },
             });
-          }
-        } else {
-          // Create new weighted product
-          if (shop.planTier === "BASIC") {
-            const count = await db.product.count({ where: { shopId, isActive: true, isService: false } });
-            if (count >= 500) {
-              errors.push({ row: rowNum, name: nameKey, reason: "Basic plan limit of 500 products reached" });
-              continue;
+            // Only record a movement when stock actually changed (avoids phantom
+            // ADJUSTMENT entries when the user re-imports to update prices only)
+            if (row.stockQty !== undefined) {
+              const delta = row.stockQty - prevQty;
+              if (delta !== 0) {
+                await tx.stockMovement.create({
+                  data: {
+                    productId: existing!.id,
+                    type: MovementType.ADJUSTMENT,
+                    quantity: delta,
+                    note: "Stock adjusted via weighted import",
+                  },
+                });
+              }
             }
-          }
-          const initialQty = row.stockQty ?? 0;
-          const created = await db.product.create({
-            data: {
-              shopId,
-              name: nameKey,
-              itemCode: row.itemCode?.trim() || null,
-              sku: null,
-              category: row.category?.trim() || null,
-              unit,
-              costPrice: row.costPrice ?? 0,
-              sellPrice: row.sellPrice,
-              stockQty: initialQty,
-              lowStockAt: row.lowStockAt ?? 0,
-              isWeighted: true,
-              pluCode,
-              isService: false,
-            },
-            select: { id: true },
           });
-          if (initialQty > 0) {
-            await db.stockMovement.create({
-              data: {
-                productId: created.id,
-                type: MovementType.RESTOCK,
-                quantity: initialQty,
-                note: "Initial stock (imported)",
-              },
-            });
+        } else {
+          // BASIC plan: use pre-fetched count + local counter (no extra query per row)
+          if (shop.planTier === "BASIC" && currentCount + newlyCreated >= BASIC_LIMIT) {
+            errors.push({ row: rowNum, name: nameKey, reason: `Basic plan limit of ${BASIC_LIMIT} products reached — upgrade to import more` });
+            continue;
           }
+
+          const initialQty = row.stockQty ?? 0;
+          // Wrap create + movement in a transaction so they succeed or fail together
+          await db.$transaction(async (tx) => {
+            const created = await tx.product.create({
+              data: {
+                shopId,
+                name: nameKey,
+                itemCode: row.itemCode?.trim() || null,
+                sku: null,
+                category: row.category?.trim() || null,
+                unit,
+                costPrice: row.costPrice ?? 0,
+                sellPrice: row.sellPrice,
+                stockQty: initialQty,
+                lowStockAt: row.lowStockAt ?? 0,
+                isWeighted: true,
+                pluCode,
+                isService: false,
+              },
+              select: { id: true },
+            });
+            if (initialQty > 0) {
+              await tx.stockMovement.create({
+                data: {
+                  productId: created.id,
+                  type: MovementType.RESTOCK,
+                  quantity: initialQty,
+                  note: "Initial stock (imported)",
+                },
+              });
+            }
+          });
+          newlyCreated++;
         }
 
         upserted++;

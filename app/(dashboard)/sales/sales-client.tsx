@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { cn, toWhatsAppPhone } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -739,7 +739,10 @@ export function SalesClient() {
                                 onClick={() => {
                                   const link = `${window.location.origin}/r/${sale.id}`;
                                   const msg = encodeURIComponent(`Here is your receipt: ${link}`);
-                                  window.open(`https://wa.me/?text=${msg}`, "_blank");
+                                  const phone = sale.customer?.phone
+                                    ? toWhatsAppPhone(sale.customer.phone)
+                                    : "";
+                                  window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
                                 }}
                               >
                                 <Share2 className="h-3 w-3 mr-1" /> WhatsApp

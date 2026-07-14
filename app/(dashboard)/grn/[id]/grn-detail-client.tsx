@@ -928,11 +928,9 @@ export function GrnDetailClient({ id, variantsEnabled = false, weightedProductsE
                         role="switch"
                         aria-checked={npIsWeighted}
                         onClick={() => {
-                          setNpIsWeighted((v) => {
-                            const next = !v;
-                            if (next && !["kg", "g", "l", "ml"].includes(npUnit)) setNpUnit("kg");
-                            return next;
-                          });
+                          const next = !npIsWeighted;
+                          if (next && !["kg", "g", "l", "ml"].includes(npUnit)) setNpUnit("kg");
+                          setNpIsWeighted(next);
                         }}
                         className={cn(
                           "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none",
