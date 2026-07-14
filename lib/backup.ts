@@ -26,7 +26,9 @@ async function exportAllData() {
   ] = await Promise.all([
     db.shopGroup.findMany(),
     db.shop.findMany(),
-    db.user.findMany({ select: { id: true, shopId: true, name: true, phone: true, email: true, passwordHash: true, role: true, createdAt: true } }),
+    // passwordHash is intentionally excluded — hashes must not leave the system in backups.
+    // The restore endpoint does not need them: users reset their own passwords after a restore.
+    db.user.findMany({ select: { id: true, shopId: true, name: true, phone: true, email: true, role: true, createdAt: true } }),
     db.product.findMany(),
     db.sale.findMany(),
     db.saleItem.findMany(),

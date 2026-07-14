@@ -1,5 +1,16 @@
 import nodemailer from "nodemailer";
 
+// Escapes user-controlled strings before interpolating them into HTML email bodies.
+// Required because nodemailer bypasses React's auto-escaping — raw HTML template literals.
+function escHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -31,7 +42,7 @@ export async function sendPasswordResetOTP(to: string, name: string, otp: string
     subject: "eStoreMate — Password Reset OTP",
     html: baseLayout(`
       <h2 style="font-size:18px;font-weight:600;color:#111827;margin:0 0 8px">Password Reset</h2>
-      <p style="color:#6b7280;font-size:14px;margin:0 0 24px">Hi ${name}, use the code below to reset your password. It expires in 15 minutes.</p>
+      <p style="color:#6b7280;font-size:14px;margin:0 0 24px">Hi ${escHtml(name)}, use the code below to reset your password. It expires in 15 minutes.</p>
       <div style="background:#f3f4f6;border-radius:8px;padding:20px;text-align:center;margin-bottom:16px">
         <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:#111827;font-family:monospace">${otp}</span>
       </div>
@@ -47,16 +58,16 @@ export async function sendLowStockEmail(
   items: { name: string; qty: number }[]
 ) {
   const rows = items
-    .map((i) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">${i.name}</td><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6;text-align:right;font-family:monospace;color:#dc2626">${i.qty}</td></tr>`)
+    .map((i) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">${escHtml(i.name)}</td><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6;text-align:right;font-family:monospace;color:#dc2626">${i.qty}</td></tr>`)
     .join("");
 
   await transporter.sendMail({
     from: FROM,
     to,
-    subject: `⚠️ Low Stock Alert — ${shopName}`,
+    subject: `⚠️ Low Stock Alert — ${escHtml(shopName)}`,
     html: baseLayout(`
       <h2 style="font-size:18px;font-weight:600;color:#111827;margin:0 0 4px">Low Stock Alert</h2>
-      <p style="color:#6b7280;font-size:14px;margin:0 0 20px">Hi ${ownerName}, the following items in <strong>${shopName}</strong> are running low and need restocking.</p>
+      <p style="color:#6b7280;font-size:14px;margin:0 0 20px">Hi ${escHtml(ownerName)}, the following items in <strong>${escHtml(shopName)}</strong> are running low and need restocking.</p>
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         <thead><tr style="background:#f9fafb">
           <th style="text-align:left;padding:8px;font-weight:600;color:#6b7280;border-bottom:2px solid #e5e7eb">Product</th>
@@ -80,10 +91,10 @@ export async function sendDailySummaryEmail(
   await transporter.sendMail({
     from: FROM,
     to,
-    subject: `📊 Daily Summary — ${shopName}`,
+    subject: `📊 Daily Summary — ${escHtml(shopName)}`,
     html: baseLayout(`
       <h2 style="font-size:18px;font-weight:600;color:#111827;margin:0 0 4px">Daily Sales Summary</h2>
-      <p style="color:#6b7280;font-size:14px;margin:0 0 20px">Hi ${ownerName}, here's how <strong>${shopName}</strong> performed on ${date}.</p>
+      <p style="color:#6b7280;font-size:14px;margin:0 0 20px">Hi ${escHtml(ownerName)}, here's how <strong>${escHtml(shopName)}</strong> performed on ${escHtml(date)}.</p>
       <div style="display:flex;gap:12px;margin-bottom:20px">
         <div style="flex:1;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;text-align:center">
           <p style="margin:0;font-size:28px;font-weight:700;color:#16a34a;font-family:monospace">${salesCount}</p>
@@ -124,7 +135,7 @@ export async function sendReceiptEmail(to: string, data: ReceiptData, appUrl?: s
 
   const itemRows = data.items.map((i) => `
     <tr>
-      <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">${i.name}${i.itemCode ? `<br><span style="font-size:11px;color:#9ca3af;font-family:monospace">Code: ${i.itemCode}</span>` : ""}<br><span style="font-size:11px;color:#9ca3af">${i.quantity} ${i.unit} × ${fmt(i.unitPrice)}</span>${i.warrantyPeriod ? `<br><span style="font-size:11px;color:#9ca3af">Warranty: ${i.warrantyPeriod}</span>` : ""}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">${escHtml(i.name)}${i.itemCode ? `<br><span style="font-size:11px;color:#9ca3af;font-family:monospace">Code: ${escHtml(i.itemCode)}</span>` : ""}<br><span style="font-size:11px;color:#9ca3af">${i.quantity} ${escHtml(i.unit)} × ${fmt(i.unitPrice)}</span>${i.warrantyPeriod ? `<br><span style="font-size:11px;color:#9ca3af">Warranty: ${escHtml(i.warrantyPeriod)}</span>` : ""}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6;text-align:right;font-family:monospace">${fmt(i.lineTotal)}</td>
     </tr>`).join("");
 
@@ -139,17 +150,17 @@ export async function sendReceiptEmail(to: string, data: ReceiptData, appUrl?: s
   await transporter.sendMail({
     from: FROM,
     to,
-    subject: `Receipt #${ref} — ${data.shopName}`,
+    subject: `Receipt #${ref} — ${escHtml(data.shopName)}`,
     html: baseLayout(`
       <div style="text-align:center;padding-bottom:16px;border-bottom:1px solid #f3f4f6;margin-bottom:16px">
-        <h2 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 4px">${data.shopName}</h2>
-        ${data.shopAddress ? `<p style="font-size:12px;color:#6b7280;margin:2px 0">${data.shopAddress}</p>` : ""}
-        ${data.shopPhone  ? `<p style="font-size:12px;color:#6b7280;margin:2px 0">Tel: ${data.shopPhone}</p>` : ""}
+        <h2 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 4px">${escHtml(data.shopName)}</h2>
+        ${data.shopAddress ? `<p style="font-size:12px;color:#6b7280;margin:2px 0">${escHtml(data.shopAddress)}</p>` : ""}
+        ${data.shopPhone  ? `<p style="font-size:12px;color:#6b7280;margin:2px 0">Tel: ${escHtml(data.shopPhone)}</p>` : ""}
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:12px">
-        <span>${date}</span><span>Receipt #${ref}</span>
+        <span>${escHtml(date)}</span><span>Receipt #${ref}</span>
       </div>
-      ${data.customerName ? `<p style="font-size:13px;color:#6b7280;margin:0 0 12px">Customer: <strong>${data.customerName}</strong></p>` : ""}
+      ${data.customerName ? `<p style="font-size:13px;color:#6b7280;margin:0 0 12px">Customer: <strong>${escHtml(data.customerName)}</strong></p>` : ""}
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:12px">
         <thead><tr style="background:#f9fafb">
           <th style="text-align:left;padding:8px;font-weight:600;color:#6b7280;border-bottom:2px solid #e5e7eb">Item</th>
@@ -190,19 +201,19 @@ export async function sendMaintenanceEmail(
   await transporter.sendMail({
     from: FROM,
     to,
-    subject: `eStoreMate — Scheduled Maintenance Notice for ${shopName}`,
+    subject: `eStoreMate — Scheduled Maintenance Notice for ${escHtml(shopName)}`,
     html: baseLayout(`
       <h2 style="font-size:18px;font-weight:700;color:#111827;margin:0 0 8px">Maintenance Notice</h2>
-      <p style="color:#6b7280;font-size:14px;margin:0 0 20px">Hi ${ownerName},</p>
+      <p style="color:#6b7280;font-size:14px;margin:0 0 20px">Hi ${escHtml(ownerName)},</p>
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px 20px;margin-bottom:20px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
           <span style="font-size:18px">🔧</span>
           <span style="font-weight:600;color:#1e40af;font-size:15px">System Maintenance</span>
         </div>
-        <p style="color:#1e3a8a;font-size:14px;margin:0">${body}</p>
+        <p style="color:#1e3a8a;font-size:14px;margin:0">${escHtml(body)}</p>
       </div>
       <p style="color:#6b7280;font-size:13px;margin:0 0 8px">
-        Your shop <strong style="color:#111827">${shopName}</strong> may experience limited functionality during this period.
+        Your shop <strong style="color:#111827">${escHtml(shopName)}</strong> may experience limited functionality during this period.
         All your data is safe and will be fully accessible once maintenance is complete.
       </p>
       <p style="color:#6b7280;font-size:13px;margin:0">
@@ -235,13 +246,13 @@ export async function sendCreditReminderEmail(
   await transporter.sendMail({
     from: FROM,
     to,
-    subject: `Payment Reminder — ${shopName}`,
+    subject: `Payment Reminder — ${escHtml(shopName)}`,
     html: baseLayout(`
       <h2 style="font-size:18px;font-weight:700;color:#111827;margin:0 0 6px">Payment Reminder</h2>
-      <p style="color:#6b7280;font-size:14px;margin:0 0 20px">From <strong>${shopName}</strong></p>
+      <p style="color:#6b7280;font-size:14px;margin:0 0 20px">From <strong>${escHtml(shopName)}</strong></p>
 
       <p style="font-size:14px;color:#374151;margin:0 0 16px">
-        Dear <strong>${customerName}</strong>,<br/><br/>
+        Dear <strong>${escHtml(customerName)}</strong>,<br/><br/>
         This is a friendly reminder that you have an outstanding credit balance with us.
         We would appreciate if you could settle the amount at your earliest convenience.
       </p>
@@ -266,7 +277,7 @@ export async function sendCreditReminderEmail(
       </table>` : ""}
 
       <p style="font-size:13px;color:#6b7280;margin:0">
-        Please visit <strong>${shopName}</strong> or contact us to make your payment.<br/>
+        Please visit <strong>${escHtml(shopName)}</strong> or contact us to make your payment.<br/>
         Thank you for your continued business.
       </p>
     `),

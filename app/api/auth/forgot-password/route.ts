@@ -16,6 +16,21 @@ export async function POST(req: NextRequest) {
       return Response.json({ success: true });
     }
 
+    // Account-level rate limit: max 3 OTP requests per 15-minute window.
+    // Prevents the brute-force cycle of: request new OTP → try 5 guesses → repeat.
+    const recentCount = await db.passwordResetToken.count({
+      where: {
+        userId:    user.id,
+        createdAt: { gt: new Date(Date.now() - 15 * 60 * 1000) },
+      },
+    });
+    if (recentCount >= 3) {
+      return Response.json(
+        { error: "Too many reset attempts. Please wait 15 minutes before trying again." },
+        { status: 429 }
+      );
+    }
+
     // Invalidate any existing unused tokens for this user
     await db.passwordResetToken.updateMany({
       where: { userId: user.id, used: false },
