@@ -110,6 +110,89 @@ function pickSaleFields(r: AnyRecord) {
   };
 }
 
+function pickSaleItemFields(r: AnyRecord) {
+  return {
+    id:           r.id,
+    saleId:       r.saleId,
+    productId:    r.productId,
+    variantId:    r.variantId ?? null,
+    variantLabel: r.variantLabel ?? null,
+    quantity:     r.quantity ?? 0,
+    unitPrice:    r.unitPrice ?? 0,
+    lineTotal:    r.lineTotal ?? 0,
+    returned:     r.returned ?? false,
+  };
+}
+
+function pickExpenseFields(r: AnyRecord) {
+  return {
+    id:          r.id,
+    shopId:      r.shopId,
+    category:    r.category,
+    amount:      r.amount ?? 0,
+    note:        r.note ?? null,
+    receiptUrl:  r.receiptUrl ?? null,
+    expenseDate: r.expenseDate ? new Date(r.expenseDate) : new Date(),
+    createdAt:   r.createdAt ? new Date(r.createdAt) : undefined,
+  };
+}
+
+function pickPaymentFields(r: AnyRecord) {
+  return {
+    id:           r.id,
+    shopId:       r.shopId,
+    amount:       r.amount ?? 0,
+    currency:     r.currency ?? "LKR",
+    method:       r.method ?? "MANUAL",
+    reference:    r.reference ?? null,
+    planTier:     r.planTier,
+    billingMonth: r.billingMonth,
+    note:         r.note ?? null,
+    paidAt:       r.paidAt ? new Date(r.paidAt) : undefined,
+    createdAt:    r.createdAt ? new Date(r.createdAt) : undefined,
+  };
+}
+
+function pickMaintenancePaymentFields(r: AnyRecord) {
+  return {
+    id:          r.id,
+    shopId:      r.shopId,
+    amount:      r.amount ?? 0,
+    currency:    r.currency ?? "LKR",
+    method:      r.method ?? "MANUAL",
+    reference:   r.reference ?? null,
+    note:        r.note ?? null,
+    periodStart: r.periodStart ? new Date(r.periodStart) : new Date(),
+    periodEnd:   r.periodEnd ? new Date(r.periodEnd) : new Date(),
+    paidAt:      r.paidAt ? new Date(r.paidAt) : undefined,
+    createdAt:   r.createdAt ? new Date(r.createdAt) : undefined,
+  };
+}
+
+function pickStockMovementFields(r: AnyRecord) {
+  return {
+    id:        r.id,
+    productId: r.productId,
+    type:      r.type,
+    quantity:  r.quantity ?? 0,
+    note:      r.note ?? null,
+    createdAt: r.createdAt ? new Date(r.createdAt) : undefined,
+  };
+}
+
+function pickSmsLogFields(r: AnyRecord) {
+  return {
+    id:        r.id,
+    shopId:    r.shopId,
+    to:        r.to,
+    type:      r.type,
+    message:   r.message,
+    status:    r.status,
+    error:     r.error ?? null,
+    createdAt: r.createdAt ? new Date(r.createdAt) : undefined,
+  };
+}
+
 // Returns { updateFields, createFields }.
 // updateFields never touches passwordHash — existing users keep their current password.
 // createFields always includes a hash (verified backup hash or caller-supplied placeholder)
@@ -239,40 +322,40 @@ export async function POST(req: NextRequest) {
       }
 
       // ── 8. SaleItems ────────────────────────────────────────────────────────
-      counts.saleItems = await upsertAll("saleItems", backup.saleItems, (r) =>
-        tx.saleItem.upsert({ where: { id: r.id }, update: r as any, create: r as any }),
-        errors
-      );
+      counts.saleItems = await upsertAll("saleItems", backup.saleItems, (r) => {
+        const data = pickSaleItemFields(r);
+        return tx.saleItem.upsert({ where: { id: r.id }, update: data, create: data as any });
+      }, errors);
 
       // ── 9. Expenses ─────────────────────────────────────────────────────────
-      counts.expenses = await upsertAll("expenses", backup.expenses, (r) =>
-        tx.expense.upsert({ where: { id: r.id }, update: r as any, create: r as any }),
-        errors
-      );
+      counts.expenses = await upsertAll("expenses", backup.expenses, (r) => {
+        const data = pickExpenseFields(r);
+        return tx.expense.upsert({ where: { id: r.id }, update: data, create: data as any });
+      }, errors);
 
       // ── 10. Payments ────────────────────────────────────────────────────────
-      counts.payments = await upsertAll("payments", backup.payments, (r) =>
-        tx.payment.upsert({ where: { id: r.id }, update: r as any, create: r as any }),
-        errors
-      );
+      counts.payments = await upsertAll("payments", backup.payments, (r) => {
+        const data = pickPaymentFields(r);
+        return tx.payment.upsert({ where: { id: r.id }, update: data, create: data as any });
+      }, errors);
 
       // ── 11. Maintenance Payments ────────────────────────────────────────────
-      counts.maintenancePayments = await upsertAll("maintenancePayments", backup.maintenancePayments, (r) =>
-        tx.maintenancePayment.upsert({ where: { id: r.id }, update: r as any, create: r as any }),
-        errors
-      );
+      counts.maintenancePayments = await upsertAll("maintenancePayments", backup.maintenancePayments, (r) => {
+        const data = pickMaintenancePaymentFields(r);
+        return tx.maintenancePayment.upsert({ where: { id: r.id }, update: data, create: data as any });
+      }, errors);
 
       // ── 12. StockMovements ──────────────────────────────────────────────────
-      counts.stockMovements = await upsertAll("stockMovements", backup.stockMovements, (r) =>
-        tx.stockMovement.upsert({ where: { id: r.id }, update: r as any, create: r as any }),
-        errors
-      );
+      counts.stockMovements = await upsertAll("stockMovements", backup.stockMovements, (r) => {
+        const data = pickStockMovementFields(r);
+        return tx.stockMovement.upsert({ where: { id: r.id }, update: data, create: data as any });
+      }, errors);
 
       // ── 13. SmsLogs ─────────────────────────────────────────────────────────
-      counts.smsLogs = await upsertAll("smsLogs", backup.smsLogs, (r) =>
-        tx.smsLog.upsert({ where: { id: r.id }, update: r as any, create: r as any }),
-        errors
-      );
+      counts.smsLogs = await upsertAll("smsLogs", backup.smsLogs, (r) => {
+        const data = pickSmsLogFields(r);
+        return tx.smsLog.upsert({ where: { id: r.id }, update: data, create: data as any });
+      }, errors);
     }, { timeout: 110_000 });
   } catch (txErr) {
     const msg = txErr instanceof Error ? txErr.message : String(txErr);

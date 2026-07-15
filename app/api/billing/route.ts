@@ -41,14 +41,17 @@ export async function GET() {
     // when the grace/trial period expires, even if the cron hasn't run yet.
     let effectiveStatus = shop.billingStatus;
     const now = new Date();
+    // The persist is guarded on the current status (updateMany, not update) so a
+    // payment webhook that set ACTIVE between our read and write is not clobbered
+    // back to GRACE/LOCKED. effectiveStatus is what the client sees regardless.
     if (shop.billingStatus === "GRACE" && shop.gracePeriodEndsAt && now > shop.gracePeriodEndsAt) {
       effectiveStatus = "LOCKED";
-      await db.shop.update({ where: { id: shopId }, data: { billingStatus: "LOCKED" } });
+      await db.shop.updateMany({ where: { id: shopId, billingStatus: "GRACE" }, data: { billingStatus: "LOCKED" } });
     } else if (shop.billingStatus === "TRIAL" && shop.trialEndsAt && now > shop.trialEndsAt) {
       effectiveStatus = "GRACE";
       const gracePeriodEndsAt = new Date(shop.trialEndsAt);
       gracePeriodEndsAt.setDate(gracePeriodEndsAt.getDate() + 3);
-      await db.shop.update({ where: { id: shopId }, data: { billingStatus: "GRACE", gracePeriodEndsAt } });
+      await db.shop.updateMany({ where: { id: shopId, billingStatus: "TRIAL" }, data: { billingStatus: "GRACE", gracePeriodEndsAt } });
     }
 
     return Response.json({ billing: { ...shop, billingStatus: effectiveStatus } });

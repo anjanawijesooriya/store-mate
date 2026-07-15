@@ -82,6 +82,14 @@ export async function POST(
       if (!newProductMap.has(item.productId)) {
         return apiError(`Product not found: ${item.productId}`);
       }
+      // Guard quantity/price — a negative quantity would flip the stock
+      // decrement into an increment (free inventory) and corrupt exchange totals.
+      if (typeof item.quantity !== "number" || !(item.quantity > 0)) {
+        return apiError("Invalid quantity for a replacement item");
+      }
+      if (typeof item.unitPrice !== "number" || item.unitPrice < 0) {
+        return apiError("Invalid price for a replacement item");
+      }
     }
 
     // Validate that any supplied variantIds belong to their stated productId and to this shop,
@@ -109,6 +117,15 @@ export async function POST(
     const netTotal = Math.max(0, newItemsSubtotal - returnedValue);
     // If shop owes customer (returned more than new items), cashback amount
     const cashback = Math.max(0, returnedValue - newItemsSubtotal);
+
+    // For settled (non-credit) exchanges the new sale is marked COMPLETED, so the
+    // collected amount must cover the net owed — don't trust a client that understates it.
+    if (paymentMethod !== PaymentMethod.CREDIT) {
+      const paid = Number(amountPaid);
+      if (isNaN(paid) || paid < netTotal) {
+        return apiError("Amount paid is less than the net exchange total");
+      }
+    }
 
     const exchangeSale = await db.$transaction(async (tx) => {
       // 1. Mark returned items
@@ -161,31 +178,23 @@ export async function POST(
       for (const item of newItems) {
         const product = newProductMap.get(item.productId)!;
         if (item.variantId) {
-          const fresh = await tx.productVariant.findUnique({
-            where: { id: item.variantId },
-            select: { stockQty: true },
-          });
-          const currentQty = Number(fresh?.stockQty ?? 0);
-          if (currentQty < item.quantity) {
-            throw new Error(`Insufficient stock for ${product.name} variant (have ${currentQty}, need ${item.quantity})`);
-          }
-          await tx.productVariant.update({
-            where: { id: item.variantId },
+          // Atomic guarded decrement — check-and-decrement in one statement so
+          // a concurrent sale/exchange cannot oversell into negative stock.
+          const upd = await tx.productVariant.updateMany({
+            where: { id: item.variantId, stockQty: { gte: item.quantity } },
             data: { stockQty: { decrement: item.quantity } },
           });
+          if (upd.count === 0) {
+            throw new Error(`Insufficient stock for ${product.name} variant`);
+          }
         } else {
-          const fresh = await tx.product.findUnique({
-            where: { id: item.productId },
-            select: { stockQty: true },
-          });
-          const currentQty = Number(fresh?.stockQty ?? 0);
-          if (currentQty < item.quantity) {
-            throw new Error(`Insufficient stock for ${product.name} (have ${currentQty}, need ${item.quantity})`);
-          }
-          await tx.product.update({
-            where: { id: item.productId },
+          const upd = await tx.product.updateMany({
+            where: { id: item.productId, stockQty: { gte: item.quantity } },
             data: { stockQty: { decrement: item.quantity } },
           });
+          if (upd.count === 0) {
+            throw new Error(`Insufficient stock for ${product.name}`);
+          }
         }
         await tx.stockMovement.create({
           data: {

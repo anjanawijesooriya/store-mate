@@ -30,7 +30,9 @@ async function attemptSend(formattedTo: string, message: string, userId: string,
     signal: AbortSignal.timeout(12_000),
   });
   const data = await res.json();
-  console.log("smslenz.lk response:", JSON.stringify(data));
+  if (process.env.SMS_DEBUG === "true") {
+    console.log("smslenz.lk response:", JSON.stringify(data));
+  }
   if (data.status === "success" || data.success === true) {
     return { success: true, messageId: String(data.message_id ?? data.id ?? "") };
   }
@@ -53,10 +55,13 @@ export async function sendSms(to: string, message: string): Promise<SmsResult> {
   try {
     return await attemptSend(formattedTo, message, userId, apiKey, senderId);
   } catch (firstErr) {
-    const isNetworkError = firstErr instanceof TypeError || (firstErr instanceof DOMException && firstErr.name === "TimeoutError");
-    if (isNetworkError) {
-      // One automatic retry after a short delay for transient network failures
-      console.warn("SMS attempt 1 failed (network), retrying in 2s…", firstErr instanceof Error ? firstErr.message : firstErr);
+    // Only retry on connection-establishment failures (TypeError). A TimeoutError
+    // is indeterminate — the provider may have received and queued the message, so
+    // retrying could double-send (and double-deliver) while we only charge once.
+    const isConnError = firstErr instanceof TypeError;
+    if (isConnError) {
+      // One automatic retry after a short delay for transient connection failures
+      console.warn("SMS attempt 1 failed (connection), retrying in 2s…", firstErr instanceof Error ? firstErr.message : firstErr);
       await new Promise((r) => setTimeout(r, 2000));
       try {
         return await attemptSend(formattedTo, message, userId, apiKey, senderId);

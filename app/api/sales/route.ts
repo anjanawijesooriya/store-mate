@@ -125,6 +125,15 @@ export async function POST(req: NextRequest) {
         : 0;
     const cardFee = cardFeeRate > 0 ? parseFloat((total * cardFeeRate).toFixed(2)) : 0;
 
+    // Server-authoritative amountPaid. CREDIT records nothing paid yet; a settled
+    // sale (CASH/CARD/ONLINE) is marked COMPLETED so it must be fully covered —
+    // don't trust a client that understates it. CASH may tender more (change).
+    const parsedAmountPaid =
+      paymentMethod === "CREDIT" ? 0 : parseFloat(String(amountPaid ?? total));
+    if (paymentMethod !== "CREDIT" && (isNaN(parsedAmountPaid) || parsedAmountPaid < total)) {
+      return apiError(`Amount paid is less than the sale total`);
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sale = await db.$transaction(async (tx: any) => {
       // Re-read stock inside the transaction to prevent race conditions when
@@ -167,7 +176,7 @@ export async function POST(req: NextRequest) {
           discount: discountAmt,
           total,
           paymentMethod: paymentMethod as PaymentMethod,
-          amountPaid: parseFloat(String(amountPaid ?? total)),
+          amountPaid: parsedAmountPaid,
           cardFee,
           cardFeeRate,
           status: paymentMethod === "CREDIT" ? SaleStatus.PENDING_PAYMENT : SaleStatus.COMPLETED,
@@ -193,15 +202,31 @@ export async function POST(req: NextRequest) {
       for (const item of saleItems) {
         if (item.isService) continue;
         if (item.variantId) {
-          await tx.productVariant.update({
-            where: { id: item.variantId },
+          // Atomic guarded decrement: folding the stock check into the WHERE
+          // clause makes check-and-decrement a single statement, so concurrent
+          // sales on multiple devices cannot both pass and oversell to negative.
+          const upd = await tx.productVariant.updateMany({
+            where: { id: item.variantId, stockQty: { gte: item.quantity } },
             data: { stockQty: { decrement: item.quantity } },
           });
-        } else {
+          if (upd.count === 0) {
+            throw new Error(`Insufficient stock for ${item.productName}`);
+          }
+        } else if (item.isWeighted) {
+          // Weighted goods are sold by measured scale weight — allow the sale
+          // through unguarded even if recorded stock is short (may go negative).
           await tx.product.update({
             where: { id: item.productId },
             data: { stockQty: { decrement: item.quantity } },
           });
+        } else {
+          const upd = await tx.product.updateMany({
+            where: { id: item.productId, stockQty: { gte: item.quantity } },
+            data: { stockQty: { decrement: item.quantity } },
+          });
+          if (upd.count === 0) {
+            throw new Error(`Insufficient stock for ${item.productName}`);
+          }
         }
         movementData.push({ productId: item.productId, type: "SALE", quantity: -item.quantity, note: `Sale ${s.id}` });
       }

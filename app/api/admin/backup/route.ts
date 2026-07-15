@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { isAdmin } from "@/lib/admin-auth";
 import { apiError } from "@/lib/auth-helpers";
@@ -9,7 +10,12 @@ import { isDriveConfigured } from "@/lib/google-drive";
 function isCronAuthorized(req: NextRequest) {
   const secret = process.env.BACKUP_CRON_SECRET;
   if (!secret) return false;
-  return req.headers.get("x-backup-secret") === secret;
+  const provided = req.headers.get("x-backup-secret");
+  if (!provided) return false;
+  // Constant-time comparison to avoid leaking the secret via response timing.
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function checkConfig(): { error: string | null; driveConfigured: boolean; emailConfigured: boolean } {

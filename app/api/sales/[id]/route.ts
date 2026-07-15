@@ -35,6 +35,9 @@ export async function PATCH(
       });
 
       for (const item of sale.items) {
+        // Lines already returned via a prior partial exchange had their stock
+        // restored at exchange time; restoring again would double-count stock.
+        if (item.returned) continue;
         if (item.product?.isService) {
           // Services have no stock — nothing to restore
           continue;

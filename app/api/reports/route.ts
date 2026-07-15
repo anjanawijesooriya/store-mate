@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
             AND s."createdAt" >= ${from}
             AND s."createdAt" <= ${to}
             AND s.status = 'COMPLETED'
+            AND si.returned = false
         `,
         // Top 10 by revenue — display only, no cogs column needed here
         db.$queryRaw<Array<{ productId: string; name: string; qty: number; revenue: number }>>`
@@ -81,6 +82,7 @@ export async function GET(req: NextRequest) {
             AND s."createdAt" >= ${from}
             AND s."createdAt" <= ${to}
             AND s.status = 'COMPLETED'
+            AND si.returned = false
           GROUP BY si."productId", p.name
           ORDER BY revenue DESC
           LIMIT 10

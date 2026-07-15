@@ -64,7 +64,14 @@ export interface CachedProduct {
 export interface PendingSale {
   localId: string;
   shopId: string;
-  items: Array<{ productId: string; quantity: number; unitPrice: number }>;
+  customerId?: string | null;
+  items: Array<{
+    productId: string;
+    variantId?: string | null;
+    variantLabel?: string | null;
+    quantity: number;
+    unitPrice: number;
+  }>;
   discount: number;
   paymentMethod: string;
   amountPaid: number;
@@ -110,21 +117,29 @@ export async function deductCachedStock(
       const record = req.result as { shopId: string; products: CachedProduct[]; cachedAt: number } | undefined;
       if (!record) { resolve(); return; }
       const updated = record.products.map((p) => {
-        const item = items.find((i) => i.productId === p.id);
-        if (!item) return p;
-        if (item.variantId && p.variants?.length) {
-          // Deduct from the specific variant's stock, not the parent product
-          return {
-            ...p,
-            variants: p.variants.map((v) =>
-              v.id === item.variantId
-                ? { ...v, stockQty: Math.max(0, v.stockQty - item.quantity) }
-                : v
-            ),
-          };
+        // A single sale can contain multiple lines for the same product
+        // (e.g. two variants of one shirt), so process every matching item —
+        // not just the first — otherwise later lines are silently ignored.
+        const matches = items.filter((i) => i.productId === p.id);
+        if (!matches.length) return p;
+        let np = p;
+        for (const item of matches) {
+          if (item.variantId && np.variants?.length) {
+            // Deduct from the specific variant's stock, not the parent product
+            np = {
+              ...np,
+              variants: np.variants.map((v) =>
+                v.id === item.variantId
+                  ? { ...v, stockQty: Math.max(0, v.stockQty - item.quantity) }
+                  : v
+              ),
+            };
+          } else {
+            // Regular or weighted product — deduct from parent stockQty
+            np = { ...np, stockQty: Math.max(0, np.stockQty - item.quantity) };
+          }
         }
-        // Regular or weighted product — deduct from parent stockQty
-        return { ...p, stockQty: Math.max(0, p.stockQty - item.quantity) };
+        return np;
       });
       store.put({ ...record, products: updated });
     };

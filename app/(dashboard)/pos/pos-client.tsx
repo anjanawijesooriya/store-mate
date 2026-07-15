@@ -739,6 +739,7 @@ export function POSClient({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            customerId: sale.customerId ?? undefined,
             items: sale.items,
             discount: sale.discount,
             paymentMethod: sale.paymentMethod,
@@ -1185,6 +1186,7 @@ export function POSClient({
         }
         const localId = await addPendingSale({
           shopId,
+          customerId: selectedCustomer?.id ?? null,
           items: saleItems,
           discount: discountAmt,
           paymentMethod,
@@ -1263,6 +1265,7 @@ export function POSClient({
       if (shopId && offlinePOSAllowed) {
         const localId = await addPendingSale({
           shopId,
+          customerId: selectedCustomer?.id ?? null,
           items: saleItems,
           discount: discountAmt,
           paymentMethod,

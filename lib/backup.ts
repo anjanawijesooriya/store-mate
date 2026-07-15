@@ -159,6 +159,21 @@ async function sendBackupEmailAttachment(fileName: string, content: string, type
 
 // ── Email: failure alert ─────────────────────────────────────────────────────
 
+// Strip secrets (DB connection strings, embedded credentials, bearer tokens)
+// that pg / driver errors frequently include, before the message is persisted
+// to backupLog or emailed out.
+function redactError(msg: string): string {
+  return msg
+    .replace(/(\w+):\/\/[^\s@]+@/g, "$1://***:***@") // scheme://user:pass@ → redacted
+    .replace(/(password|api[_-]?key|secret|token)\s*[=:]\s*\S+/gi, "$1=***");
+}
+
+function escHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string)
+  );
+}
+
 async function sendFailureEmail(type: BackupType, error: string): Promise<void> {
   if (!isEmailConfigured()) return;
   const to = process.env.BACKUP_EMAIL || process.env.SMTP_USER!;
@@ -172,7 +187,7 @@ async function sendFailureEmail(type: BackupType, error: string): Promise<void> 
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #fecaca">
         <h2 style="color:#dc2626;margin:0 0 12px">Backup Failed ❌</h2>
         <p style="color:#6b7280;font-size:14px;margin:0 0 16px">The ${type} backup for eStoreMate failed.</p>
-        <pre style="background:#fef2f2;border:1px solid #fecaca;padding:12px;border-radius:6px;font-size:12px;color:#dc2626;white-space:pre-wrap;word-break:break-all">${error}</pre>
+        <pre style="background:#fef2f2;border:1px solid #fecaca;padding:12px;border-radius:6px;font-size:12px;color:#dc2626;white-space:pre-wrap;word-break:break-all">${escHtml(error)}</pre>
         <p style="color:#d1d5db;font-size:11px;margin:20px 0 0">eStoreMate · Smart Shop Manager</p>
       </div>`,
   });
@@ -228,7 +243,7 @@ export async function runBackup(type: BackupType): Promise<{
       throw new Error("No backup destination configured — set Google Drive credentials or SMTP credentials in .env.local");
     }
   } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
+    const error = redactError(err instanceof Error ? err.message : String(err));
     console.error(`[Backup] ${type} backup failed:`, error);
 
     await db.backupLog.create({
