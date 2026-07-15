@@ -98,7 +98,7 @@ export async function getCachedProducts(
 
 export async function deductCachedStock(
   shopId: string,
-  items: Array<{ productId: string; quantity: number }>
+  items: Array<{ productId: string; variantId?: string; quantity: number }>
 ): Promise<void> {
   const idb = await openDb();
   // Single IDB transaction for read+write prevents TOCTOU race between concurrent callers
@@ -111,7 +111,20 @@ export async function deductCachedStock(
       if (!record) { resolve(); return; }
       const updated = record.products.map((p) => {
         const item = items.find((i) => i.productId === p.id);
-        return item ? { ...p, stockQty: Math.max(0, p.stockQty - item.quantity) } : p;
+        if (!item) return p;
+        if (item.variantId && p.variants?.length) {
+          // Deduct from the specific variant's stock, not the parent product
+          return {
+            ...p,
+            variants: p.variants.map((v) =>
+              v.id === item.variantId
+                ? { ...v, stockQty: Math.max(0, v.stockQty - item.quantity) }
+                : v
+            ),
+          };
+        }
+        // Regular or weighted product — deduct from parent stockQty
+        return { ...p, stockQty: Math.max(0, p.stockQty - item.quantity) };
       });
       store.put({ ...record, products: updated });
     };

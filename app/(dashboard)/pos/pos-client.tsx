@@ -83,6 +83,7 @@ interface Product {
   isWeighted?: boolean;
   pluCode?: string | null;
   _count?: { variants: number };
+  allVariantsOos?: boolean;
 }
 
 interface CartItem {
@@ -222,6 +223,10 @@ function toProduct(p: CachedProduct): Product {
     isWeighted: p.isWeighted ?? false,
     pluCode: p.pluCode ?? null,
     _count: { variants: p.variantCount ?? 0 },
+    allVariantsOos:
+      (p.variantCount ?? 0) > 0 && (p.variants?.length ?? 0) > 0
+        ? p.variants!.every((v) => v.stockQty <= 0)
+        : undefined,
   };
 }
 
@@ -644,6 +649,19 @@ export function POSClient({
           }
         }
 
+        // Re-set recentProducts now that we have per-variant stock to compute allVariantsOos
+        setRecentProducts(
+          (display.products ?? []).map((p: Product) => {
+            const pvs = variantsByProduct.get(p.id) ?? [];
+            const count = p._count?.variants ?? 0;
+            return {
+              ...p,
+              allVariantsOos:
+                count > 0 && pvs.length > 0 ? pvs.every((v) => v.stockQty <= 0) : undefined,
+            };
+          })
+        );
+
         const products: CachedProduct[] = (all.products ?? []).map(
           (p: Product) => ({
             id: p.id,
@@ -964,13 +982,16 @@ export function POSClient({
           toast.warning(`Only ${product.stockQty} ${product.unit} in stock`);
           return prev;
         }
+        if (product.isWeighted && product.stockQty > 0 && newQty > product.stockQty) {
+          toast.warning(`Stock shows only ${product.stockQty} ${product.unit} — selling measured quantity`);
+        }
         return prev.map((i) =>
           i.cartKey === cartKey
             ? { ...i, quantity: newQty, lineTotal: newQty * i.unitPrice }
             : i
         );
       }
-      if (!product.isService && !product.isWeighted && product.stockQty <= 0) {
+      if (!product.isService && product.stockQty <= 0) {
         toast.error(`${product.name} is out of stock`);
         return prev;
       }
@@ -1057,6 +1078,9 @@ export function POSClient({
             toast.warning(`Only ${i.stockQty} ${i.unit} in stock`);
             return i;
           }
+          if (i.isWeighted && i.stockQty > 0 && newQty > i.stockQty) {
+            toast.warning(`Stock shows only ${i.stockQty} ${i.unit} — selling measured quantity`);
+          }
           return { ...i, quantity: newQty, lineTotal: newQty * i.unitPrice };
         })
         .filter(Boolean)
@@ -1072,6 +1096,9 @@ export function POSClient({
           if (!i.isService && !i.isWeighted && qty > i.stockQty) {
             toast.warning(`Only ${i.stockQty} ${i.unit} in stock`);
             return { ...i, quantity: i.stockQty, lineTotal: i.stockQty * i.unitPrice };
+          }
+          if (i.isWeighted && i.stockQty > 0 && qty > i.stockQty) {
+            toast.warning(`Stock shows only ${i.stockQty} ${i.unit} — selling measured quantity`);
           }
           return { ...i, quantity: qty, lineTotal: qty * i.unitPrice };
         })
@@ -1317,11 +1344,11 @@ export function POSClient({
     return (
       <button
         onClick={() => addToCart(product)}
-        disabled={!product.isService && !hasVariants && !product.isWeighted && product.stockQty <= 0}
+        disabled={!product.isService && !hasVariants && product.stockQty <= 0}
         data-keyboard-selected={isKeyboardSelected ? "true" : undefined}
         className={cn(
           "text-left rounded-xl border border-border bg-card p-3 hover:border-primary hover:shadow-sm transition-all active:scale-95",
-          !product.isService && !hasVariants && !product.isWeighted && product.stockQty <= 0 && "opacity-50 cursor-not-allowed",
+          !product.isService && !hasVariants && product.stockQty <= 0 && "opacity-50 cursor-not-allowed",
           isKeyboardSelected && "ring-2 ring-primary border-primary bg-primary/5"
         )}
       >
@@ -1335,7 +1362,7 @@ export function POSClient({
         {product.isService && (
           <p className="text-xs text-blue-500 font-medium mt-0.5">Service</p>
         )}
-        {product.isWeighted && (
+        {product.isWeighted && product.stockQty > 0 && (
           <p className="text-xs text-sky-500 font-medium mt-0.5">
             {["kg", "g"].includes(product.unit) ? "Scan scale label" : `Enter qty (${product.unit})`}
           </p>
@@ -1346,7 +1373,10 @@ export function POSClient({
             {product._count!.variants} size{product._count!.variants !== 1 ? "s" : ""}
           </p>
         )}
-        {!hasVariants && !product.isService && !product.isWeighted && product.stockQty <= 0 && (
+        {hasVariants && product.allVariantsOos && (
+          <p className="text-xs text-destructive font-medium mt-0.5">All sizes out of stock</p>
+        )}
+        {!hasVariants && !product.isService && product.stockQty <= 0 && (
           <p className="text-xs text-destructive font-medium mt-0.5">Out of stock</p>
         )}
         {!hasVariants && !product.isService && !product.isWeighted && product.stockQty > 0 && product.stockQty <= 5 && (
