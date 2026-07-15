@@ -1,7 +1,14 @@
 import { NextRequest } from "next/server";
+import { randomUUID } from "crypto";
+import { hash as bcryptHash } from "bcryptjs";
 import { db } from "@/lib/db";
 import { isAdmin } from "@/lib/admin-auth";
 import { apiError } from "@/lib/auth-helpers";
+
+// Only accept properly-formatted bcrypt hashes from backup payloads.
+// This prevents arbitrary string injection while still supporting
+// legitimate disaster-recovery restores from older backups that include hashes.
+const BCRYPT_RE = /^\$2[ab]?\$\d{2}\$[./A-Za-z0-9]{53}$/;
 
 // Allow up to 50 MB request body for large backup files
 export const maxDuration = 120;
@@ -49,10 +56,66 @@ function pickShopFields(r: AnyRecord) {
   };
 }
 
-// Safe user fields — never restore role or passwordHash from untrusted backup data
-// unless the backup explicitly includes a valid hash (v2.0+).
-function pickUserFields(r: AnyRecord, includeHash: boolean) {
+function pickCustomerFields(r: AnyRecord) {
   return {
+    id:            r.id,
+    shopId:        r.shopId,
+    name:          r.name,
+    phone:         r.phone ?? null,
+    email:         r.email ?? null,
+    address:       r.address ?? null,
+    note:          r.note ?? null,
+    totalSpent:    r.totalSpent ?? 0,
+    creditBalance: r.creditBalance ?? 0,
+    createdAt:     r.createdAt ? new Date(r.createdAt) : undefined,
+  };
+}
+
+function pickProductFields(r: AnyRecord) {
+  return {
+    id:               r.id,
+    shopId:           r.shopId,
+    name:             r.name,
+    itemCode:         r.itemCode ?? null,
+    category:         r.category ?? null,
+    unit:             r.unit ?? null,
+    sellPrice:        r.sellPrice ?? 0,
+    costPrice:        r.costPrice ?? 0,
+    stockQty:         r.stockQty ?? 0,
+    lowStockAt:       r.lowStockAt ?? null,
+    isActive:         r.isActive ?? true,
+    isService:        r.isService ?? false,
+    isWeighted:       r.isWeighted ?? false,
+    warrantyPeriod:   r.warrantyPeriod ?? null,
+    barcode:          r.barcode ?? null,
+    createdAt:        r.createdAt ? new Date(r.createdAt) : undefined,
+  };
+}
+
+function pickSaleFields(r: AnyRecord) {
+  return {
+    id:            r.id,
+    shopId:        r.shopId,
+    userId:        r.userId,
+    customerId:    r.customerId ?? null,
+    subtotal:      r.subtotal ?? 0,
+    discount:      r.discount ?? 0,
+    total:         r.total ?? 0,
+    paymentMethod: r.paymentMethod,
+    amountPaid:    r.amountPaid ?? 0,
+    cardFee:       r.cardFee ?? 0,
+    cardFeeRate:   r.cardFeeRate ?? 0,
+    status:        r.status ?? "COMPLETED",
+    createdAt:     r.createdAt ? new Date(r.createdAt) : undefined,
+  };
+}
+
+// Returns { updateFields, createFields }.
+// updateFields never touches passwordHash — existing users keep their current password.
+// createFields always includes a hash (verified backup hash or caller-supplied placeholder)
+// so Prisma can create the row without violating the NOT NULL constraint.
+function pickUserFields(r: AnyRecord, placeholderHash: string) {
+  const base = {
     id: r.id,
     shopId: r.shopId,
     name: r.name,
@@ -60,7 +123,15 @@ function pickUserFields(r: AnyRecord, includeHash: boolean) {
     email: r.email ?? null,
     role: r.role === "OWNER" || r.role === "CASHIER" ? r.role : "CASHIER",
     createdAt: r.createdAt ? new Date(r.createdAt) : undefined,
-    ...(includeHash && r.passwordHash ? { passwordHash: r.passwordHash } : {}),
+  };
+  // Trust the backup hash only when it is a properly-formatted bcrypt digest.
+  const verifiedHash =
+    r.passwordHash && BCRYPT_RE.test(String(r.passwordHash))
+      ? (r.passwordHash as string)
+      : null;
+  return {
+    updateFields: verifiedHash ? { ...base, passwordHash: verifiedHash } : base,
+    createFields: { ...base, passwordHash: verifiedHash ?? placeholderHash },
   };
 }
 
@@ -100,6 +171,11 @@ export async function POST(req: NextRequest) {
   }
 
   const errors: string[] = [];
+
+  // Generate one placeholder hash used for any user record that lacks a verified
+  // bcrypt hash in the backup. The random plaintext is immediately discarded so
+  // no password can match it — users created this way must reset via forgot-password.
+  const placeholderHash = await bcryptHash(randomUUID(), 10);
   const counts: Record<string, number> = {};
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -109,10 +185,10 @@ export async function POST(req: NextRequest) {
   try {
     await db.$transaction(async (tx) => {
       // ── 1. ShopGroups ──────────────────────────────────────────────────────
-      counts.shopGroups = await upsertAll("shopGroups", backup.shopGroups, (r) =>
-        tx.shopGroup.upsert({ where: { id: r.id }, update: r as any, create: r as any }),
-        errors
-      );
+      counts.shopGroups = await upsertAll("shopGroups", backup.shopGroups, (r) => {
+        const data = { id: r.id, name: r.name, ownerId: r.ownerId ?? null, createdAt: r.createdAt ? new Date(r.createdAt) : undefined };
+        return tx.shopGroup.upsert({ where: { id: r.id }, update: data, create: data as any });
+      }, errors);
 
       // ── 2. Shops — explicit allowlist prevents billing-field injection ────────
       counts.shops = await upsertAll("shops", backup.shops, (r) => {
@@ -120,32 +196,37 @@ export async function POST(req: NextRequest) {
         return tx.shop.upsert({ where: { id: r.id }, update: data, create: data as any });
       }, errors);
 
-      // ── 3. Users — explicit allowlist prevents role/hash injection ──────────
+      // ── 3. Users — split update/create fields to protect existing passwords ──
+      // Update: never overwrites the current hash unless the backup carries a
+      //   verified bcrypt digest (legitimate older-style backup).
+      // Create: always supplies a hash (verified or placeholder) so the NOT NULL
+      //   constraint is satisfied. New users must reset via forgot-password.
       counts.users = await upsertAll("users", backup.users, (r) => {
-        const includeHash = !!(r.passwordHash);
-        const data = pickUserFields(r, includeHash);
-        if (!includeHash) {
-          return tx.user.update({ where: { id: r.id }, data }).catch(() => null);
-        }
-        return tx.user.upsert({ where: { id: r.id }, update: data, create: data as any });
+        const { updateFields, createFields } = pickUserFields(r, placeholderHash);
+        return tx.user.upsert({
+          where: { id: r.id },
+          update: updateFields,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          create: createFields as any,
+        });
       }, errors);
 
-      // ── 4. Customers ────────────────────────────────────────────────────────
-      counts.customers = await upsertAll("customers", backup.customers, (r) =>
-        tx.customer.upsert({ where: { id: r.id }, update: r as any, create: r as any }),
-        errors
-      );
+      // ── 4. Customers — explicit allowlist prevents credit/totalSpent injection ──
+      counts.customers = await upsertAll("customers", backup.customers, (r) => {
+        const data = pickCustomerFields(r);
+        return tx.customer.upsert({ where: { id: r.id }, update: data, create: data as any });
+      }, errors);
 
-      // ── 5. Products ─────────────────────────────────────────────────────────
-      counts.products = await upsertAll("products", backup.products, (r) =>
-        tx.product.upsert({ where: { id: r.id }, update: r as any, create: r as any }),
-        errors
-      );
+      // ── 5. Products — explicit allowlist prevents price/cost injection ──────
+      counts.products = await upsertAll("products", backup.products, (r) => {
+        const data = pickProductFields(r);
+        return tx.product.upsert({ where: { id: r.id }, update: data, create: data as any });
+      }, errors);
 
-      // ── 6. Sales pass 1: strip self-reference to avoid FK cycle ────────────
+      // ── 6. Sales pass 1: strip self-reference + use allowlist ──────────────
       counts.sales = await upsertAll("sales", backup.sales, (r) => {
-        const { originalSaleId: _oid, ...rest } = r;
-        return tx.sale.upsert({ where: { id: r.id }, update: rest as any, create: rest as any });
+        const data = pickSaleFields(r);
+        return tx.sale.upsert({ where: { id: r.id }, update: data, create: data as any });
       }, errors);
 
       // ── 7. Sales pass 2: restore exchange links ─────────────────────────────

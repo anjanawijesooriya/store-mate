@@ -35,7 +35,7 @@ export async function PATCH(
       });
 
       for (const item of sale.items) {
-        if (item.product.isService) {
+        if (item.product?.isService) {
           // Services have no stock — nothing to restore
           continue;
         }

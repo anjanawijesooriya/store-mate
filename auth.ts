@@ -91,6 +91,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
         if (!valid) return null;
 
+        // Reject login for shops whose billing has been locked by admin
+        if (user.shop.billingStatus === "LOCKED") return null;
+
         const shopId   = user.shopId;
         const planTier = user.shop.planTier as string;
         const limit    = DEVICE_LIMITS[planTier] ?? 1;

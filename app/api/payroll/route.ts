@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { DeductionType, RecordPeriod } from "@/lib/generated/prisma/client";
+import { DeductionType, RecordPeriod, RecordStatus } from "@/lib/generated/prisma/client";
 import { requirePrimary, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 
 const VALID_PERIOD_TYPES: RecordPeriod[] = ["DAY", "WEEK", "MONTH"];
@@ -14,27 +14,42 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const page  = Math.max(1, parseInt(searchParams.get("page")  ?? "1"));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "50")));
 
-    const records = await db.payrollRecord.findMany({
-      where: {
-        shopId,
-        ...(employeeId ? { employeeId } : {}),
-        ...(status === "PENDING" || status === "PAID" ? { status } : {}),
-        ...(from || to
-          ? {
-              periodStart: {
-                ...(from ? { gte: new Date(from) } : {}),
-                ...(to ? { lte: new Date(to) } : {}),
-              },
-            }
-          : {}),
-      },
-      include: {
-        employee: { select: { id: true, name: true, position: true, payType: true, payRate: true } },
-        deductions: true,
-      },
-      orderBy: [{ periodStart: "desc" }, { createdAt: "desc" }],
-    });
+    const statusFilter = status === "PENDING" || status === "PAID"
+      ? (status as RecordStatus)
+      : undefined;
+
+    const [records, total] = await Promise.all([
+      db.payrollRecord.findMany({
+        where: {
+          shopId,
+          ...(employeeId ? { employeeId } : {}),
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(from || to
+            ? { periodStart: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
+            : {}),
+        },
+        include: {
+          employee: { select: { id: true, name: true, position: true, payType: true, payRate: true } },
+          deductions: true,
+        },
+        orderBy: [{ periodStart: "desc" }, { createdAt: "desc" }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      db.payrollRecord.count({
+        where: {
+          shopId,
+          ...(employeeId ? { employeeId } : {}),
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(from || to
+            ? { periodStart: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
+            : {}),
+        },
+      }),
+    ]);
 
     return Response.json({
       records: records.map((r) => ({
@@ -46,6 +61,9 @@ export async function GET(req: NextRequest) {
         employee: { ...r.employee, payRate: Number(r.employee.payRate) },
         deductions: r.deductions.map((d) => ({ ...d, amount: Number(d.amount) })),
       })),
+      total,
+      page,
+      limit,
     });
   } catch (err) {
     if (err instanceof UnauthorizedError) return apiUnauthorized();

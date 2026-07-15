@@ -57,6 +57,15 @@ export function localMidnightUTC(tz: string, dayOffset = 0): Date {
 }
 
 /**
+ * Returns the UTC timestamp for local midnight of a specific calendar date
+ * (year/month/day in 1-indexed month form) in the given timezone.
+ * Use this for custom date range boundaries where the date is user-supplied.
+ */
+export function localDateMidnightUTC(tz: string, y: number, mo1: number, d: number): Date {
+  return localDayBoundaryUTC(tz, y, mo1 - 1, d);
+}
+
+/**
  * Returns the UTC timestamp for the 1st of the current local month (or
  * `monthOffset` months earlier/later) at local midnight.
  */

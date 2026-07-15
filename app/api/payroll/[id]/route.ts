@@ -57,11 +57,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const markingPaid = status === "PAID" && existing.status === "PENDING";
     const markingPending = status === "PENDING" && existing.status === "PAID";
 
-    // Replace deductions if new set provided
-    if (deductionData !== null) {
-      await db.payrollDeduction.deleteMany({ where: { payrollRecordId: id } });
-    }
-
     const updated = await db.payrollRecord.update({
       where: { id },
       data: {
@@ -77,8 +72,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         periodEnd: periodEnd ? new Date(periodEnd) : undefined,
         status: markingPaid ? "PAID" : markingPending ? "PENDING" : undefined,
         paidAt: markingPaid ? new Date() : markingPending ? null : undefined,
+        // deleteMany + create inside the same update is atomic — if the update
+        // fails, neither the delete nor the creates are committed.
         ...(deductionData !== null
-          ? { deductions: { create: deductionData } }
+          ? { deductions: { deleteMany: {}, create: deductionData } }
           : {}),
       },
       include: {

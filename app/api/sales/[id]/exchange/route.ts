@@ -120,10 +120,12 @@ export async function POST(
       }
 
       // 2. Check if ALL items in original sale are now returned → mark EXCHANGED
+      // Re-query inside the transaction so concurrent exchanges see each other's writes.
       const allItems = originalSale.items.length;
-      const nowReturnedCount = returnItemIds.length +
-        originalSale.items.filter((i) => i.returned).length;
-      const fullyExchanged = nowReturnedCount >= allItems;
+      const returnedCount = await tx.saleItem.count({
+        where: { saleId: originalSaleId, returned: true },
+      });
+      const fullyExchanged = returnedCount >= allItems;
 
       if (fullyExchanged) {
         await tx.sale.update({

@@ -1,36 +1,34 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { requirePrimary, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
+import { localMidnightUTC, localMonthStartUTC, localDateMidnightUTC } from "@/lib/timezone";
+
+const SL = "Asia/Colombo";
 
 function getDateRange(period: string): { from: Date; to: Date } {
-  const now = new Date();
-  let to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  let from: Date;
+  // Use Asia/Colombo local midnight boundaries — new Date(y, m, d) would use
+  // UTC midnight, misattributing sales before 05:30 AM local time to the wrong day.
+  const todayStart    = localMidnightUTC(SL, 0);
+  const tomorrowStart = localMidnightUTC(SL, 1);
+  const to = new Date(tomorrowStart.getTime() - 1); // 23:59:59.999 local today
 
   switch (period) {
     case "today":
-      from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      break;
+      return { from: todayStart, to };
     case "week":
-      from = new Date(to);
-      from.setDate(from.getDate() - 6);
-      from.setHours(0, 0, 0, 0);
-      break;
+      return { from: localMidnightUTC(SL, -6), to };
     case "month":
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
-      break;
+      return { from: localMonthStartUTC(SL, 0), to };
     case "last_month":
-      from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      to = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-      break;
+      return {
+        from: localMonthStartUTC(SL, -1),
+        to: new Date(localMonthStartUTC(SL, 0).getTime() - 1),
+      };
     case "3months":
-      from = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-      break;
+      return { from: localMonthStartUTC(SL, -2), to };
     default:
-      from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return { from: todayStart, to };
   }
-
-  return { from, to };
 }
 
 export async function GET(req: NextRequest) {
@@ -45,8 +43,8 @@ export async function GET(req: NextRequest) {
     if (period === "custom" && customFrom && customTo) {
       const [fy, fm, fd] = customFrom.split("-").map(Number);
       const [ty, tm, td] = customTo.split("-").map(Number);
-      from = new Date(fy, fm - 1, fd, 0, 0, 0);
-      to   = new Date(ty, tm - 1, td, 23, 59, 59);
+      from = localDateMidnightUTC(SL, fy, fm, fd);
+      to   = new Date(localDateMidnightUTC(SL, ty, tm, td + 1).getTime() - 1);
     } else {
       ({ from, to } = getDateRange(period));
     }

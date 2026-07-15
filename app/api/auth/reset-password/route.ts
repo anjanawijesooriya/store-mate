@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
     await db.$transaction([
       db.user.update({ where: { id: user.id }, data: { passwordHash } }),
       db.passwordResetToken.update({ where: { id: token.id }, data: { used: true } }),
-      // Revoke all device sessions so old devices must re-login
-      db.deviceSession.deleteMany({ where: { shopId: user.shopId } }),
+      // Revoke only this user's device sessions — other cashiers in the shop stay logged in
+      db.deviceSession.deleteMany({ where: { userId: user.id } }),
     ]);
 
     return Response.json({ success: true });
