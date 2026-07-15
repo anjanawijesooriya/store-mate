@@ -369,6 +369,7 @@ model Sale {
   originalSaleId String?
   originalSale   Sale?         @relation("ExchangeOf", fields: [originalSaleId], references: [id])
   exchanges      Sale[]        @relation("ExchangeOf")
+  receiptToken   String?       @unique
   createdAt      DateTime      @default(now())
 
   @@index([shopId, createdAt])

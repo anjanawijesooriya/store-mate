@@ -2,11 +2,13 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ saleId: string }> }) {
-  const { saleId } = await params;
+  // The route segment carries the unguessable receiptToken, not the sale id —
+  // this is a capability URL, so possession of the token is the authorization.
+  const { saleId: receiptToken } = await params;
 
   try {
     const sale = await db.sale.findUnique({
-      where: { id: saleId },
+      where: { receiptToken },
       include: {
         shop: { select: { name: true, phone: true, address: true } },
         items: {
@@ -21,7 +23,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ sal
     }
 
     return Response.json({
-      id: sale.id,
       shopName: sale.shop.name,
       shopPhone: sale.shop.phone,
       shopAddress: sale.shop.address,

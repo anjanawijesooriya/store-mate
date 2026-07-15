@@ -52,6 +52,7 @@ interface SaleItem {
 
 interface Sale {
   id: string;
+  receiptToken: string | null;
   total: number;
   subtotal: number;
   discount: number;
@@ -199,21 +200,24 @@ export function SalesClient() {
     }
   }
 
-  function copyReceiptLink(saleId: string) {
-    const url = `${window.location.origin}/r/${saleId}`;
+  function copyReceiptLink(token: string | null) {
+    if (!token) { toast.error("Receipt link unavailable"); return; }
+    const url = `${window.location.origin}/r/${token}`;
     navigator.clipboard.writeText(url)
       .then(() => toast.success("Receipt link copied to clipboard"))
       .catch(() => {
-        window.open(`/r/${saleId}`, "_blank");
+        window.open(`/r/${token}`, "_blank");
       });
   }
 
   const [printingSaleId, setPrintingSaleId] = useState<string | null>(null);
 
-  async function handlePrintSale(saleId: string) {
+  // saleId keys the print-button spinner; token is the unguessable receipt lookup key.
+  async function handlePrintSale(saleId: string, token: string | null) {
+    if (!token) { toast.error("Receipt unavailable"); return; }
     setPrintingSaleId(saleId);
     try {
-      const res = await fetch(`/api/receipt/${saleId}`);
+      const res = await fetch(`/api/receipt/${token}`);
       if (!res.ok) { toast.error("Failed to load receipt"); return; }
       const r = await res.json();
 
@@ -681,13 +685,14 @@ export function SalesClient() {
                             <div className="flex gap-2 flex-wrap justify-end">
                               <Button size="sm" variant="outline"
                                 className="text-xs h-8"
-                                onClick={() => window.open(`/r/${sale.id}`, "_blank")}
+                                onClick={() => sale.receiptToken && window.open(`/r/${sale.receiptToken}`, "_blank")}
+                                disabled={!sale.receiptToken}
                               >
                                 <ExternalLink className="h-3 w-3 mr-1" /> View
                               </Button>
                               <Button size="sm" variant="outline"
                                 className="text-xs h-8"
-                                onClick={() => handlePrintSale(sale.id)}
+                                onClick={() => handlePrintSale(sale.id, sale.receiptToken)}
                                 disabled={printingSaleId === sale.id}
                               >
                                 {printingSaleId === sale.id
@@ -730,14 +735,14 @@ export function SalesClient() {
                               )}
                               <Button size="sm" variant="outline"
                                 className="text-xs h-8"
-                                onClick={() => copyReceiptLink(sale.id)}
+                                onClick={() => copyReceiptLink(sale.receiptToken)}
                               >
                                 <Link className="h-3 w-3 mr-1" /> Copy Link
                               </Button>
                               <Button size="sm" variant="outline"
                                 className="text-xs h-8 text-green-700 border-green-300 hover:bg-green-50 dark:text-green-400 dark:border-green-700 dark:hover:bg-green-900/20"
                                 onClick={() => {
-                                  const link = `${window.location.origin}/r/${sale.id}`;
+                                  const link = `${window.location.origin}/r/${sale.receiptToken}`;
                                   const msg = encodeURIComponent(`Here is your receipt: ${link}`);
                                   const phone = sale.customer?.phone
                                     ? toWhatsAppPhone(sale.customer.phone)

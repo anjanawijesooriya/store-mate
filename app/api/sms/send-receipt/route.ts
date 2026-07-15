@@ -25,11 +25,12 @@ export async function POST(req: NextRequest) {
       },
     });
     if (!sale) return apiError("Sale not found", 404);
+    if (!sale.receiptToken) return apiError("Receipt link is not available for this sale", 400);
 
     const recipientPhone = walkInPhone?.trim() || sale.customer?.phone;
     if (!recipientPhone) return apiError("No phone number — enter a number to send the receipt", 400);
 
-    const message = buildReceiptLinkMessage(shop.name, saleId);
+    const message = buildReceiptLinkMessage(shop.name, sale.receiptToken);
 
     const result = await sendSmsAndLog(shopId, recipientPhone, message, SmsType.RECEIPT, 1);
     if (!result.success) {

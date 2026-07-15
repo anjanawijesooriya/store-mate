@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
 
     await sendReceiptEmail(to, {
       saleId:        sale.id,
+      receiptToken:  sale.receiptToken,
       shopName:      shop.name,
       shopAddress:   shop.address,
       shopPhone:     shop.phone,

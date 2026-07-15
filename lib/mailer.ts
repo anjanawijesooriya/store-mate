@@ -113,6 +113,7 @@ export async function sendDailySummaryEmail(
 interface ReceiptItem { name: string; itemCode?: string | null; quantity: number; unit: string; unitPrice: number; lineTotal: number; warrantyPeriod?: string | null; }
 interface ReceiptData {
   saleId: string;
+  receiptToken?: string | null;
   shopName: string;
   shopAddress?: string | null;
   shopPhone?: string | null;
@@ -131,7 +132,8 @@ export async function sendReceiptEmail(to: string, data: ReceiptData, appUrl?: s
   const date = new Date(data.createdAt).toLocaleString("en-LK", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const ref = data.saleId.slice(-6).toUpperCase();
   const baseUrl = (appUrl || process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  const receiptUrl = baseUrl ? `${baseUrl}/r/${data.saleId}` : null;
+  // Link uses the unguessable receiptToken (capability URL), never the sale id.
+  const receiptUrl = baseUrl && data.receiptToken ? `${baseUrl}/r/${data.receiptToken}` : null;
 
   const itemRows = data.items.map((i) => `
     <tr>

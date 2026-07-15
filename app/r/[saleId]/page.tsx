@@ -22,10 +22,11 @@ const PAY_LABEL: Record<string, string> = {
 };
 
 export default async function ReceiptPage({ params }: { params: Promise<{ saleId: string }> }) {
-  const { saleId } = await params;
+  // The route segment is the unguessable receiptToken (capability URL), not the id.
+  const { saleId: receiptToken } = await params;
 
   const sale = await db.sale.findUnique({
-    where: { id: saleId },
+    where: { receiptToken },
     include: {
       shop: { select: { name: true, phone: true, address: true } },
       items: { include: { product: { select: { name: true, itemCode: true, unit: true } } }, orderBy: { id: "asc" as const } },
@@ -130,7 +131,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ saleId
         </div>
       </div>
 
-      <PrintButton saleId={saleId} shopName={sale.shop.name} />
+      <PrintButton saleId={receiptToken} shopName={sale.shop.name} />
     </div>
   );
 }

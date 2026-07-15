@@ -129,7 +129,7 @@ export function buildDailySummaryMessage(shopName: string, salesCount: number, r
   return `eStoreMate Daily Summary - ${shopName}\n\nToday: ${salesCount} sales, LKR ${revenue.toLocaleString()} revenue.\n\nPowered by Nexora Technologies.`;
 }
 
-export function buildReceiptLinkMessage(shopName: string, saleId: string): string {
+export function buildReceiptLinkMessage(shopName: string, receiptToken: string): string {
   const appUrl = (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  return `Receipt - ${shopName}\n\nView your receipt:\n${appUrl}/r/${saleId}\n\nThank you!`;
+  return `Receipt - ${shopName}\n\nView your receipt:\n${appUrl}/r/${receiptToken}\n\nThank you!`;
 }

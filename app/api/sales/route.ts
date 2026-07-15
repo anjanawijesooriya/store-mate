@@ -1,4 +1,5 @@
 ﻿import { NextRequest } from "next/server";
+import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { getShopId, getSession, apiError, apiUnauthorized, UnauthorizedError } from "@/lib/auth-helpers";
 import { PaymentMethod, SaleStatus } from "@/lib/generated/prisma/enums";
@@ -180,6 +181,7 @@ export async function POST(req: NextRequest) {
           cardFee,
           cardFeeRate,
           status: paymentMethod === "CREDIT" ? SaleStatus.PENDING_PAYMENT : SaleStatus.COMPLETED,
+          receiptToken: randomUUID(),
           items: {
             create: saleItems.map((i) => ({
               productId: i.productId,

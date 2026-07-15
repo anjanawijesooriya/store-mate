@@ -128,6 +128,7 @@ interface HeldCart {
 
 interface CompletedSale {
   id: string;
+  receiptToken?: string | null;
   subtotal: number;
   discount: number;
   total: number;
@@ -1238,6 +1239,7 @@ export function POSClient({
       const sale = data.sale;
       setCompletedSale({
         id: sale.id,
+        receiptToken: sale.receiptToken ?? null,
         subtotal,
         discount: discountAmt,
         total: Number(sale.total),
@@ -2235,7 +2237,7 @@ export function POSClient({
                     data-receipt-btn
                     variant="outline"
                     className="flex-1"
-                    onClick={() => window.open(`/r/${completedSale!.id}`, "_blank")}
+                    onClick={() => window.open(`/r/${completedSale!.receiptToken}`, "_blank")}
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Download PDF
@@ -2243,7 +2245,7 @@ export function POSClient({
                 )}
 
                 {!completedSale?.isOffline && (() => {
-                  const receiptLink = `${typeof window !== "undefined" ? window.location.origin : ""}/r/${completedSale!.id}`;
+                  const receiptLink = `${typeof window !== "undefined" ? window.location.origin : ""}/r/${completedSale!.receiptToken}`;
                   const waText = encodeURIComponent(`Here is your receipt: ${receiptLink}`);
                   const rawPhone = selectedCustomer?.phone ?? "";
                   const waPhone = rawPhone ? toWhatsAppPhone(rawPhone) : "";
