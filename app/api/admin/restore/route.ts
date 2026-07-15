@@ -64,7 +64,6 @@ function pickCustomerFields(r: AnyRecord) {
     phone:         r.phone ?? null,
     email:         r.email ?? null,
     address:       r.address ?? null,
-    note:          r.note ?? null,
     totalSpent:    r.totalSpent ?? 0,
     creditBalance: r.creditBalance ?? 0,
     createdAt:     r.createdAt ? new Date(r.createdAt) : undefined,
@@ -77,17 +76,19 @@ function pickProductFields(r: AnyRecord) {
     shopId:           r.shopId,
     name:             r.name,
     itemCode:         r.itemCode ?? null,
+    sku:              r.sku ?? null,
     category:         r.category ?? null,
-    unit:             r.unit ?? null,
+    unit:             r.unit ?? "pcs",
     sellPrice:        r.sellPrice ?? 0,
     costPrice:        r.costPrice ?? 0,
     stockQty:         r.stockQty ?? 0,
-    lowStockAt:       r.lowStockAt ?? null,
-    isActive:         r.isActive ?? true,
-    isService:        r.isService ?? false,
-    isWeighted:       r.isWeighted ?? false,
+    lowStockAt:       r.lowStockAt ?? 5,
+    imageUrl:         r.imageUrl ?? null,
     warrantyPeriod:   r.warrantyPeriod ?? null,
-    barcode:          r.barcode ?? null,
+    isWeighted:       r.isWeighted ?? false,
+    pluCode:          r.pluCode ?? null,
+    isService:        r.isService ?? false,
+    isActive:         r.isActive ?? true,
     createdAt:        r.createdAt ? new Date(r.createdAt) : undefined,
   };
 }
@@ -232,7 +233,12 @@ async function upsertAll(
       await fn(r);
       ok++;
     } catch (e) {
-      errors.push(`${label}: ${(e as Error).message?.slice(0, 120)}`);
+      // Prisma puts the actionable reason (e.g. "Unknown argument") at the END
+      // of a multi-line message that starts with a long file path — surface the
+      // last meaningful line instead of the truncated path.
+      const raw = (e as Error).message ?? String(e);
+      const reason = raw.split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? raw;
+      errors.push(`${label}: ${reason.slice(0, 160)}`);
     }
   }
   return ok;
