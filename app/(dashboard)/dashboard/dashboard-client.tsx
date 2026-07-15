@@ -1,7 +1,19 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Package, ShoppingCart, TrendingUp, AlertTriangle } from "lucide-react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import {
+  BarChart3,
+  Package,
+  ShoppingCart,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  X,
+} from "lucide-react";
 import { StatCard } from "@/components/shared/stat-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +36,9 @@ interface DashboardData {
   weekTotal: number;
   monthTotal: number;
   lowStockCount: number;
+  productCount: number;
+  allTimeSalesCount: number;
+  hasAddress: boolean;
   topProducts: Array<{
     productId: string;
     product?: { id: string; name: string; unit: string };
@@ -42,7 +57,110 @@ function formatDate(dateStr: string) {
   return d.toLocaleDateString("en-LK", { weekday: "short", month: "short", day: "numeric" });
 }
 
+const ONBOARDING_KEY = "storemate-onboarding-dismissed";
+
+function OnboardingCard({
+  hasProduct,
+  hasSale,
+  hasAddress,
+}: {
+  hasProduct: boolean;
+  hasSale: boolean;
+  hasAddress: boolean;
+}) {
+  const [dismissed, setDismissed] = useState(true);
+
+  useEffect(() => {
+    setDismissed(localStorage.getItem(ONBOARDING_KEY) === "1");
+  }, []);
+
+  const allDone = hasProduct && hasSale && hasAddress;
+
+  if (dismissed || allDone) return null;
+
+  const steps = [
+    {
+      done: hasProduct,
+      label: "Add your first product",
+      desc: "Go to Inventory → Add Product",
+      href: "/inventory",
+    },
+    {
+      done: hasSale,
+      label: "Make your first sale",
+      desc: "Head to the POS screen",
+      href: "/pos",
+    },
+    {
+      done: hasAddress,
+      label: "Add your shop address",
+      desc: "Update it in Settings",
+      href: "/settings",
+    },
+  ];
+
+  const doneCount = steps.filter((s) => s.done).length;
+
+  return (
+    <Card className="shadow-sm border-primary/20 bg-primary/5">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold text-primary">
+            Getting Started — {doneCount}/{steps.length} done
+          </CardTitle>
+          <button
+            onClick={() => {
+              localStorage.setItem(ONBOARDING_KEY, "1");
+              setDismissed(true);
+            }}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-1">
+          <div
+            className="h-full bg-primary rounded-full transition-all"
+            style={{ width: `${(doneCount / steps.length) * 100}%` }}
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2 pt-1">
+        {steps.map((step) => (
+          <Link key={step.href} href={step.done ? "#" : step.href}>
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-primary/10 transition-colors">
+              {step.done ? (
+                <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+              ) : (
+                <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+              )}
+              <div className="min-w-0">
+                <p
+                  className={`text-sm font-medium ${
+                    step.done
+                      ? "text-muted-foreground line-through"
+                      : "text-foreground"
+                  }`}
+                >
+                  {step.label}
+                </p>
+                {!step.done && (
+                  <p className="text-xs text-muted-foreground">{step.desc}</p>
+                )}
+              </div>
+            </div>
+          </Link>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function DashboardClient({ data }: { data: DashboardData }) {
+  const router = useRouter();
+  // Silently re-render server data on tab focus / every 30 s
+  useAutoRefresh(useCallback(() => router.refresh(), [router]));
+
   const chartData = data.weeklySalesChart.map((d) => ({
     ...d,
     label: formatDate(d.date),
@@ -55,7 +173,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         description="Your shop performance at a glance"
         action={
           <Link href="/pos">
-            <Button className="bg-[color:var(--cta)] hover:bg-[color:var(--cta)]/90 text-[color:var(--cta-foreground)] font-semibold">
+            <Button className="bg-[color:var(--cta)] hover:bg-[color:var(--cta)]/90 text-[color:var(--cta-foreground)] font-semibold shadow-sm hover:shadow-md transition-all">
               <ShoppingCart className="mr-2 h-4 w-4" />
               New Sale
             </Button>
@@ -63,10 +181,17 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         }
       />
 
-      {/* Low stock alert banner */}
+      {/* Onboarding checklist — only shown to new shops until dismissed */}
+      <OnboardingCard
+        hasProduct={data.productCount > 0}
+        hasSale={data.allTimeSalesCount > 0}
+        hasAddress={data.hasAddress}
+      />
+
+      {/* Low stock alert banner — only products with qty > 0 but below their threshold */}
       {data.lowStockCount > 0 && (
-        <Link href="/inventory?filter=low-stock">
-          <div className="flex items-center gap-3 rounded-lg border border-[color:var(--brand-warning)]/30 bg-[color:var(--brand-warning)]/10 px-4 py-3 cursor-pointer hover:bg-[color:var(--brand-warning)]/20 transition-colors">
+        <Link href="/inventory?filter=low-stock" className="block">
+          <div className="flex items-center gap-3 rounded-lg border border-[color:var(--brand-warning)]/40 bg-[color:var(--brand-warning)]/10 px-4 py-3 cursor-pointer hover:bg-[color:var(--brand-warning)]/20 transition-colors">
             <AlertTriangle className="h-5 w-5 text-[color:var(--brand-warning)] flex-shrink-0" />
             <p className="text-sm font-medium text-[color:var(--brand-warning)]">
               {data.lowStockCount} product{data.lowStockCount !== 1 ? "s" : ""} running low on stock — tap to restock
@@ -76,7 +201,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           title="Today's Revenue"
           value={formatLKR(data.today.total)}
@@ -106,9 +231,9 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Sales chart */}
-        <Card className="lg:col-span-2 shadow-sm">
+        <Card className="md:col-span-2 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold">Sales — Last 7 Days</CardTitle>
           </CardHeader>
@@ -122,20 +247,21 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
                   <XAxis
                     dataKey="label"
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
                     formatter={(v) => [formatLKR(Number(v ?? 0)), "Revenue"]}
-                    labelStyle={{ fontSize: 12 }}
-                    contentStyle={{ fontSize: 12, borderRadius: "8px" }}
+                    contentStyle={{ fontSize: 12, borderRadius: "8px", backgroundColor: "var(--card)", border: "1px solid var(--border)", color: "var(--card-foreground)" }}
+                    labelStyle={{ fontSize: 12, color: "var(--card-foreground)" }}
+                    itemStyle={{ color: "var(--card-foreground)" }}
                   />
                   <Bar
                     dataKey="total"
@@ -151,7 +277,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         {/* Top products */}
         <Card className="shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Top Products This Week</CardTitle>
+            <CardTitle className="text-base font-semibold">Top Products &amp; Services This Week</CardTitle>
           </CardHeader>
           <CardContent>
             {data.topProducts.length === 0 ? (
@@ -171,9 +297,12 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                         {p.totalQty} {p.product?.unit ?? "pcs"} sold
                       </p>
                     </div>
-                    <Badge variant="secondary" className="text-xs font-mono flex-shrink-0">
-                      {formatLKR(p.totalRevenue)}
-                    </Badge>
+                    <div className="flex flex-col items-end flex-shrink-0">
+                      <Badge variant="secondary" className="text-xs font-mono">
+                        {formatLKR(p.totalRevenue)}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground mt-0.5">gross</span>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -185,18 +314,18 @@ export function DashboardClient({ data }: { data: DashboardData }) {
       {/* Quick actions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { href: "/pos", label: "New Sale", icon: ShoppingCart },
-          { href: "/inventory/add", label: "Add Product", icon: Package },
-          { href: "/reports", label: "View Reports", icon: BarChart3 },
-          { href: "/customers", label: "Customers", icon: TrendingUp },
-        ].map(({ href, label, icon: Icon }) => (
+          { href: "/pos", label: "New Sale", icon: ShoppingCart, accent: "bg-primary/10 text-primary hover:bg-primary/15" },
+          { href: "/inventory", label: "Add Product", icon: Package, accent: "bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/15" },
+          { href: "/reports", label: "View Reports", icon: BarChart3, accent: "bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/15" },
+          { href: "/customers", label: "Customers", icon: TrendingUp, accent: "bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-500/15" },
+        ].map(({ href, label, icon: Icon, accent }) => (
           <Link key={href} href={href}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
-              <CardContent className="flex flex-col items-center justify-center py-5 gap-2">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Icon className="h-5 w-5 text-primary" />
+            <Card className="shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer h-full group">
+              <CardContent className="flex flex-col items-center justify-center py-5 gap-2.5">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${accent}`}>
+                  <Icon className="h-5 w-5" />
                 </div>
-                <p className="text-sm font-medium text-foreground text-center">{label}</p>
+                <p className="text-sm font-semibold text-foreground text-center">{label}</p>
               </CardContent>
             </Card>
           </Link>

@@ -45,7 +45,7 @@
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
 
-  /* StoreMate brand extras */
+  /* eStoreMate brand extras */
   --color-brand-success: var(--brand-success);
   --color-brand-warning: var(--brand-warning);
   --color-brand-danger: var(--brand-danger);
@@ -54,7 +54,7 @@
   --color-cta-foreground: var(--cta-foreground);
 }
 
-/* ===== StoreMate Design System — Light Mode ===== */
+/* ===== eStoreMate Design System — Light Mode ===== */
 :root {
   --radius: 0.625rem;
 
@@ -154,14 +154,14 @@
   --chart-4: oklch(0.70 0.15 95);
   --chart-5: oklch(0.65 0.01 0);
 
-  --sidebar: oklch(0.12 0.02 160);
-  --sidebar-foreground: oklch(0.90 0.02 156);
-  --sidebar-primary: oklch(0.72 0.15 156);
-  --sidebar-primary-foreground: oklch(0.10 0.02 160);
-  --sidebar-accent: oklch(0.20 0.04 158);
-  --sidebar-accent-foreground: oklch(0.90 0.02 156);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.72 0.15 156);
+  --sidebar: oklch(0.24 0.06 160);
+  --sidebar-foreground: oklch(0.95 0.02 156);
+  --sidebar-primary: oklch(0.62 0.15 156);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.32 0.08 158);
+  --sidebar-accent-foreground: oklch(0.95 0.02 156);
+  --sidebar-border: oklch(0.30 0.06 160);
+  --sidebar-ring: oklch(0.62 0.15 156);
 
   --brand-success: oklch(0.65 0.16 145);
   --brand-warning: oklch(0.72 0.15 70);
@@ -187,18 +187,33 @@
 /* ===== Print styles for 80mm thermal receipt ===== */
 @media print {
   @page {
-    margin: 0;
+    margin: 8mm;
     size: 80mm auto;
   }
-  body {
-    width: 80mm;
-    font-family: "Courier New", Courier, monospace;
-    font-size: 12px;
+  /* Hide everything on the page */
+  body * {
+    visibility: hidden !important;
+  }
+  /* Show only the receipt content area and all its children */
+  #receipt-print-area,
+  #receipt-print-area * {
+    visibility: visible !important;
+  }
+  /* Position the receipt at the top-left so it fills the page */
+  #receipt-print-area {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 80mm !important;
+    font-family: "Courier New", Courier, monospace !important;
+    font-size: 12px !important;
+    background: white !important;
+    color: black !important;
+    padding: 4mm !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
   .no-print {
     display: none !important;
-  }
-  .receipt-only {
-    display: block !important;
   }
 }

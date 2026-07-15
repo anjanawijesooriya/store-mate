@@ -34,12 +34,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const existing = await db.product.findFirst({ where: { id, shopId } });
     if (!existing) return apiError("Product not found", 404);
 
-    const { name, sku, category, unit, costPrice, sellPrice, lowStockAt, imageUrl } = body;
+    const { name, itemCode, sku, category, unit, costPrice, sellPrice, lowStockAt, imageUrl, warrantyPeriod, isService, isWeighted, pluCode } = body;
 
     const product = await db.product.update({
       where: { id },
       data: {
         ...(name && { name: name.trim() }),
+        ...(itemCode !== undefined && { itemCode: itemCode?.trim() || null }),
         ...(sku !== undefined && { sku: sku?.trim() || null }),
         ...(category !== undefined && { category: category?.trim() || null }),
         ...(unit && { unit }),
@@ -47,6 +48,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(sellPrice !== undefined && { sellPrice: parseFloat(sellPrice) }),
         ...(lowStockAt !== undefined && { lowStockAt: parseFloat(lowStockAt) }),
         ...(imageUrl !== undefined && { imageUrl }),
+        ...(warrantyPeriod !== undefined && { warrantyPeriod: warrantyPeriod?.trim() || null }),
+        ...(isService !== undefined && { isService: !!isService }),
+        ...(isWeighted !== undefined && { isWeighted: !!isWeighted }),
+        ...(pluCode !== undefined && { pluCode: pluCode?.trim() || null }),
       },
     });
 
@@ -65,8 +70,18 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const existing = await db.product.findFirst({ where: { id, shopId } });
     if (!existing) return apiError("Product not found", 404);
 
-    // Soft delete — preserve sales history
-    await db.product.update({ where: { id }, data: { isActive: false } });
+    const saleCount = await db.saleItem.count({ where: { productId: id } });
+
+    if (saleCount === 0) {
+      // No sales history — safe to hard delete (remove movements first to satisfy FK)
+      await db.$transaction([
+        db.stockMovement.deleteMany({ where: { productId: id } }),
+        db.product.delete({ where: { id } }),
+      ]);
+    } else {
+      // Has sales history — soft delete but clear SKU so it can be reused immediately
+      await db.product.update({ where: { id }, data: { isActive: false, itemCode: null, sku: null } });
+    }
 
     return Response.json({ success: true });
   } catch (err) {

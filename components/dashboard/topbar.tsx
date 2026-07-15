@@ -1,7 +1,12 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import { signOut } from "next-auth/react";
-import { Menu, LogOut, User, Bell } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Menu, LogOut, Bell, Settings,
+  Package, Users, CreditCard, MessageSquare, AlertTriangle, CheckCircle, Info, X, Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +17,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/theme-toggle";
+import type { NotificationItem } from "@/app/api/notifications/route";
 
 interface TopbarProps {
   userName: string;
@@ -19,69 +26,293 @@ interface TopbarProps {
   onMenuClick: () => void;
 }
 
+const TYPE_ICON: Record<NotificationItem["type"], React.ElementType> = {
+  low_stock: Package,
+  credit:    Users,
+  billing:   CreditCard,
+  sms:       MessageSquare,
+};
+
+const SEVERITY_STYLES: Record<NotificationItem["severity"], { icon: React.ElementType; iconClass: string; dotClass: string; bg: string }> = {
+  error:   { icon: AlertTriangle, iconClass: "text-destructive",   dotClass: "bg-destructive",   bg: "bg-destructive/5 border-destructive/20" },
+  warning: { icon: AlertTriangle, iconClass: "text-amber-500",     dotClass: "bg-amber-500",     bg: "bg-amber-50/60 border-amber-200/60 dark:bg-amber-500/5 dark:border-amber-500/20" },
+  info:    { icon: Info,          iconClass: "text-muted-foreground", dotClass: "bg-primary",    bg: "bg-card border-border" },
+};
+
 export function Topbar({ userName, shopName, onMenuClick }: TopbarProps) {
-  const initials = userName
+  const router = useRouter();
+  const [displayName, setDisplayName] = useState(userName);
+  const [displayShopName, setDisplayShopName] = useState(shopName);
+
+  // Sync if props change (e.g. session rehydration after refresh)
+  useEffect(() => { setDisplayName(userName); }, [userName]);
+  useEffect(() => { setDisplayShopName(shopName); }, [shopName]);
+
+  // Instant update from settings save — no session round-trip flash
+  useEffect(() => {
+    function handler(e: Event) {
+      const { name, shopName: sn } = (e as CustomEvent<{ name: string; shopName: string }>).detail;
+      if (name) setDisplayName(name);
+      if (sn)   setDisplayShopName(sn);
+    }
+    window.addEventListener("profile-updated", handler);
+    return () => window.removeEventListener("profile-updated", handler);
+  }, []);
+
+  const initials = displayName
     .split(" ")
     .map((n) => n[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
 
+  const NOTIF_ID_CAP = 200;
+
+  const [notifOpen, setNotifOpen]     = useState(false);
+  const [allFetched, setAllFetched]   = useState<NotificationItem[]>([]);
+  const [dismissed, setDismissed]     = useState<Set<string>>(new Set());
+  const [hasUnseen, setHasUnseen]     = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
+
+  // Visible = fetched minus dismissed
+  const notifications = allFetched.filter((n) => !dismissed.has(n.id));
+
+  function getSeenIds(): Set<string> {
+    try {
+      const raw = localStorage.getItem("notif-seen-ids");
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    } catch { return new Set(); }
+  }
+
+  function getDismissedIds(): Set<string> {
+    try {
+      const raw = localStorage.getItem("notif-dismissed-ids");
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    } catch { return new Set(); }
+  }
+
+  function saveDismissed(ids: Set<string>) {
+    try {
+      const arr = [...ids].slice(-NOTIF_ID_CAP);
+      localStorage.setItem("notif-dismissed-ids", JSON.stringify(arr));
+    } catch {}
+  }
+
+  function markAllSeen(items: NotificationItem[]) {
+    try {
+      localStorage.setItem("notif-seen-ids", JSON.stringify(items.map((n) => n.id).slice(-NOTIF_ID_CAP)));
+    } catch {}
+    setHasUnseen(false);
+  }
+
+  function dismissOne(id: string) {
+    const next = new Set(dismissed).add(id);
+    setDismissed(next);
+    saveDismissed(next);
+  }
+
+  function dismissAll() {
+    const next = new Set(allFetched.map((n) => n.id));
+    setDismissed(next);
+    saveDismissed(next);
+    setHasUnseen(false);
+  }
+
+  const fetchNotifications = useCallback(async (markSeen = false) => {
+    try {
+      const res = await fetch("/api/notifications", { cache: "no-store" });
+      if (!res.ok) return;
+      const data: { notifications: NotificationItem[]; total: number } = await res.json();
+      const items: NotificationItem[] = data.notifications ?? [];
+      const currentIds = new Set(items.map((n) => n.id));
+
+      // Prune dismissed IDs that no longer exist so re-appearing notifications show again
+      const rawDismissed = getDismissedIds();
+      const currentDismissed = new Set([...rawDismissed].filter((id) => currentIds.has(id)));
+      if (currentDismissed.size !== rawDismissed.size) saveDismissed(currentDismissed);
+
+      setAllFetched(items);
+      setDismissed(currentDismissed);
+
+      if (markSeen) {
+        markAllSeen(items);
+      } else {
+        // Prune seen IDs that no longer exist — so if a notification resolves and comes back
+        // it is treated as new rather than staying silently "seen" forever
+        const rawSeen = getSeenIds();
+        const prunedSeen = new Set([...rawSeen].filter((id) => currentIds.has(id)));
+        if (prunedSeen.size !== rawSeen.size) {
+          try { localStorage.setItem("notif-seen-ids", JSON.stringify([...prunedSeen])); } catch {}
+        }
+        setHasUnseen(items.some((n) => !prunedSeen.has(n.id) && !currentDismissed.has(n.id)));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Poll every 30 seconds
+  useEffect(() => {
+    fetchNotifications();
+    const id = setInterval(() => fetchNotifications(), 30_000);
+    return () => clearInterval(id);
+  }, [fetchNotifications]);
+
+  // Re-fetch immediately when the tab becomes visible (browsers throttle intervals in background)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") fetchNotifications(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchNotifications]);
+
+  async function handleBellOpen(open: boolean) {
+    setNotifOpen(open);
+    if (open) {
+      setNotifLoading(true);
+      await fetchNotifications(true);
+      setNotifLoading(false);
+    }
+  }
+
   return (
-    <header className="h-16 border-b border-border bg-card flex items-center px-4 gap-3 sticky top-0 z-10">
+    <header className="h-16 border-b border-border bg-card/80 backdrop-blur-sm flex items-center px-4 gap-2 sticky top-0 z-10">
       <Button
         variant="ghost"
         size="icon"
-        className="lg:hidden"
+        className="lg:hidden text-muted-foreground hover:text-foreground"
         onClick={onMenuClick}
         aria-label="Open menu"
       >
         <Menu className="h-5 w-5" />
       </Button>
 
-      <div className="flex-1">
-        <h2 className="text-sm font-medium text-muted-foreground hidden sm:block">{shopName}</h2>
+      {/* Shop name — left aligned */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground truncate hidden sm:block">{displayShopName}</p>
       </div>
 
-      <Button variant="ghost" size="icon" aria-label="Notifications">
-        <Bell className="h-5 w-5" />
-      </Button>
+      {/* Right controls */}
+      <div className="flex items-center gap-1">
+        <ThemeToggle />
 
-      <DropdownMenu>
-        <DropdownMenuTrigger render={
-          <button
-            className="h-9 w-9 rounded-full p-0 border-0 bg-transparent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="User menu"
-          >
-            <Avatar className="h-9 w-9 pointer-events-none">
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-          </button>
-        } />
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel className="font-normal">
-            <div className="flex flex-col space-y-1">
-              <p className="text-sm font-semibold">{userName}</p>
-              <p className="text-xs text-muted-foreground">{shopName}</p>
+        {/* Notification bell */}
+        <DropdownMenu open={notifOpen} onOpenChange={handleBellOpen}>
+          <DropdownMenuTrigger render={
+            <button
+              className="relative h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Notifications"
+            >
+              <Bell className="h-5 w-5" />
+              {hasUnseen && (
+                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-card" />
+              )}
+            </button>
+          } />
+          <DropdownMenuContent align="end" className="w-[min(360px,calc(100vw-1rem))] p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">Notifications</span>
+                {notifications.length > 0 && (
+                  <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    {notifications.length}
+                  </span>
+                )}
+              </div>
+              {notifications.length > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); dismissAll(); }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Clear all
+                </button>
+              )}
             </div>
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>
-            <User className="mr-2 h-4 w-4" />
-            Profile
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+
+            {notifLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-2">
+                <CheckCircle className="h-8 w-8 text-muted-foreground/40" />
+                <p className="text-sm font-medium text-muted-foreground">All clear!</p>
+                <p className="text-xs text-muted-foreground/60">No alerts right now.</p>
+              </div>
+            ) : (
+              <div className="overflow-y-auto max-h-[400px]">
+                <div className="p-2 space-y-1.5">
+                  {notifications.map((n) => {
+                    const TypeIcon = TYPE_ICON[n.type];
+                    const style = SEVERITY_STYLES[n.severity];
+                    return (
+                      <div
+                        key={n.id}
+                        className={`rounded-lg border flex items-start gap-3 transition-colors ${style.bg}`}
+                      >
+                        <button
+                          onClick={() => { setNotifOpen(false); router.push(n.href); }}
+                          className="flex-1 text-left px-3 py-2.5 flex items-start gap-3 hover:brightness-95 active:scale-[0.99] transition-all min-w-0"
+                        >
+                          <div className="mt-0.5 flex-shrink-0">
+                            <TypeIcon className={`h-4 w-4 ${style.iconClass}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-foreground leading-snug break-words">{n.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed break-words whitespace-normal">{n.body}</p>
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); dismissOne(n.id); }}
+                          className="p-2 mt-1 mr-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex-shrink-0"
+                          aria-label="Dismiss notification"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* User avatar menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={
+            <button
+              className="h-9 w-9 rounded-full p-0 border-0 bg-transparent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ml-1"
+              aria-label="User menu"
+            >
+              <Avatar className="h-9 w-9 pointer-events-none">
+                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-bold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+            </button>
+          } />
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-0.5 py-1">
+                <p className="text-sm font-semibold text-foreground">{displayName}</p>
+                <p className="text-xs text-muted-foreground">{displayShopName}</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push("/settings")}>
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }

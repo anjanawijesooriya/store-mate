@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   ShoppingCart,
   Package,
@@ -9,61 +10,137 @@ import {
   Users,
   Receipt,
   Settings,
-  Store,
   X,
+  ShieldCheck,
+  ClipboardList,
+  Zap,
+  Lock,
+  Briefcase,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-const navItems = [
-  { href: "/pos", label: "Point of Sale", icon: ShoppingCart },
-  { href: "/inventory", label: "Inventory", icon: Package },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/customers", label: "Customers", icon: Users },
-  { href: "/expenses", label: "Expenses", icon: Receipt },
-  { href: "/settings", label: "Settings", icon: Settings },
+const PRIMARY_ONLY = ["/dashboard", "/reports", "/expenses", "/payroll"];
+
+const ALWAYS_VISIBLE = [
+  { href: "/pos",       label: "Point of Sale",  icon: ShoppingCart },
+  { href: "/sales",     label: "Sales History",  icon: ClipboardList},
+  { href: "/inventory", label: "Inventory",      icon: Package      },
+  { href: "/reports",   label: "Reports",        icon: BarChart3    },
+  { href: "/settings",  label: "Settings",       icon: Settings     },
+];
+
+const PLAN_GATED = [
+  { href: "/customers", label: "Customers", icon: Users    },
+  { href: "/expenses",  label: "Expenses",  icon: Receipt  },
 ];
 
 interface SidebarProps {
   shopName: string;
+  planTier?: string;
+  isAdmin?: boolean;
+  isNonPrimary?: boolean;
   onClose?: () => void;
 }
 
-export function Sidebar({ shopName, onClose }: SidebarProps) {
+export function Sidebar({ shopName, planTier, isAdmin, isNonPrimary, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const [isOnline, setIsOnline] = useState(true);
+  const [payrollEnabled, setPayrollEnabled] = useState(false);
+  const [grnEnabled, setGrnEnabled]         = useState(false);
+  const isBasic = !planTier || planTier === "BASIC";
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const up   = () => setIsOnline(true);
+    const down = () => setIsOnline(false);
+    window.addEventListener("online",  up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online",  up);
+      window.removeEventListener("offline", down);
+    };
+  }, []);
+
+  useEffect(() => {
+    function checkFeatures() {
+      fetch("/api/shop/features")
+        .then((r) => r.ok ? r.json() : { payrollEnabled: false, grnEnabled: false })
+        .then((d) => {
+          setPayrollEnabled(d.payrollEnabled ?? false);
+          setGrnEnabled(d.grnEnabled ?? false);
+        })
+        .catch(() => {});
+    }
+
+    checkFeatures();
+
+    const onVisible = () => { if (document.visibilityState === "visible") checkFeatures(); };
+    document.addEventListener("visibilitychange", onVisible);
+    const interval = setInterval(checkFeatures, 30_000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(interval);
+    };
+  }, []);
 
   return (
-    <aside className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
+    <aside className="flex flex-col h-full bg-sidebar text-sidebar-foreground overflow-hidden">
       {/* Logo / shop name */}
-      <div className="flex items-center justify-between px-4 py-5 border-b border-sidebar-border">
+      <div className="flex items-start justify-between pb-2 border-b border-sidebar-border">
         <Link
-          href="/dashboard"
+          href={isNonPrimary ? "/pos" : "/dashboard"}
           onClick={onClose}
-          className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
+          className="flex flex-col min-w-0 flex-1 px-2 hover:opacity-80 transition-opacity"
         >
-          <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-            <Store className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-wider">StoreMate</p>
-            <p className="text-sm font-semibold text-sidebar-foreground truncate">{shopName}</p>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/eStoreMate.png"
+            alt="eStoreMate"
+            style={{
+              width: "100%",
+              maxWidth: 175,
+              height: "auto",
+              display: "block",
+              filter: "drop-shadow(0 0 8px rgba(255,255,255,0.5))",
+            }}
+          />
+          <p className="-mt-6 ml-4 text-sm font-semibold text-sidebar-foreground truncate leading-tight">{shopName}</p>
         </Link>
         {onClose && (
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden text-sidebar-foreground hover:bg-sidebar-accent -mr-2"
+            className="lg:hidden text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent -mr-2 h-8 w-8 mt-1 shrink-0"
             onClick={onClose}
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {/* Always visible */}
+        {ALWAYS_VISIBLE.map(({ href, label, icon: Icon }) => {
+          const restricted = isNonPrimary && PRIMARY_ONLY.includes(href);
+          if (restricted) {
+            return (
+              <div
+                key={href}
+                title="Primary device only"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/25 cursor-not-allowed select-none"
+              >
+                <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+                {label}
+                <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
+                  <Lock className="h-3 w-3" /> Primary
+                </span>
+              </div>
+            );
+          }
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
@@ -71,22 +148,168 @@ export function Sidebar({ shopName, onClose }: SidebarProps) {
               href={href}
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
                 active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
               )}
             >
-              <Icon className="h-5 w-5 flex-shrink-0" />
+              <Icon className={cn("h-[18px] w-[18px] flex-shrink-0", active ? "text-primary" : "")} />
               {label}
+              {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
             </Link>
           );
         })}
+
+        {/* Plan-gated items */}
+        {PLAN_GATED.map((item) => {
+          if (isNonPrimary && PRIMARY_ONLY.includes(item.href)) {
+            return (
+              <div
+                key={item.href}
+                title="Primary device only"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/25 cursor-not-allowed select-none"
+              >
+                <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
+                {item.label}
+                <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
+                  <Lock className="h-3 w-3" /> Primary
+                </span>
+              </div>
+            );
+          }
+          if (isBasic) {
+            return (
+              <div
+                key={item.href}
+                title="Upgrade to Standard to unlock"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/25 cursor-not-allowed select-none"
+              >
+                <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
+                {item.label}
+                <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
+                  <Lock className="h-3 w-3" /> Standard+
+                </span>
+              </div>
+            );
+          }
+          const active = pathname === item.href || pathname.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                active
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+              )}
+            >
+              <item.icon className={cn("h-[18px] w-[18px] flex-shrink-0", active ? "text-primary" : "")} />
+              {item.label}
+              {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+            </Link>
+          );
+        })}
+
+        {/* GRN — admin-enabled add-on */}
+        {grnEnabled && (
+          isNonPrimary ? (
+            <div
+              title="Primary device only"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/25 cursor-not-allowed select-none"
+            >
+              <ClipboardCheck className="h-[18px] w-[18px] flex-shrink-0" />
+              Receive Stock
+              <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
+                <Lock className="h-3 w-3" /> Primary
+              </span>
+            </div>
+          ) : (() => {
+            const active = pathname === "/grn" || pathname.startsWith("/grn/");
+            return (
+              <Link
+                href="/grn"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                  active
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+                )}
+              >
+                <ClipboardCheck className={cn("h-[18px] w-[18px] flex-shrink-0", active ? "text-primary" : "")} />
+                Receive Stock
+                {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+              </Link>
+            );
+          })()
+        )}
+
+        {/* Payroll — admin-enabled add-on */}
+        {payrollEnabled && (
+          isNonPrimary ? (
+            <div
+              title="Primary device only"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/25 cursor-not-allowed select-none"
+            >
+              <Briefcase className="h-[18px] w-[18px] flex-shrink-0" />
+              Payroll
+              <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-500/70">
+                <Lock className="h-3 w-3" /> Primary
+              </span>
+            </div>
+          ) : (
+            <Link
+              href="/payroll"
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                pathname === "/payroll" || pathname.startsWith("/payroll/")
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+              )}
+            >
+              <Briefcase className={cn("h-[18px] w-[18px] flex-shrink-0", pathname === "/payroll" || pathname.startsWith("/payroll/") ? "text-primary" : "")} />
+              Payroll
+              {(pathname === "/payroll" || pathname.startsWith("/payroll/")) && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+            </Link>
+          )
+        )}
       </nav>
 
-      {/* Bottom info */}
+      {/* Admin link */}
+      {isAdmin && (
+        <div className="px-3 pb-2">
+          <Link
+            href="/billing"
+            onClick={onClose}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+              pathname.startsWith("/billing")
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-sidebar-foreground/40 hover:bg-sidebar-accent/30 hover:text-sidebar-foreground"
+            )}
+          >
+            <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+            Admin Billing
+          </Link>
+        </div>
+      )}
+
+      {/* Bottom strip */}
       <div className="px-4 py-4 border-t border-sidebar-border">
-        <p className="text-xs text-sidebar-foreground/40 text-center">StoreMate v1.0</p>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-1">
+            <Zap className="h-3 w-3 text-primary/60" />
+            <p className="text-[10px] text-sidebar-foreground/30 font-medium">eStoreMate v1.0</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isOnline ? "bg-[color:var(--brand-success)] animate-pulse" : "bg-destructive"}`} />
+            <span className="text-[10px] text-sidebar-foreground/30">{isOnline ? "Online" : "Offline"}</span>
+          </div>
+        </div>
       </div>
     </aside>
   );

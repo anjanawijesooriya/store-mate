@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Roboto_Mono } from "next/font/google";
+import { Providers } from "@/components/providers";
 import "./globals.css";
 
 const inter = Inter({
@@ -16,15 +17,14 @@ const robotoMono = Roboto_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "StoreMate",
-    template: "%s | StoreMate",
+    default: "eStoreMate",
+    template: "%s | eStoreMate",
   },
-  description: "Smart shop management for Sri Lankan small businesses — POS, inventory, sales reports and more. Powered by StoreMate.",
-  manifest: "/manifest.json",
+  description: "Smart shop management for Sri Lankan small businesses — POS, inventory, sales reports and more. Powered by Nexora Technologies.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "StoreMate",
+    title: "eStoreMate",
   },
 };
 
@@ -43,7 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${robotoMono.variable} h-full`} suppressHydrationWarning>
       <body className="min-h-full bg-background text-foreground antialiased">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

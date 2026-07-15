@@ -884,5 +884,288 @@ A few hard-won lessons specific to building for Sri Lankan small retail:
 
 ---
 
-*End of guide. Suggested approach: treat each Phase as a one-to-two week sprint, and don't skip the "Exit Criteria" checklists — they exist specifically to stop scope creep from quietly turning a 12-week build into a 6-month one.*
+*End of original guide. Phases 0–8 are complete. The sections below document features built and decisions made during active development.*
+
+---
+
+## Implemented Features Reference
+
+This section records the actual features shipped, with implementation notes for future maintenance.
+
+---
+
+### Item Code Field
+
+**What it is:** An optional internal product code (`itemCode`) separate from the barcode/SKU. Useful for shops that assign their own reference numbers to products.
+
+**Schema:** `Product.itemCode String?` with a unique constraint per shop (`@@unique([shopId, itemCode])`).
+
+**Where it appears:**
+- Product add/edit form (optional field)
+- Inventory table column
+- POS cart item display
+- All receipt types: thermal print, on-screen modal, email body, shareable receipt page (`/r/[saleId]`)
+- Excel import/export template (second column)
+
+**Excel matching:** In Update mode, `itemCode` is the highest-priority identifier for matching existing products (itemCode → SKU → name fallback).
+
+---
+
+### Card Surcharge
+
+**What it is:** An optional percentage fee added to card payments. Common for shops that absorb card processing costs from their bank/payment gateway.
+
+**Schema fields on `Shop`:**
+```prisma
+cardSurchargeEnabled  Boolean  @default(false)
+cardSurchargeRate     Decimal  @default(0) @db.Decimal(5,4)  // e.g. 0.03 = 3%
+```
+
+**Schema fields on `Sale`:**
+```prisma
+cardFee     Decimal  @default(0) @db.Decimal(10,2)
+cardFeeRate Decimal  @default(0) @db.Decimal(5,4)
+```
+
+**How it works:**
+1. Admin enables it per-shop and sets the rate (e.g. 3%)
+2. In POS, when the cashier selects Card payment, a surcharge line appears: `Card fee (3%): LKR X`
+3. The total shown includes the fee
+4. On confirm, `cardFee` and `cardFeeRate` are stored on the Sale record (snapshot at time of sale)
+5. Receipts show the card fee as a separate line
+6. Reports include card fee revenue in P&L breakdown
+
+**Admin route:** `PATCH /api/admin/shops/[shopId]` — sets `cardSurchargeEnabled` and `cardSurchargeRate`.
+
+---
+
+### Inventory Alphabetical Ordering
+
+Products are always listed alphabetically regardless of when they were added.
+
+**Implementation (two layers):**
+1. **Database:** `ORDER BY LOWER(name) ASC` in raw SQL queries (low-stock list uses a raw query; standard list uses `orderBy: { name: 'asc' }`)
+2. **Client:** After every fetch, `setProducts((data.products ?? []).sort((a, b) => a.name.localeCompare(b.name)))` ensures consistent ordering regardless of DB collation
+
+**Why two layers:** PostgreSQL's default collation can sort case-sensitively (`A` before `a`), producing surprising results when product names mix case. `localeCompare` on the client is the reliable fallback.
+
+---
+
+### Excel Import — Update Existing Mode
+
+The import dialog has two modes toggled before uploading a file.
+
+**Add New Products (default):** Creates new product rows. Validates that required fields (Name, Cost Price, Sell Price) are present. Duplicate names/codes cause per-row errors.
+
+**Update Existing:** Updates fields on products that already exist. Only provided (non-blank) cells are written — blank cells are ignored, leaving those fields unchanged.
+
+**Matching priority:** itemCode → SKU → name (case-insensitive). If no match is found, the row is reported as an error.
+
+**API endpoint:** `POST /api/products/update`
+
+**Request body:**
+```typescript
+interface UpdateRow {
+  name?: string | null;
+  itemCode?: string | null;
+  sku?: string | null;
+  category?: string | null;
+  unit?: string | null;
+  costPrice?: number;
+  sellPrice?: number;
+  stockQty?: number;
+  lowStockAt?: number;
+  warrantyPeriod?: string | null;
+}
+```
+
+**Response:** `{ updated: number, errors: Array<{ row, identifier, reason }> }`
+
+---
+
+### Excel Import — BASIC Plan Hard Block
+
+When a BASIC-plan shop already has 500 or more products, the import API returns `403` immediately — no rows are processed.
+
+The import dialog detects the 403 and shows a special "Import blocked" screen (distinct from per-row errors) that tells the user to upgrade their plan.
+
+**Per-row partial capacity (STANDARD/PREMIUM):** If a shop is under the limit but the upload would exceed it, rows up to the limit are imported and remaining rows get a per-row `reason: "upgrade to import more"` message.
+
+---
+
+### Export Excel
+
+**Button:** "Export Excel" in the inventory header (left of "Import Excel").
+
+**Columns exported (same as import template):**
+`Name | Item Code | SKU/Barcode | Category | Unit | Cost Price | Sell Price | Stock Qty | Low Stock At | Warranty Period`
+
+**API:** Fetches `GET /api/products?limit=10000` and generates the file client-side using the XLSX library.
+
+**Filename:** `storemate-products-YYYY-MM-DD.xlsx`
+
+**Implementation file:** `app/(dashboard)/inventory/inventory-client.tsx` — `handleExport()` function.
+
+---
+
+### Google Drive Backup
+
+**Why Drive instead of email attachment:** JSON exports of a shop with significant history can exceed email attachment size limits (25 MB for Gmail). Drive has no practical size limit and keeps a browsable history.
+
+**Architecture:** OAuth2 user credentials (not a service account). The authorized user's Drive quota is used. The app never stores credentials beyond the refresh token.
+
+**Key env vars:**
+```
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+GOOGLE_REFRESH_TOKEN      # obtained via scripts/get-drive-token.js
+GOOGLE_DRIVE_FOLDER_ID    # parent folder ID visible in Drive URL
+```
+
+**Token setup:** `node scripts/get-drive-token.js` — starts a local HTTP server on port 9999, opens the OAuth consent URL, captures the authorization code, exchanges it for a refresh token, and prints it to the console. Run once; the token does not expire.
+
+**File format:** Gzip-compressed JSON (`.json.gz`). Compression ratio is typically 5–10×, reducing a 5 MB export to under 1 MB.
+
+**Drive folder structure:**
+```
+GOOGLE_DRIVE_FOLDER_ID/
+  daily/
+    storemate-backup-daily-YYYY-MM-DDTHH-MM-SS.json.gz
+  weekly/
+    storemate-backup-weekly-...json.gz
+  manual/
+    storemate-backup-manual-...json.gz
+```
+
+**Retention (auto-cleanup after every upload):**
+| Subfolder | Files kept |
+|---|---|
+| daily | 7 |
+| weekly | 4 |
+| manual | 5 |
+
+Files beyond the limit are permanently deleted (not trashed).
+
+**Fallback:** If Drive env vars are not set, the backup sends the JSON as an email attachment instead (original behaviour). If neither Drive nor SMTP is configured, `runBackup()` throws and logs a failure.
+
+**Key files:**
+- `lib/google-drive.ts` — `uploadToDrive()`, `isDriveConfigured()`, folder management, cleanup
+- `lib/backup.ts` — `runBackup()` orchestrates export → Drive/email → notification email → DB log
+- `app/(admin)/backup/` — admin UI to trigger and view backup history
+- `app/api/admin/backup/route.ts` — GET (history + config status) and POST (trigger backup)
+
+**Cron triggering:** External scheduler (GitHub Actions, cron-job.org) calls:
+```
+POST /api/admin/backup
+x-backup-secret: <BACKUP_CRON_SECRET>
+Content-Type: application/json
+{"type": "daily"}
+```
+
+**BackupLog schema:**
+```prisma
+model BackupLog {
+  id        String   @id @default(cuid())
+  type      String             // daily | weekly | manual
+  status    String             // success | failed
+  fileId    String?            // Drive file ID (Drive path only)
+  fileName  String?
+  fileSize  Int?               // compressed size in bytes
+  driveUrl  String?            // https://drive.google.com/file/d/...
+  error     String?
+  createdAt DateTime @default(now())
+}
+```
+
+---
+
+### Updated Database Schema
+
+The actual `schema.prisma` differs from the Phase 2/3 examples in this guide. Key additions beyond the original plan:
+
+**Shop model additions:**
+```prisma
+smsAddonEnabled        Boolean  @default(false)
+smsLowStock            Boolean  @default(true)
+smsDailySummary        Boolean  @default(true)
+smsReceiptEnabled      Boolean  @default(false)
+emailLowStock          Boolean  @default(true)
+emailDailySummary      Boolean  @default(true)
+emailReceiptEnabled    Boolean  @default(true)
+smsBalance             Decimal  @default(0)
+billingStatus          BillingStatus @default(TRIAL)
+gracePeriodEndsAt      DateTime?
+nextBillingDate        DateTime?
+maintenanceBanner      Boolean  @default(false)
+maintenanceBannerMessage String?
+cardSurchargeEnabled   Boolean  @default(false)
+cardSurchargeRate      Decimal  @default(0) @db.Decimal(5,4)
+branchModeEnabled      Boolean  @default(false)
+deviceLockEnabled      Boolean  @default(false)
+isLifetime             Boolean  @default(false)
+maintenanceDueDate     DateTime?
+maintenancePaidUntil   DateTime?
+shopGroupId            String?   // future multi-branch
+```
+
+**Product model additions:**
+```prisma
+itemCode        String?
+warrantyPeriod  String?
+isService       Boolean  @default(false)
+```
+
+**Sale model additions:**
+```prisma
+cardFee        Decimal  @default(0) @db.Decimal(10,2)
+cardFeeRate    Decimal  @default(0) @db.Decimal(5,4)
+originalSaleId String?   // for exchange flow
+```
+
+**SaleItem additions:**
+```prisma
+returned  Boolean  @default(false)
+```
+
+**New enums:**
+```prisma
+enum BillingStatus { TRIAL ACTIVE GRACE LOCKED }
+enum SaleStatus    { COMPLETED PENDING_PAYMENT EXCHANGED REFUNDED VOIDED }
+enum MovementType  { SALE RESTOCK ADJUSTMENT RETURN DAMAGE }
+enum ShopCategory  { GROCERY SUPERMARKET PHARMACY CLOTHING FASHION_ACCESSORIES
+                     HARDWARE MOBILE_PHONES ELECTRONICS SALON FOOD_BEVERAGE
+                     STATIONERY FURNITURE JEWELLERY OTHER }
+```
+
+**New models:**
+- `DeviceSession` — tracks devices for device-lock / branch-mode features
+- `Payment` — subscription payment records
+- `MaintenancePayment` — annual maintenance payment records for lifetime-plan shops
+- `BackupLog` — history of all backup runs
+- `SmsLog` — record of every SMS sent per shop
+- `ShopGroup` — future multi-branch grouping (nullable; existing shops unaffected)
+- `PasswordResetToken` — OTP-based password reset flow
+
+---
+
+### Receipt Chain
+
+A sale receipt flows through four paths, all reading from the same source:
+
+```
+POS cart
+  └── POST /api/sales → Sale + SaleItems in DB
+
+Receipt paths:
+  1. Print (thermal)   — pos-client.tsx itemsHtml string, window.print()
+  2. On-screen modal   — pos-client.tsx receiptItems state rendered as JSX
+  3. Email             — POST /api/email/send-receipt → lib/mailer.ts sendReceiptEmail()
+  4. Shareable link    — /r/[saleId]/page.tsx fetches GET /api/receipt/[saleId]
+```
+
+Every path must include `itemCode` — the field is selected from the product relation and mapped in each API route and component.
+
+---
+
+*End of guide.*
 

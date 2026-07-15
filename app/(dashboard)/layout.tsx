@@ -1,18 +1,68 @@
 "use client";
 
-import { useState } from "react";
-import { useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
+import { BillingBanner } from "@/components/dashboard/billing-banner";
+import { MaintenanceBanner } from "@/components/dashboard/maintenance-banner";
+import { OfflineBanner } from "@/components/shared/offline-banner";
+import { PwaRegister } from "@/components/shared/pwa-register";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionProvider } from "next-auth/react";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isNonPrimary, setIsNonPrimary] = useState(false);
 
-  if (status === "loading") {
+  useEffect(() => {
+    if (status !== "authenticated") return;
+
+    const checkAccess = () => {
+      fetch("/api/shop/device-access")
+        .then((r) => r.ok ? r.json() : { deviceLockEnabled: false, isPrimary: true })
+        .then(({ deviceLockEnabled, isPrimary }) => {
+          setIsNonPrimary(deviceLockEnabled && !isPrimary);
+        })
+        .catch(() => {});
+    };
+
+    checkAccess();
+
+    // Re-check when this device just set itself as primary
+    window.addEventListener("branch-access-changed", checkAccess);
+    // Poll every 60s to catch remote changes (admin or another device changing primary)
+    const interval = setInterval(checkAccess, 60_000);
+
+    return () => {
+      window.removeEventListener("branch-access-changed", checkAccess);
+      clearInterval(interval);
+    };
+  }, [status]);
+
+  // Global interceptor: sign out immediately if any API returns device_revoked
+  useEffect(() => {
+    const original = window.fetch;
+    window.fetch = async (...args) => {
+      const res = await original(...args);
+      if (res.status === 401) {
+        try {
+          const clone = res.clone();
+          const data = await clone.json();
+          if (data?.reason === "device_revoked") {
+            signOut({ callbackUrl: "/login?reason=device_revoked" });
+          }
+        } catch { /* ignore */ }
+      }
+      return res;
+    };
+    return () => { window.fetch = original; };
+  }, []);
+
+  // Only block on initial load — not on session refreshes (e.g. updateSession calls)
+  if (!session && status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -24,8 +74,12 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     redirect("/login");
   }
 
-  const shopName = session?.user?.shopName ?? "My Shop";
-  const userName = session?.user?.name ?? "User";
+  const shopName  = session?.user?.shopName ?? "My Shop";
+  const userName  = session?.user?.name ?? "User";
+  const planTier  = session?.user?.planTier;
+  const adminPhone = process.env.NEXT_PUBLIC_ADMIN_PHONE;
+  const isAdmin = !!adminPhone && !!session?.user?.phone &&
+    session.user.phone.replace(/\D/g, "") === adminPhone.replace(/\D/g, "");
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -46,6 +100,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       >
         <Sidebar
           shopName={shopName}
+          planTier={planTier}
+          isAdmin={isAdmin}
+          isNonPrimary={isNonPrimary}
           onClose={() => setSidebarOpen(false)}
         />
       </div>
@@ -57,12 +114,16 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           shopName={shopName}
           onMenuClick={() => setSidebarOpen(true)}
         />
+        <MaintenanceBanner />
+        <BillingBanner />
+        <OfflineBanner />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           {children}
         </main>
       </div>
 
       <Toaster richColors position="top-right" />
+      <PwaRegister />
     </div>
   );
 }

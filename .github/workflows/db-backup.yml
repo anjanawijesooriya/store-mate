@@ -1,0 +1,53 @@
+name: Database Backup
+
+on:
+  schedule:
+    # Daily backup — every day at 2:00 AM UTC
+    - cron: "0 2 * * *"
+    # Weekly backup — every Sunday at 3:00 AM UTC
+    - cron: "0 3 * * 0"
+  # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      type:
+        description: "Backup type"
+        required: true
+        default: "manual"
+        type: choice
+        options: [manual, daily, weekly]
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine backup type
+        id: type
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ github.event.inputs.type }}" >> $GITHUB_OUTPUT
+          elif [ "$(date +%u)" = "7" ]; then
+            echo "type=weekly" >> $GITHUB_OUTPUT
+          else
+            echo "type=daily" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger backup
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.APP_URL }}/api/admin/backup" \
+            -H "Content-Type: application/json" \
+            -H "x-backup-secret: ${{ secrets.BACKUP_CRON_SECRET }}" \
+            -d '{"type": "${{ steps.type.outputs.type }}"}')
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Backup failed with status $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "Backup succeeded!"
