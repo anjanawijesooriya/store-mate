@@ -70,9 +70,15 @@ function buildHtml(data: ReceiptData, saleId: string): string {
     .footer { text-align: center; margin-top: 16px; }
     .footer p { font-size: 12px; color: #555; font-weight: 600; }
     .footer small { font-size: 10px; color: #bbb; display: block; margin-top: 3px; }
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
     @media print {
+      html, body { width: 80mm; }
       body { margin: 0; }
-      .page { padding: 16px; }
+      .page { max-width: 80mm; width: 80mm; padding: 3mm 3mm; margin: 0; }
+      .header { margin: -3mm -3mm 10px; border-radius: 0; }
     }
   </style>
 </head>
