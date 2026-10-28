@@ -60,6 +60,7 @@ import {
   type CachedVariant,
 } from "@/lib/offline-db";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
+import { buildReceiptHtml, printReceiptHtml } from "@/lib/receipt-print";
 
 interface Customer {
   id: string;
@@ -865,81 +866,25 @@ export function POSClient({
     const shop  = shopInfo?.name     || session?.user?.shopName || "";
     const addr  = shopInfo?.address  || "";
     const phone = shopInfo?.phone    || (session?.user as { phone?: string })?.phone || "";
-    const payLabel: Record<string, string> = { CASH: "Cash", CARD: "Card", ONLINE: "Online", CREDIT: "Credit" };
 
-    const itemsHtml = completedSale.items.map((it) => `
-      <div style="display:flex;justify-content:space-between;margin-top:6px;">
-        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:6px;">${it.name}</span>
-        <span style="flex-shrink:0;font-weight:600;">${formatLKR(it.lineTotal)}</span>
-      </div>
-      ${it.itemCode ? `<div style="font-size:11px;color:#555;">Code: ${it.itemCode}</div>` : ""}
-      <div style="font-size:11px;color:#555;">${it.quantity} ${it.unit} × ${formatLKR(it.unitPrice)}</div>
-      ${it.warrantyPeriod ? `<div style="font-size:11px;color:#555;">Warranty: ${it.warrantyPeriod}</div>` : ""}
-    `).join("");
+    const html = buildReceiptHtml({
+      shopName: shop,
+      shopAddress: addr,
+      shopPhone: phone,
+      customerName: selectedCustomer?.name ?? null,
+      paymentMethod: completedSale.paymentMethod,
+      subtotal: completedSale.subtotal,
+      discount: completedSale.discount,
+      total: completedSale.total,
+      amountPaid: completedSale.amountPaid,
+      createdAt: completedSale.createdAt,
+      items: completedSale.items,
+      refCode: completedSale.id.slice(-6).toUpperCase(),
+    });
 
-    const discountHtml = completedSale.discount > 0 ? `
-      <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
-        <span>Subtotal</span><span>${formatLKR(completedSale.subtotal)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;color:#16a34a;font-size:12px;">
-        <span>Discount</span><span>- ${formatLKR(completedSale.discount)}</span>
-      </div>` : "";
-
-    const cashHtml = completedSale.paymentMethod === "CASH" && completedSale.amountPaid >= completedSale.total ? `
-      <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
-        <span>Tendered</span><span>${formatLKR(completedSale.amountPaid)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
-        <span>Change</span><span>${formatLKR(completedSale.amountPaid - completedSale.total)}</span>
-      </div>` : "";
-
-    const creditHtml = completedSale.paymentMethod === "CREDIT" ? `
-      <div style="display:flex;justify-content:space-between;color:#dc2626;font-weight:500;font-size:12px;">
-        <span>Amount Due (on credit)</span><span>${formatLKR(completedSale.total)}</span>
-      </div>` : "";
-
-    const html = `<!DOCTYPE html><html><head>
-<meta charset="utf-8"><title>Receipt</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Courier New',monospace;font-size:12px;color:#111;background:white;padding:12px;max-width:320px;margin:0 auto;}
-  .divider{border:none;border-top:1px dashed #999;margin:8px 0;}
-  @media print{body{padding:0;}}
-</style>
-</head><body>
-  <div style="text-align:center;">
-    <div style="font-size:15px;font-weight:bold;margin-bottom:2px;">${shop}</div>
-    ${addr  ? `<div style="font-size:11px;color:#555;">${addr}</div>` : ""}
-    ${phone ? `<div style="font-size:11px;color:#555;">Tel: ${phone}</div>` : ""}
-  </div>
-  <hr class="divider">
-  <div style="display:flex;justify-content:space-between;font-size:11px;color:#555;">
-    <span>${new Date(completedSale.createdAt).toLocaleString("en-LK",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
-    <span>#${completedSale.id.slice(-6).toUpperCase()}</span>
-  </div>
-  ${selectedCustomer ? `<div style="font-size:11px;color:#555;margin-top:4px;">Customer: ${selectedCustomer.name}</div>` : ""}
-  <hr class="divider">
-  ${itemsHtml}
-  <hr class="divider">
-  ${discountHtml}
-  <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin:4px 0;">
-    <span>Total</span><span style="color:#16a34a;">${formatLKR(completedSale.total)}</span>
-  </div>
-  <div style="display:flex;justify-content:space-between;color:#555;font-size:12px;">
-    <span>Payment</span><span style="color:#111;font-weight:500;">${payLabel[completedSale.paymentMethod] ?? completedSale.paymentMethod}</span>
-  </div>
-  ${cashHtml}${creditHtml}
-  <hr class="divider">
-  <div style="text-align:center;font-weight:bold;margin-top:4px;">Thank you — Come again!</div>
-  <div style="text-align:center;font-size:11px;color:#555;">Please keep this receipt for your records.</div>
-</body></html>`;
-
-    const w = window.open("", "_blank", "width=380,height=600");
-    if (!w) return;
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); w.close(); }, 300);
+    if (!printReceiptHtml(html)) {
+      toast.error("Allow pop-ups to print the receipt");
+    }
   }
 
   async function sendEmailReceipt(overrideEmail?: string) {
