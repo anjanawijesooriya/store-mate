@@ -880,6 +880,7 @@ export function POSClient({
       createdAt: completedSale.createdAt,
       items: completedSale.items,
       refCode: completedSale.id.slice(-6).toUpperCase(),
+      showHeaderBanner: false,
     });
 
     if (!printReceiptHtml(html)) {

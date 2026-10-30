@@ -34,6 +34,10 @@ export interface ReceiptPrintData {
   createdAt: string | Date;
   items: ReceiptPrintItem[];
   refCode: string;
+  /** Show the green "Cash · Confirmed / LKR total" banner at the top.
+   *  Useful on-screen (PDF/web receipt) but redundant on the physical
+   *  thermal paper, where the total already appears at the bottom. */
+  showHeaderBanner?: boolean;
 }
 
 const PAY_LABEL: Record<string, string> = {
@@ -45,6 +49,7 @@ function fmt(n: number) {
 }
 
 export function buildReceiptHtml(data: ReceiptPrintData): string {
+  const showHeaderBanner = data.showHeaderBanner ?? true;
   const date = new Date(data.createdAt).toLocaleString("en-LK", {
     day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
@@ -98,10 +103,11 @@ export function buildReceiptHtml(data: ReceiptPrintData): string {
 </head>
 <body>
   <div class="page">
+    ${showHeaderBanner ? `
     <div class="header">
       <div class="pay">${escHtml(PAY_LABEL[data.paymentMethod] ?? data.paymentMethod)} · Confirmed</div>
       <div class="total">${fmt(data.total)}</div>
-    </div>
+    </div>` : ""}
 
     <p class="shop-name">${escHtml(data.shopName)}</p>
     ${data.shopAddress ? `<p class="shop-sub">${escHtml(data.shopAddress)}</p>` : ""}
