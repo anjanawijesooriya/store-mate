@@ -22,26 +22,29 @@ async function getDashboardData(shopId: string) {
     topProductsRaw, weeklySalesChart,
     lowStockCount, productCount, allTimeSalesCount, shop,
   ] = await Promise.all([
+    // Revenue cards key off completedAt (when paid), not createdAt (when
+    // made) — so a credit sale settled today counts toward today's revenue
+    // even if the customer originally borrowed the item last week.
     db.sale.aggregate({
-      where: { shopId, createdAt: { gte: todayStart }, status: "COMPLETED" },
+      where: { shopId, completedAt: { gte: todayStart }, status: "COMPLETED" },
       _sum: { total: true },
       _count: { id: true },
     }),
     db.sale.aggregate({
       where: {
         shopId,
-        createdAt: { gte: yesterdayStart, lt: todayStart },
+        completedAt: { gte: yesterdayStart, lt: todayStart },
         status: "COMPLETED",
       },
       _sum: { total: true },
       _count: { id: true },
     }),
     db.sale.aggregate({
-      where: { shopId, createdAt: { gte: weekStart }, status: "COMPLETED" },
+      where: { shopId, completedAt: { gte: weekStart }, status: "COMPLETED" },
       _sum: { total: true },
     }),
     db.sale.aggregate({
-      where: { shopId, createdAt: { gte: monthStart }, status: "COMPLETED" },
+      where: { shopId, completedAt: { gte: monthStart }, status: "COMPLETED" },
       _sum: { total: true },
     }),
     // Join with Product to get name + unit in one query — no extra round-trip
@@ -56,7 +59,7 @@ async function getDashboardData(shopId: string) {
       JOIN "Sale"    s ON si."saleId"    = s.id
       JOIN "Product" p ON si."productId" = p.id
       WHERE s."shopId"    = ${shopId}
-        AND s."createdAt" >= ${weekStart}
+        AND s."completedAt" >= ${weekStart}
         AND s.status = 'COMPLETED'
       GROUP BY si."productId", p.name, p.unit
       ORDER BY revenue DESC
@@ -70,14 +73,14 @@ async function getDashboardData(shopId: string) {
     // the GROUP BY expression to the SELECT expression (error 42803).
     db.$queryRaw<Array<{ date: string; total: number; count: number }>>`
       SELECT
-        DATE(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo') AS date,
+        DATE(("completedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo') AS date,
         COALESCE(SUM(total), 0)::float AS total,
         COUNT(id)::int AS count
       FROM "Sale"
       WHERE "shopId" = ${shopId}
-        AND "createdAt" >= ${weekStart}
+        AND "completedAt" >= ${weekStart}
         AND status = 'COMPLETED'
-      GROUP BY DATE(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')
+      GROUP BY DATE(("completedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')
       ORDER BY date ASC
     `,
     // Count products where stockQty is between 1 and their own lowStockAt threshold

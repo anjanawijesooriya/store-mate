@@ -181,6 +181,9 @@ export async function POST(req: NextRequest) {
           cardFee,
           cardFeeRate,
           status: paymentMethod === "CREDIT" ? SaleStatus.PENDING_PAYMENT : SaleStatus.COMPLETED,
+          // CREDIT sales aren't paid off yet — completedAt is set later, when
+          // the final installment settles them (see customers/[id] record_payment).
+          completedAt: paymentMethod === "CREDIT" ? null : new Date(),
           receiptToken: randomUUID(),
           items: {
             create: saleItems.map((i) => ({

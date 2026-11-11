@@ -221,6 +221,7 @@ export async function POST(
           paymentMethod: paymentMethod as PaymentMethod,
           amountPaid: isCredit ? 0 : Number(amountPaid),
           status: isCredit && netTotal > 0 ? SaleStatus.PENDING_PAYMENT : SaleStatus.COMPLETED,
+          completedAt: isCredit && netTotal > 0 ? null : new Date(),
           receiptToken: randomUUID(),
           items: {
             create: newItems.map((i) => ({

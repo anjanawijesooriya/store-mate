@@ -51,8 +51,12 @@ export async function GET(req: NextRequest) {
 
     const [summaryAgg, cogsAgg, topProductsRaw, salesByDayRaw, salesByPaymentRaw, hourlyData, payrollAgg, expensesAgg] =
       await Promise.all([
+        // Profit/revenue is recognized on completedAt (when the money was
+        // actually collected) rather than createdAt (when the sale was made),
+        // so a credit sale settled weeks later shows up in the period it was
+        // paid off, not the period it was borrowed in.
         db.sale.aggregate({
-          where: { shopId, createdAt: { gte: from, lte: to }, status: "COMPLETED" },
+          where: { shopId, completedAt: { gte: from, lte: to }, status: "COMPLETED" },
           _sum: { total: true, cardFee: true },
           _count: { id: true },
         }),
@@ -63,8 +67,8 @@ export async function GET(req: NextRequest) {
           JOIN "Sale"    s ON si."saleId"    = s.id
           JOIN "Product" p ON si."productId" = p.id
           WHERE s."shopId"    = ${shopId}
-            AND s."createdAt" >= ${from}
-            AND s."createdAt" <= ${to}
+            AND s."completedAt" >= ${from}
+            AND s."completedAt" <= ${to}
             AND s.status = 'COMPLETED'
             AND si.returned = false
         `,
@@ -79,8 +83,8 @@ export async function GET(req: NextRequest) {
           JOIN "Sale"    s ON si."saleId"    = s.id
           JOIN "Product" p ON si."productId" = p.id
           WHERE s."shopId"    = ${shopId}
-            AND s."createdAt" >= ${from}
-            AND s."createdAt" <= ${to}
+            AND s."completedAt" >= ${from}
+            AND s."completedAt" <= ${to}
             AND s.status = 'COMPLETED'
             AND si.returned = false
           GROUP BY si."productId", p.name
@@ -90,35 +94,35 @@ export async function GET(req: NextRequest) {
         // salesByDay uses Asia/Colombo local date — matches dashboard bucketing
         db.$queryRaw<Array<{ date: string; revenue: number; count: number }>>`
           SELECT
-            DATE(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')::text AS date,
-            COALESCE(SUM(total), 0)::float                                           AS revenue,
-            COUNT(id)::int                                                           AS count
+            DATE(("completedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')::text AS date,
+            COALESCE(SUM(total), 0)::float                                             AS revenue,
+            COUNT(id)::int                                                             AS count
           FROM "Sale"
           WHERE "shopId"    = ${shopId}
-            AND "createdAt" >= ${from}
-            AND "createdAt" <= ${to}
+            AND "completedAt" >= ${from}
+            AND "completedAt" <= ${to}
             AND status = 'COMPLETED'
-          GROUP BY DATE(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')
+          GROUP BY DATE(("completedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')
           ORDER BY date ASC
         `,
         db.sale.groupBy({
           by: ["paymentMethod"],
-          where: { shopId, createdAt: { gte: from, lte: to }, status: "COMPLETED" },
+          where: { shopId, completedAt: { gte: from, lte: to }, status: "COMPLETED" },
           _sum: { total: true },
           _count: { id: true },
         }),
         // hourlyData uses Asia/Colombo local hours — avoids 5.5h shift on the chart
         db.$queryRaw<Array<{ hour: number; revenue: number; count: number }>>`
           SELECT
-            EXTRACT(HOUR FROM ("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')::int AS hour,
+            EXTRACT(HOUR FROM ("completedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')::int AS hour,
             COALESCE(SUM(total), 0)::float AS revenue,
             COUNT(id)::int                 AS count
           FROM "Sale"
           WHERE "shopId" = ${shopId}
-            AND "createdAt" >= ${from}
-            AND "createdAt" <= ${to}
+            AND "completedAt" >= ${from}
+            AND "completedAt" <= ${to}
             AND status = 'COMPLETED'
-          GROUP BY EXTRACT(HOUR FROM ("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')
+          GROUP BY EXTRACT(HOUR FROM ("completedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Colombo')
           ORDER BY hour ASC
         `,
         db.payrollRecord.aggregate({

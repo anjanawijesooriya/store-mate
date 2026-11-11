@@ -120,7 +120,7 @@ export async function PATCH(
             where: { id: sale.id },
             data: {
               amountPaid: newAmountPaid,
-              ...(fullySettled && { status: SaleStatus.COMPLETED }),
+              ...(fullySettled && { status: SaleStatus.COMPLETED, completedAt: new Date() }),
             },
           });
 

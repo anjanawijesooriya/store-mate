@@ -371,9 +371,15 @@ model Sale {
   exchanges      Sale[]        @relation("ExchangeOf")
   receiptToken   String?       @unique
   createdAt      DateTime      @default(now())
+  // When this sale was fully paid off — equals createdAt for CASH/CARD/ONLINE
+  // sales (paid in full immediately). For CREDIT sales it's null until the
+  // final installment settles it, so revenue/profit reports can recognize
+  // the sale on the date it was actually paid, not the date it was borrowed.
+  completedAt    DateTime?
 
   @@index([shopId, createdAt])
   @@index([shopId, status, createdAt])
+  @@index([shopId, completedAt])
   @@index([customerId])
   @@index([originalSaleId])
 }
